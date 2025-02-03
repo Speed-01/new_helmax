@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Variant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for dropdown */
+        .custom-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+        }
+    </style>
+</head>
+<body class="bg-[#0A0A0A] text-gray-200">
+    <div class="p-6 space-y-6">
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
+            Edit Variant
+        </h1>
+
+        <div class="mb-6">
+            <label for="variantSelect" class="block text-sm font-medium text-gray-300 mb-2">Select Variant</label>
+            <select id="variantSelect" class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent custom-select">
+                <option value="">Select a variant</option>
+                {% for v in product.variants.all %}
+                    <option value="{{ v.id }}" {% if v.id == variant.id %}selected{% endif %}>
+                        {{ v.color }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <form id="editVariantForm" class="space-y-6" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="space-y-2">
+                <label for="color" class="text-sm font-medium text-gray-300">Color</label>
+                <input
+                    id="color"
+                    name="color"
+                    type="text"
+                    value="{{ variant.color }}"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                >
+            </div>
+
+            <div class="space-y-2">
+                <label for="price" class="text-sm font-medium text-gray-300">Price</label>
+                <input
+                    id="price"
+                    name="price"
+                    type="number"
+                    value="{{ variant.price }}"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                >
+            </div>
+
+            <div class="space-y-2">
+                <label for="discount_price" class="text-sm font-medium text-gray-300">Discount Price</label>
+                <input
+                    id="discount_price"
+                    name="discount_price"
+                    type="number"
+                    value="{{ variant.discount_price }}"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                >
+            </div>
+
+            <div class="space-y-2">
+                <label for="stock" class="text-sm font-medium text-gray-300">Stock</label>
+                <input
+                    id="stock"
+                    name="stock"
+                    type="number"
+                    value="{{ variant.stock }}"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                >
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-sm font-medium text-gray-300">Sizes</label>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {% for size in all_sizes %}
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" name="sizes" value="{{ size }}" 
+                                   {% if size in existing_sizes %}checked{% endif %}
+                                   class="rounded bg-[#1A1A1A] border-[#2A2A2A] text-yellow-500 focus:ring-yellow-500">
+                            <span class="ml-2 text-gray-300">{{ size }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-sm font-medium text-gray-300">Current Images</label>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {% for image in existing_images %}
+                        <div class="relative">
+                            <img src="{{ image.image.url }}" alt="Product variant image" 
+                                 class="w-full h-32 object-cover rounded-md">
+                            {% if image.is_primary %}
+                                <span class="absolute top-0 right-0 bg-yellow-500 text-black px-2 py-1 text-xs rounded-bl-md">Primary</span>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label for="images" class="text-sm font-medium text-gray-300">Upload New Images</label>
+                <input
+                    id="images"
+                    name="images"
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                >
+                <p class="text-sm text-gray-400">Upload new images to replace the existing ones</p>
+            </div>
+
+            <div class="flex justify-between items-center">
+                <form action="{% url 'toggleVariant' variant.id %}" method="POST" class="inline-flex">
+                    {% csrf_token %}
+                    <button type="submit" 
+                            class="px-4 py-2 {% if variant.is_active %}bg-red-600 hover:bg-red-700{% else %}bg-green-600 hover:bg-green-700{% endif %} text-white rounded-md transition-colors duration-200">
+                        {% if variant.is_active %}Block{% else %}Unblock{% endif %} Variant
+                    </button>
+                </form>
+                <div class="flex space-x-4">
+                    <a href="{% url 'adminProducts' %}" class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+                        Cancel
+                    </a>
+                    <button
+                        type="submit"
+                        class="px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-600 text-white font-semibold rounded-md hover:from-yellow-600 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-all duration-200 transform hover:scale-105"
+                    >
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const variantSelect = document.getElementById('variantSelect');
+            variantSelect.addEventListener('change', function() {
+                const selectedVariantId = this.value;
+                if (selectedVariantId) {
+                    window.location.href = {% url 'editVariant' selectedVariantId%};
+                }
+            });
+        });
+    </script>
+</body>
+</html>

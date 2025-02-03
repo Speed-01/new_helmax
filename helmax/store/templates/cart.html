@@ -1,0 +1,222 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    body {
+        font-family: 'Inter', sans-serif;
+        background-color: #1a1a1a;
+        color: #ffffff;
+    }
+    
+    .btn-orange {
+        background-color: #ff6b00;
+        color: white;
+        transition: background-color 0.3s ease;
+    }
+    
+    .btn-orange:hover {
+        background-color: #ff7d1a;
+    }
+    
+    .btn-outline {
+        border: 1px solid #ff6b00;
+        color: #ff6b00;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-outline:hover {
+        background-color: #ff6b00;
+        color: white;
+    }
+</style>
+
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">Your Shopping Cart</h1>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="lg:col-span-2 space-y-6">
+            {% for item in cart_items %}
+            <div class="bg-[#222222] rounded-lg p-6 {% if item.variant.stock <= 0 %}opacity-50{% endif %}">
+                <div class="flex flex-col md:flex-row items-start md:items-center space-y-4 md:space-y-0 md:space-x-6">
+                    <img src="{{ item.variant.images.first.image.url }}" alt="{{ item.variant.product.name }}" 
+                         class="w-full md:w-32 h-32 object-cover rounded-md">
+                    <div class="flex-grow">
+                        <h3 class="text-lg font-semibold">{{ item.variant.product.name }}</h3>
+                        <p class="text-gray-400">{{ item.variant.color }} - {{ item.size }}</p>
+                        <p class="text-[#ff6b00] font-medium mt-2">₹{{ item.variant.discount_price }}</p>
+                        {% if item.variant.stock > 0 %}
+                            <p class="text-green-500 text-sm mt-1">In stock</p>
+                        {% else %}
+                            <p class="text-red-500 text-sm mt-1">Out of stock</p>
+                        {% endif %}
+                    </div>
+                    <div class="flex flex-col items-end space-y-4">
+                        <div class="flex items-center space-x-2">
+                            <button onclick="updateQuantity('{{ item.id }}', -1)" 
+                                    class="w-8 h-8 bg-[#333333] rounded-md flex items-center justify-center hover:bg-[#444444] transition-colors"
+                                    {% if item.quantity <= 1 or item.variant.stock <= 0 %}disabled{% endif %}>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                                </svg>
+                            </button>
+                            <span class="w-12 text-center">{{ item.quantity }}</span>
+                            <button onclick="updateQuantity('{{ item.id }}', 1)" 
+                                    class="w-8 h-8 bg-[#333333] rounded-md flex items-center justify-center hover:bg-[#444444] transition-colors"
+                                    {% if item.quantity >= item.variant.stock %}disabled{% endif %}>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <button onclick="removeFromCart('{{ item.id }}')" 
+                                class="text-red-500 hover:text-red-400 transition-colors">
+                            Remove
+                        </button>
+                        <button onclick="moveToWishlist('{{ item.id }}')" 
+                                class="text-gray-400 hover:text-[#ff6b00] transition-colors">
+                            Move to wishlist
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="bg-[#222222] rounded-lg p-6 text-center">
+                <p class="text-gray-400">Your cart is empty.</p>
+                <a href="{% url 'product_list' %}" class="btn-orange px-6 py-2 rounded-md inline-block mt-4">
+                    Continue Shopping
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="lg:col-span-1">
+            <div class="bg-[#222222] rounded-lg p-6 sticky top-6">
+                <h2 class="text-xl font-semibold mb-4">Order Summary</h2>
+                <div class="space-y-2 mb-4">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Bag total:</span>
+                        <span>₹{{ cart.total_price }}</span>
+                    </div>
+                    {% comment %} <div class="flex justify-between text-[#ff6b00]">
+                        <span>Bag discount:</span>
+                        <span>-₹{{ cart.total_discount }}</span>
+                    </div> {% endcomment %}
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Delivery fee:</span>
+                        <span class="text-green-500">Free</span>
+                    </div>
+                </div>
+                <div class="border-t border-[#333333] pt-4">
+                    <div class="flex justify-between font-semibold text-lg">
+                        <span>Order total:</span>
+                        <span>₹{{ cart.total_price }}</span>
+                    </div>
+                </div>
+                {% if is_cart_empty %}
+                    <div class="alert alert-info mt-2">
+                        Your cart is empty. Add some products to continue.
+                    </div>
+                    <button id="checkoutButton" class="btn btn-warning btn-lg w-100" disabled>Checkout <i class="fa-solid fa-arrow-right"></i></button>
+                    {% elif out_of_stock_items %}
+                        <div class="alert alert-danger mt-2">
+                            Some items in your cart are out of stock. Please remove them to proceed.
+                        </div>
+                        <button id="checkoutButton" class="btn btn-warning btn-lg w-100" disabled>Checkout <i class="fa-solid fa-arrow-right"></i></button>
+                    {% else %}
+                        <a href="{% url 'user_checkout' %}" id="checkoutButton" class="btn btn-warning btn-lg w-100">Checkout <i class="fa-solid fa-arrow-right"></i></a>
+                {% endif %}
+                <a href="{% url 'product_list' %}" class="btn-outline w-full py-3 rounded-md mt-4 font-medium text-center block">
+                    Continue Shopping
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    const csrftoken = getCookie('csrftoken');
+
+    function updateQuantity(itemId, quantityChange) {
+        fetch(`/cart/update/${itemId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({ quantity_change: quantityChange })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.message || 'Failed to update quantity');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred. Please try again.');
+        });
+    }
+
+    function removeFromCart(itemId) {
+        fetch("{% url 'remove_from_cart' 0 %}".replace('0', itemId), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.message || 'Failed to remove item');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred. Please try again.');
+        });
+    }
+
+    function moveToWishlist(itemId) {
+        fetch(`/cart/move-to-wishlist/${itemId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.message || 'Failed to move item to wishlist');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred. Please try again.');
+        });
+    }
+</script>
+{% endblock %}

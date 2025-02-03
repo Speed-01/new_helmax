@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/login.css' %}">
+
+{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    
+    <!-- Login Form -->
+    <div class="login-container">
+        <div class="login-box">
+            <h2>Log in</h2>
+            
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{% if message.tags %}{{ message.tags }}{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            {% if form.errors %}
+                <div class="alert alert-error">
+                    Invalid email or password. Please try again.
+                </div>
+            {% endif %}
+            
+            <form class="login-form" action="{% url 'Login' %}" method="POST">
+                {% csrf_token %}
+                <div class="form-group">
+                    <input type="username" name="username" placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" name="password" placeholder="Password" required>
+                </div>
+                <button type="submit" class="login-btn">Sign in</button>
+                <div class="form-footer">
+                    <label class="remember-me">
+                        {% comment %} <input type="checkbox"> Remember me {% endcomment %}
+                    </label>
+                    <a href="{% url 'forgot_password' %}" class="forgot-link">Forgot password?</a>
+                </div>
+            </form>
+            <div class="divider">
+                <span>or</span>
+            </div>
+              {% comment %} <div>
+                {% load socialaccount %}
+                <a href="{% provider_login_url 'google' %}">Sign in With Google</a>
+            </div>   {% endcomment %}
+            <div class="signup-prompt">
+                <p>Don't have an account? <a href="{% url 'signup' %}" class="signup-link">Sign up</a></p>
+            </div>
+        </div>
+    </div>
+    <script>
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    
+        {% comment %} function handleCredentialResponse(response) {
+            fetch('/store/auth-receiver/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({
+                    credential: response.credential
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    console.error('Login failed:', data.error);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        } {% endcomment %}
+    </script>
+    
+</div>
+{% endblock %}

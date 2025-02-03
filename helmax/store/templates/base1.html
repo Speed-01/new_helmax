@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-4">Track Order</h1>
+    <p class="mb-2">Order Number: {{ order.order_number }}</p>
+    <p class="mb-4">Current Status: {{ order.get_order_status_display }}</p>
+
+    <div class="relative">
+        <div class="absolute left-0 w-1 bg-gray-200 h-full"></div>
+        <ul class="list-none m-0 p-0">
+            <li class="mb-4 ml-6">
+                <div class="flex items-center">
+                    <div class="bg-blue-500 rounded-full h-4 w-4 absolute left-0 mt-1"></div>
+                    <p class="font-semibold">Order Placed</p>
+                </div>
+                <p class="text-sm text-gray-500">{{ order.created_at|date:"F d, Y H:i" }}</p>
+            </li>
+            {% if order.order_status != 'CANCELLED' %}
+            <li class="mb-4 ml-6">
+                <div class="flex items-center">
+                    <div class="{% if order.order_status == 'PROCESSING' %}bg-blue-500{% else %}bg-gray-300{% endif %} rounded-full h-4 w-4 absolute left-0 mt-1"></div>
+                    <p class="font-semibold">Processing</p>
+                </div>
+            </li>
+            <li class="mb-4 ml-6">
+                <div class="flex items-center">
+                    <div class="{% if order.order_status == 'SHIPPED' %}bg-blue-500{% else %}bg-gray-300{% endif %} rounded-full h-4 w-4 absolute left-0 mt-1"></div>
+                    <p class="font-semibold">Shipped</p>
+                </div>
+                {% if order.shipping_date %}
+                <p class="text-sm text-gray-500">{{ order.shipping_date|date:"F d, Y H:i" }}</p>
+                {% endif %}
+            </li>
+            <li class="mb-4 ml-6">
+                <div class="flex items-center">
+                    <div class="{% if order.order_status == 'DELIVERED' %}bg-blue-500{% else %}bg-gray-300{% endif %} rounded-full h-4 w-4 absolute left-0 mt-1"></div>
+                    <p class="font-semibold">Delivered</p>
+                </div>
+                {% if order.delivery_date %}
+                <p class="text-sm text-gray-500">{{ order.delivery_date|date:"F d, Y H:i" }}</p>
+                {% endif %}
+            </li>
+            {% else %}
+            <li class="mb-4 ml-6">
+                <div class="flex items-center">
+                    <div class="bg-red-500 rounded-full h-4 w-4 absolute left-0 mt-1"></div>
+                    <p class="font-semibold">Cancelled</p>
+                </div>
+            </li>
+            {% endif %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

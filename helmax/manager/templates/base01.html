@@ -1,0 +1,161 @@
+<!-- base01.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Helmax{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+
+        /* Smooth transitions */
+        .transition-all {
+            transition-property: all;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            transition-duration: 150ms;
+        }
+
+        /* Glass effect */
+        .glass-effect {
+            background: rgba(31, 31, 31, 0.8);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body class="bg-[#0A0A0A] text-gray-200">
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="fixed h-screen w-64 bg-[#111111] border-r border-[#2A2A2A] shadow-2xl z-50">
+            <div class="flex flex-col h-full">
+                <!-- Logo Section -->
+                <div class="p-6 border-b border-[#2A2A2A]">
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-red-500 to-purple-600 bg-clip-text text-transparent">
+                        Helmax
+                    </h1>
+                </div>
+
+                <!-- Navigation -->
+                <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+                    <a href="#" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
+                        <span class="w-2 h-2 rounded-full bg-red-500 mr-3 group-hover:scale-125 transition-transform"></span>
+                        <span class="flex-1">Dashboard</span>
+                    </a>
+                    <a href="{% url 'adminProducts'%}" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
+                        <span class="w-2 h-2 rounded-full bg-blue-500 mr-3 group-hover:scale-125 transition-transform"></span>
+                        <span class="flex-1">Products</span>
+                    </a>
+                    
+                    <a href="{% url 'customers'  %}" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
+                        <span class="w-2 h-2 rounded-full bg-green-500 mr-3 group-hover:scale-125 transition-transform"></span>
+                        <span class="flex-1">Customers</span>
+                    </a>
+                    
+                    <a href="{% url 'admin_orders' %}" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
+                        <span class="w-2 h-2 rounded-full bg-yellow-500 mr-3 group-hover:scale-125 transition-transform"></span>
+                        <span class="flex-1">Orders</span>
+                    </a>
+                    <a href="{% url 'admin_brand'%}" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
+                        <span class="w-2 h-2 rounded-full bg-purple-500 mr-3 group-hover:scale-125 transition-transform"></span>
+                        <span class="flex-1">Brand</span>
+                    </a>
+                    <a href="#" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
+                        <span class="w-2 h-2 rounded-full bg-pink-500 mr-3 group-hover:scale-125 transition-transform"></span>
+                        <span class="flex-1">Coupons</span>
+                    </a>
+                    <a href="{% url 'admin_category'%}" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
+                        <span class="w-2 h-2 rounded-full bg-indigo-500 mr-3 group-hover:scale-125 transition-transform"></span>
+                        <span class="flex-1">Category</span>
+                    </a>
+                    <a href="#" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
+                        <span class="w-2 h-2 rounded-full bg-cyan-500 mr-3 group-hover:scale-125 transition-transform"></span>
+                        <span class="flex-1">Offers</span>
+                    </a>
+                    <a href="#" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
+                        <span class="w-2 h-2 rounded-full bg-orange-500 mr-3 group-hover:scale-125 transition-transform"></span>
+                        <span class="flex-1">Banner</span>
+                    </a>
+                    <a href="#" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
+                        <span class="w-2 h-2 rounded-full bg-teal-500 mr-3 group-hover:scale-125 transition-transform"></span>
+                        <span class="flex-1">Sales Report</span>
+                    </a>
+                </nav>
+
+                <!-- Logout Section -->
+                <div class="p-4 border-t border-[#2A2A2A]">
+                    <a href="{% url 'admin_logout'%}" 
+                       class="flex items-center px-4 py-3 text-red-400 rounded-lg hover:bg-red-500/10 transition-all duration-200">
+                        <span class="mr-3">→</span>
+                        <span>Logout</span>
+                    </a>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="flex-1 ml-64">
+            <!-- Messages Section -->
+            {% if messages %}
+            <div class="fixed top-4 right-4 z-50 w-96">
+                {% for message in messages %}
+                <div class="{% if message.tags == 'success' %}bg-[#1A1A1A]/80 border border-green-500/20 text-green-400{% else %}bg-[#1A1A1A]/80 border border-red-500/20 text-red-400{% endif %} px-4 py-3 rounded-lg mb-4 flex justify-between items-center backdrop-blur-sm shadow-xl" role="alert">
+                    <span class="block sm:inline">{{ message }}</span>
+                    <button type="button" class="text-gray-400 hover:text-gray-300 transition-colors" onclick="this.parentElement.style.display='none'">
+                        <span class="text-2xl">×</span>
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Page Content -->
+            <main class="p-6">
+                {% block content %}{% endblock %}
+            </main>
+
+            
+        </div>
+        
+    </div>
+    <!-- Footer -->
+    <footer class="bg-[#111111] text-gray-400 py-4 px-6 border-t border-[#2A2A2A] ml-12">
+        <div class="max-w-7xl mx-auto flex justify-between items-center px-24">
+            <p>&copy; 2024 Helmax. All Rights Reserved.</p>
+            <div class="flex items-center space-x-4">
+                <a href="#" class="hover:text-white transition-colors">Privacy</a>
+                <a href="#" class="hover:text-white transition-colors">Terms</a>
+                <a href="#" class="hover:text-white transition-colors">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Auto-hide messages after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                const messages = document.querySelectorAll('[role="alert"]');
+                messages.forEach(function(message) {
+                    message.style.opacity = '0';
+                    message.style.transition = 'opacity 0.5s ease-in-out';
+                    setTimeout(() => message.style.display = 'none', 500);
+                });
+            }, 5000);
+        });
+    </script>
+</body>
+</html>
