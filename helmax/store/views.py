@@ -345,10 +345,10 @@ def logout(request):
     
     return redirect('/')
 
-
 def get_variant_data(request, product_id, variant_id):
     variant = get_object_or_404(
-        Variant.objects.prefetch_related('sizes', 'images'),
+        Variant.objects.select_related('product')
+        .prefetch_related('sizes', 'images'),
         product_id=product_id,
         id=variant_id,
         is_active=True
@@ -358,29 +358,37 @@ def get_variant_data(request, product_id, variant_id):
     size_stock = sum(size.stock for size in variant.sizes.all())
     total_stock = variant.stock + size_stock
 
+    # Get primary image
+    primary_image = variant.images.filter(is_primary=True).first()
+    
     data = {
         'id': variant.id,
-        'price': variant.price,
-        'discount_price': variant.discount_price,
+        'color': variant.color,
+        'price': str(variant.price),  # Convert Decimal to string for JSON
+        'discount_price': str(variant.discount_price) if variant.discount_price else None,
         'stock': variant.stock,
         'size_stock': size_stock,
+        'total_stock': variant.stock,
         'images': [
             {
                 'image': image.image.url,
-                'is_primary': image.is_primary
+                'is_primary': image.is_primary,
+                'alt_text': f"{variant.color} {variant.product.name} view"
             } for image in variant.images.all()
         ],
         'sizes': [
             {
                 'id': size.id,
                 'name': size.name,
-                'stock': size.stock
+                'stock': size.stock  # Individual size stock
             } for size in variant.sizes.all()
-        ]
+        ],
+        'primary_image_url': primary_image.image.url if primary_image else (
+            variant.images.first().image.url if variant.images.exists() else None
+        )
     }
     
     return JsonResponse(data)
-
 
 
 
@@ -504,8 +512,19 @@ def product_detail(request, product_id):
         is_active=True
     )
     
-    variants = list(product.variants.all())
+    variants = list(product.variants.filter(is_active=True))
     primary_variant = variants[0] if variants else None
+    
+    # Get primary images for each variant
+    variants_with_images = []
+    for variant in variants:
+        primary_image = variant.images.filter(is_primary=True).first()
+        variants_with_images.append({
+            'variant': variant,
+            'primary_image': primary_image,
+            'id': variant.id,
+            'color': variant.color
+        })
     
     # Calculate initial variant stock info
     primary_variant_stock = 0
@@ -513,22 +532,40 @@ def product_detail(request, product_id):
         size_stock = sum(size.stock for size in primary_variant.sizes.all())
         primary_variant_stock = primary_variant.stock + size_stock
 
-    colors = list(set(variant.color for variant in variants if variant.color))
     sizes = list(primary_variant.sizes.all()) if primary_variant else []
 
     context = {
         'product': product,
         'brand': product.brand.name, 
         'primary_variant': primary_variant,
-        'variants': variants,
-        'colors': [{'id': v.id, 'color': v.color} for v in variants],
+        'variants_with_images': variants_with_images,  # New context variable
         'sizes': sizes,
         'current_stock': primary_variant_stock,
         'stock_status': 'In Stock' if primary_variant_stock > 0 else 'Out of Stock',
     }
+    if primary_variant:
+        sizes = [
+            {
+                'name': size.name,
+                'stock': size.stock,  # Show individual size stock
+                'display_name': size.get_name_display()
+            }
+            for size in primary_variant.sizes.all()
+        ]
+    else:
+        sizes = []
+
+    context = {
+        'product': product,
+        'brand': product.brand.name, 
+        'primary_variant': primary_variant,
+        'variants_with_images': variants_with_images,  
+        'stock_status': 'In Stock' if primary_variant_stock > 0 else 'Out of Stock',
+        'sizes': sizes,
+        'current_stock': primary_variant.stock if primary_variant else 0,
+    }
     
     return render(request, 'product_details.html', context)
-
 ######### CART ########
 
 from django.contrib.auth.decorators import login_required
@@ -616,8 +653,11 @@ def add_to_cart(request):
         except (Variant.DoesNotExist, Size.DoesNotExist):
             return JsonResponse({'success': False, 'message': 'Product variant or size not found'}, status=404)
 
-        if variant.stock < quantity:
-            return JsonResponse({'success': False, 'message': 'Not enough stock available for this size'}, status=400)
+        if size.stock < quantity:
+            return JsonResponse({
+                'success': False,
+                'message': f'Only {size.stock} available in {size.name} size'
+            }, status=400)
 
         cleanup_carts(request.user)
 
@@ -630,25 +670,28 @@ def add_to_cart(request):
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
             variant=variant,
-            size = size,
+            size=size,
             defaults={'quantity': 0}
         )
 
-        if (cart_item.quantity + quantity) > variant.stock:
+        if (cart_item.quantity + quantity) > size.stock:
             return JsonResponse({
                 'success': False,
-                'message': f'Only {variant.stock} items available in stock'
+                'message': f'Only {size.stock - cart_item.quantity} more available in {size.name} size'
             }, status=400)
 
         cart_item.quantity += quantity
         cart_item.save()
+
+        
 
         cart_count = sum(item.quantity for item in cart.items.all())
 
         return JsonResponse({
             'success': True,
             'message': 'Item added to cart successfully',
-            'cart_count': cart_count
+            'cart_count': cart_count,
+            
         })
 
     except Exception as e:
@@ -659,39 +702,142 @@ def add_to_cart(request):
 @login_required
 def remove_from_cart(request, item_id):
     if request.method == 'POST':
+        try:
+            cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
+            cart_item.delete()
+            return JsonResponse({'success': True, 'message': 'Item removed from cart successfully!'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'})
+    return JsonResponse({'success': False, 'message': 'Invalid request method.'})
+
+
+@login_required
+@require_POST
+def update_quantity(request, item_id):
+    try:
+        data = json.loads(request.body)
+        quantity_change = int(data.get('quantity_change', 0))
+        
         cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
-        cart_item.delete()
-        return JsonResponse({'success': True})
-    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+        cart = cart_item.cart
+        
+        # Calculate new quantity
+        new_quantity = cart_item.quantity + quantity_change
+        
+        # Validate new quantity
+        if new_quantity < 1:
+            return JsonResponse({
+                'success': False, 
+                'message': 'Quantity cannot be less than 1.'
+            })
+        if new_quantity > cart_item.variant.stock:
+            return JsonResponse({
+                'success': False, 
+                'message': 'Quantity exceeds available stock.'
+            })
+        
+        # Update quantity
+        cart_item.quantity = new_quantity
+        cart_item.save()
+        
+        # Calculate updated totals
+        item_total = cart_item.variant.price * new_quantity
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Quantity updated successfully!',
+            'new_quantity': new_quantity,
+            'cart_total': float(cart.total_price),
+            # 'cart_discount': float(cart.total_discount),
+            'cart_final': float(cart.final_price), 
+            'item_total': float(item_total),
+            'variant_stock': cart_item.variant.stock
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False, 
+            'message': 'Invalid request data'
+        }, status=400)
+    except Exception as e:
+        print(f"Error in update_quantity: {str(e)}")  # For debugging
+        return JsonResponse({
+            'success': False, 
+            'message': str(e)
+        }, status=500)
 
 @login_required
 def move_to_wishlist(request, item_id):
     if request.method == 'POST':
-        cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
-        
-        # Add to wishlist
-        Wishlist.objects.get_or_create(
-            user=request.user,
-            variant=cart_item.variant
-        )
-        
-        # Remove from cart
-        cart_item.delete()
-        
-        return JsonResponse({'success': True})
-    return JsonResponse({'success': False, 'message': 'Invalid request method'})
-
+        try:
+            cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
+            
+            # Check if the item is already in the wishlist
+            if Wishlist.objects.filter(user=request.user, variant=cart_item.variant).exists():
+                return JsonResponse({'success': False, 'message': 'Item is already in your wishlist.'})
+            
+            # Add to wishlist
+            Wishlist.objects.get_or_create(
+                user=request.user,
+                variant=cart_item.variant
+            )
+            
+            # Remove from cart
+            cart_item.delete()
+            
+            return JsonResponse({'success': True, 'message': 'Item moved to wishlist successfully!'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'})
+    return JsonResponse({'success': False, 'message': 'Invalid request method.'})
+import re
 ####### profile ##########
 @login_required(login_url='userlogin')
 def user_profile(request, user_id):
+    # Ensure user can only access their own profile
+    if request.user.id != user_id:
+        messages.error(request, "You are not authorized to view this profile.")
+        return redirect('user_profile', user_id=request.user.id)
+    
     user = get_object_or_404(User, id=user_id)
-    print(f"User ID: {user.id}")
+    
+    if request.method == 'POST':
+        # Handle profile update
+        full_name = request.POST.get('full_name', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        
+        # Validation
+        errors = []
+        if not full_name:
+            errors.append("Full name cannot be empty.")
+        
+        if phone and not re.match(r'^\+?1?\d{9,15}$', phone):
+            errors.append("Invalid phone number format.")
+        
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            return render(request, 'profile.html', {
+                'user': user,
+                'full_name': full_name,
+                'phone': phone,
+                'email': user.email,
+                'referral_code': user.referral_code or 'N/A',
+            })
+        
+        # Update user profile
+        user.full_name = full_name
+        user.phone = phone
+        user.save()
+        
+        messages.success(request, "Profile updated successfully!")
+        return redirect('user_profile', user_id=user.id)
+    
+    # GET request
     context = {
-        'user': user,  
-        'full_name': user.get_full_name()   ,
+        'user': user,
+        'full_name': user.full_name or user.get_full_name(),
         'email': user.email,
-        'phone': user.phone if hasattr(user, 'profile') else 'N/A',  
-        'referral_code': user.referral_code if hasattr(user, 'profile') else 'N/A',
+        'phone': user.phone or '',
+        'referral_code': user.referral_code or 'N/A',
     }
     return render(request, 'profile.html', context)
 
@@ -954,10 +1100,16 @@ def place_order(request):
                         status='Processing'
                     )
 
-                    # Reduce stock
+                    # Reduce stock for the size
+                    if cart_item.size:
+                        cart_item.size.stock -= cart_item.quantity
+                        cart_item.size.save()
+
+                    # Reduce stock for the variant
                     if cart_item.variant:
                         cart_item.variant.stock -= cart_item.quantity
                         cart_item.variant.save()
+
 
                 # Deactivate the cart
                 cart.is_active = False
@@ -976,6 +1128,7 @@ def place_order(request):
 
     return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)
 
+
 @login_required(login_url='userlogin')
 def order_confirmation(request, order_id):
     try:
@@ -984,7 +1137,7 @@ def order_confirmation(request, order_id):
         
         print("order items >>>>>>>",order_items)
     except Order.DoesNotExist:
-        messages.error(request, "Order not found.")
+        messages.error(request, "Order Not found.")
         return redirect('my_orders')
     
     context = {

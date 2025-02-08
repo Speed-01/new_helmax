@@ -25,7 +25,8 @@ from django.utils.text import slugify
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.timezone import now
-
+import re
+from django.utils.crypto import get_random_string
 
 
 class library(models.Model):
@@ -35,17 +36,35 @@ class library(models.Model):
 
 class User(AbstractUser):
 
-    phone = models.CharField(max_length=15, blank=True, null=True )
-    email = models.EmailField(default=None, unique=True)
+    phone = models.CharField(max_length=15, blank=True, null=True, 
+                              validators=[
+                                  RegexValidator(
+                                      regex=r'^\+?1?\d{9,15}$', 
+                                      message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
+                                  )
+                              ])
+    email = models.EmailField(unique=True)
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)
-    referral_code = models.CharField(max_length=10, blank=True, null=True)
-    full_name = models.CharField(max_length=255 ,null=True)
+    referral_code = models.CharField(max_length=10, blank=True, null=True, unique=True)
+    full_name = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
-        return self.username
+        return self.username or self.email
+    
+    def save(self, *args, **kwargs):
+        # Generate referral code if not exists
+        if not self.referral_code:
+            self.referral_code = self.generate_unique_referral_code()
+        
+        super().save(*args, **kwargs)
 
-
+    def generate_unique_referral_code(self):
+        # Generate a unique 8-character referral code
+        while True:
+            code = get_random_string(length=8).upper()
+            if not User.objects.filter(referral_code=code).exists():
+                return code
 
 
 class OTP(models.Model):

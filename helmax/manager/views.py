@@ -245,31 +245,44 @@ def addProducts(request):
 
     return render(request, 'addProducts.html', {'categories': categories,'brands':brands})
 
-
-
 def addVariant(request, product_id):
     product = get_object_or_404(Product, id=product_id)
 
     if request.method == 'POST':
         color = request.POST.get('color')
         price = request.POST.get('price')
-        stock = request.POST.get('stock')
         discount_price = request.POST.get('discount_price')
         sizes = request.POST.getlist('sizes')
         images = request.FILES.getlist('images')
 
         try:
+            # Create variant without stock first
             variant = Variant.objects.create(
                 product=product,
                 color=color,
                 price=price,
-                stock=stock,
-                discount_price=discount_price
+                discount_price=discount_price,
+                stock=0  # Will be updated based on size stocks
             )
 
+            total_stock = 0
+            # Create sizes with their respective stocks
             for size in sizes:
-                Size.objects.create(product_variant=variant, name=size)
+                stock_for_size = request.POST.get(f'stock_{size}', 0)
+                stock_value = int(stock_for_size) if stock_for_size else 0
+                total_stock += stock_value
+                
+                Size.objects.create(
+                    product_variant=variant,
+                    name=size,
+                    stock=stock_value
+                )
+            
+            # Update variant's total stock
+            variant.stock = total_stock
+            variant.save()
 
+            # Handle images
             for index, image in enumerate(images):
                 ProductImage.objects.create(
                     variant=variant,

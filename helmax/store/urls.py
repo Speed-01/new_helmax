@@ -29,8 +29,9 @@ urlpatterns = [
     ######## CART ########  
     path('cart/', views.view_cart, name='view_cart'),
     path('cart/add/', views.add_to_cart, name='add_to_cart'),
-    path('cart/remove/<int:item_id>/', views.remove_from_cart, name='remove_from_cart'),
-    path('cart/move-to-wishlist/<int:item_id>/', views.move_to_wishlist, name='move_to_wishlist'),
+    path('move-to-wishlist/<int:item_id>/', views.move_to_wishlist, name='move_to_wishlist'),
+    path('cart/update/<int:item_id>/', views.update_quantity, name='update_quantity'),
+    path('remove-from-cart/<int:item_id>/', views.remove_from_cart, name='remove_from_cart'),
 
 
     ######### Address ########

@@ -10,25 +10,53 @@
     {% endblock %}
 {% block content %}
 
-<body class="bg-black">
+
     
     
-    <!-- Hero Section -->
-    <section class="relative h-[600px]">
-        <img src="{% static "images/hero.png" %}" alt="Hero motorcycle gear" class="w-full h-full object-cover">
-        <div class="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30">
-            <div class="container mx-auto h-full flex flex-col justify-center text-white px-4">
-                <h1 class="text-5xl font-bold mb-4">Safety Meets Style</h1>
-                <p class="text-xl">Helmets for Every Ride</p>
+<!-- Hero Section -->
+<section class="relative h-[600px] overflow-hidden ">
+    <div id="hero-carousel" class="relative w-full h-full">
+        <div class="carousel-item block absolute w-full h-full transition-opacity duration-1000 opacity-100" data-index="0">
+            <img id="debug-image-1" src="{% static 'images/hero.png' %}" alt="Hero motorcycle gear" class="w-full h-full object-cover" onerror="logImageError(this)">
+            <div class="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30">
+                <div class="container mx-auto h-full flex flex-col justify-center text-white px-4">
+                    <h1 class="text-5xl font-bold mb-4">Safety Meets Style</h1>
+                    <p class="text-xl">Helmets for Every Ride</p>
+                </div>
             </div>
         </div>
-    </section>
+        <div class="carousel-item block absolute w-full h-full transition-opacity duration-1000 opacity-0" data-index="1">
+            <img src="{% static 'images/banner.png' %}" alt="Black Friday Banner" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30">
+                <div class="container mx-auto h-full flex flex-col justify-center text-white px-4">
+                    <h1 class="text-5xl font-bold mb-4">Black Friday Deals</h1>
+                    <p class="text-xl">Gear Up and Save Big</p>
+                </div>
+            </div>
+        </div>
+        <div class="carousel-item block  absolute w-full h-full transition-opacity duration-1000 opacity-0" data-index="2">
+            <img src="{% static 'images/banner2.jpg' %}" alt="Always Ahead" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30">
+                <div class="container mx-auto h-full flex flex-col justify-center text-white px-4">
+                    <h1 class="text-5xl font-bold mb-4">Always Ahead</h1>
+                    <p class="text-xl">Performance Meets Protection</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    <!-- Featured Collections -->
-    <section class="py-16 bg-gray-50 bg-black" >
-        <div class="container mx-auto px-4 ">
-            <h2 class="text-3xl font-bold text-center mb-12 ">Featured Collections</h2>
-            {% load static %}
+    <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+        <button onclick="changeSlide(0)" class="w-3 h-3 rounded-full bg-white/50"></button>
+        <button onclick="changeSlide(1)" class="w-3 h-3 rounded-full bg-white/50"></button>
+        <button onclick="changeSlide(2)" class="w-3 h-3 rounded-full bg-white/50"></button>
+    </div>
+</section>
+
+<!-- Featured Collections -->
+<section class="py-16 bg-gray-50 bg-black" >
+    <div class="container mx-auto px-4 ">
+        <h2 class="text-3xl font-bold text-center mb-12 ">Featured Collections</h2>
+        {% load static %}
 
 <div id="product-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
     {% for product in products %}
@@ -60,90 +88,102 @@
     {% endfor %}
 </div>
 
-            
-
-            {% comment %} <div id="product-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                {% for product in products %}
-                    {% with product.variants.first as variant %}
-                        {% if variant %}
-                            <div class="group cursor-pointer">
-                                <div class="aspect-square relative mb-3">
-                                    {% with variant.images.first as product_image %}
-                                        {% if product_image %}
-                                            <img src="{{ product_image.image.url }}" alt="{{ product.name }}" class="w-full h-full object-cover rounded-lg">
-                                        {% else %}
-                                            <img src="{% static 'images/hero.png' %}" alt="No Image Available" class="w-full h-full object-cover rounded-lg">
-                                        {% endif %}
-                                    {% endwith %}
-                                </div>
-                                <h3 class="font-medium text-sm">{{ product.name }}</h3>
-                                <p class="text-sm text-gray-600">
-                                    {% if variant.discount_price %}
-                                        <span class="line-through text-red-500">${{ variant.price }}</span>
-                                        <span class="text-green-600 font-bold">${{ variant.discount_price }}</span>
-                                    {% else %}
-                                        ${{ variant.price }}
-                                    {% endif %}
-                                </p>
-                            </div>
-                        {% endif %}
-                    {% endwith %}
-                {% endfor %}
-            </div> {% endcomment %}
-
-            
-            
-            <div class="text-center mt-8">
-                <a href="{% url 'product_list' %}" class="text-blue-600 hover:text-blue-800 font-medium">VIEW ALL</a>
-            </div>
+        
+        
+        <div class="text-center mt-8">
+            <a href="{% url 'product_list' %}" class="text-blue-600 hover:text-blue-800 font-medium">VIEW ALL</a>
         </div>
-    </section>
-    
-    
+    </div>
+</section>
 
-    <!-- Black Friday Banner -->
-    <section class="bg-orange-500 py-16">
-        <img src="{% static "images/banner.png" %}" alt="Hero motorcycle gear" class="w-full h-full object-cover">
-    </section>
 
-    <!-- Always Ahead Banner -->
-    <section class="relative h-[400px]">
-        <img src="{% static "images/banner2.jpg" %}" alt="Always ahead" class="w-full h-full object-cover">
-        <div class="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <h2 class="text-5xl font-bold text-white">ALWAYS AHEAD</h2>
-        </div>
-    </section>
 
-    
-    <!-- Admin Panel for Products -->
-    {% comment %} <div id="admin-panel" class="hidden">
-        <div class="fixed inset-0 bg-black/50 flex items-center justify-center">
-            <div class="bg-white p-6 rounded-lg w-full max-w-2xl">
-                <h2 class="text-2xl font-bold mb-4">Admin Panel - Manage Products</h2>
-                <form id="product-form" class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Product Name</label>
-                        <input type="text" name="name" class="w-full rounded-md border px-4 py-2">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Price</label>
-                        <input type="number" name="price" step="0.01" class="w-full rounded-md border px-4 py-2">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Image URL</label>
-                        <input type="url" name="image" class="w-full rounded-md border px-4 py-2">
-                    </div>
-                    <div class="flex justify-end space-x-2">
-                        <button type="button" class="px-4 py-2 border rounded-md" onclick="closeAdminPanel()">Cancel</button>
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md">Save Product</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div> {% endcomment %}
+<!-- Black Friday Banner -->
+<section class="bg-orange-500 py-16">
+    <img src="{% static "images/banner.png" %}" alt="Hero motorcycle gear" class="w-full h-full object-cover">
+</section>
 
-    <script>
-        // Function to toggle admin panel
+<!-- Always Ahead Banner -->
+<section class="relative h-[400px]">
+    <img src="{% static "images/banner2.jpg" %}" alt="Always ahead" class="w-full h-full object-cover">
+    <div class="absolute inset-0 bg-black/50 flex items-center justify-center">
+        <h2 class="text-5xl font-bold text-white">ALWAYS AHEAD</h2>
+    </div>
+</section>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Carousel functionality
+        let currentIndex = 0;
+        const carouselItems = document.querySelectorAll('.carousel-item');
+        const totalItems = carouselItems.length;
+
+        function showSlide(index) {
+            carouselItems.forEach(item => {
+                item.classList.add('opacity-0');
+                item.classList.remove('opacity-100');
+            });
+            carouselItems[index].classList.remove('opacity-0');
+            carouselItems[index].classList.add('opacity-100');
+
+            const dots = document.querySelectorAll('section button');
+            dots.forEach((dot, i) => {
+                dot.classList.toggle('bg-white', i === index);
+                dot.classList.toggle('bg-white/50', i !== index);
+            });
+        }
+
+        function changeSlide(index) {
+            currentIndex = index;
+            showSlide(currentIndex);
+        }
+
+        function autoChangeSlide() {
+            currentIndex = (currentIndex + 1) % totalItems;
+            showSlide(currentIndex);
+        }
+
+        // Product form handling
+        const productForm = document.getElementById('product-form');
+        if (productForm) {
+            productForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const productData = {
+                    name: formData.get('name'),
+                    price: parseFloat(formData.get('price')),
+                    image: formData.get('image')
+                };
+
+                console.log('Saving product:', productData);
+                addProductToPage(productData);
+                closeAdminPanel();
+                e.target.reset();
+            });
+        } else {
+            console.warn('Product form not found');
+        }
+
+        // Image error logging
+        function logImageError(img) {
+            console.error('Image Load Error Details:', {
+                src: img.src,
+                absoluteURL: new URL(img.src, document.baseURI).href,
+                alt: img.alt
+            });
+        }
+
+        // Log image details
+        const images = document.querySelectorAll('#hero-carousel img');
+        images.forEach(img => {
+            console.log('Image Details:', {
+                src: img.src,
+                absoluteURL: new URL(img.src, document.baseURI).href
+            });
+        });
+
+        // Admin panel functions
         function toggleAdminPanel() {
             const adminPanel = document.getElementById('admin-panel');
             adminPanel.classList.toggle('hidden');
@@ -153,26 +193,6 @@
             const adminPanel = document.getElementById('admin-panel');
             adminPanel.classList.add('hidden');
         }
-
-        // Handle form submission
-        document.getElementById('product-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const productData = {
-                name: formData.get('name'),
-                price: parseFloat(formData.get('price')),
-                image: formData.get('image')
-            };
-
-            // Here you would typically send this data to your backend
-            console.log('Saving product:', productData);
-            
-            // For demonstration, we'll add it to the page
-            addProductToPage(productData);
-            
-            closeAdminPanel();
-            e.target.reset();
-        });
 
         function addProductToPage(product) {
             const productGrid = document.querySelector('.grid');
@@ -187,8 +207,12 @@
             `;
             productGrid.appendChild(productElement);
         }
-    </script>
-</body>
+
+        // Start auto-changing slides
+        setInterval(autoChangeSlide, 3000);
+    });
+</script>
+
 
 {% endblock  %}
 

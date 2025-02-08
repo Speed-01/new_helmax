@@ -25,7 +25,7 @@
                     id="main-image"
                     src="{{ primary_variant.images.first.image.url }}"
                     alt="{{ product.name }}"
-                    class="w-full aspect-square object-cover product-zoom"
+                    class="w-full aspect-square object-cover"
                 >
                 <div id="zoom-lens" class="zoom-lens hidden"></div>
             </div>
@@ -84,37 +84,79 @@
             </p>
 
             <div class="space-y-6 pt-6 border-t border-gray-800">
-                <!-- Color Selection -->
+                <!-- Variant Image Selection -->
                 <div class="space-y-4">
                     <label class="text-sm text-gray-400">Color</label>
-                    <div class="flex space-x-3" id="color-options"data-product-id="{{ product.id }}">
-                        {% for variant in colors %}
-                        <button 
-                            class="w-12 h-12 rounded-sm hover:opacity-80 transition-opacity {% if variant.id == primary_variant.id %}ring-2 ring-[#ff6b00]{% endif %}"
-                            style="background-color: {{ variant.color }}"
-                            data-variant-id="{{ variant.id }}"
-                            data-color="{{ variant.color }}"
-                        >
-                            <span class="sr-only">{{ variant.color }}</span>
-                        </button>
+                    <div class="flex space-x-3" id="color-options" data-product-id="{{ product.id }}">
+                        {% for item in variants_with_images %}
+                            {% if item.primary_image %}
+                                <button 
+                                    class="w-12 h-12 rounded-sm hover:opacity-80 transition-opacity overflow-hidden {% if item.id == primary_variant.id %}ring-2 ring-[#ff6b00]{% endif %}"
+                                    data-variant-id="{{ item.id }}"
+                                    data-color="{{ item.color }}"
+                                >
+                                    <img 
+                                        src="{{ item.primary_image.image.url }}" 
+                                        alt="{{ item.variant.color }} {{ product.name }}"
+                                        class="w-full h-full object-cover"
+                                    >
+                                    <span class="sr-only">{{ item.variant.color }}</span>
+                                </button>
+                            {% else %}
+                                <!-- Fallback for variants without images -->
+                                <button 
+                                    class="w-12 h-12 rounded-sm hover:opacity-80 transition-opacity {% if item.id == primary_variant.id %}ring-2 ring-[#ff6b00]{% endif %}"
+                                    style="background-color: {{ item.color }}"
+                                    data-variant-id="{{ item.id }}"
+                                    data-color="{{ item.color }}"
+                                >
+                                    <span class="sr-only">{{ item.variant.color }}</span>
+                                </button>
+                            {% endif %}
                         {% endfor %}
                     </div>
                 </div>
-
+            </div>
+                <div class="text-sm text-gray-400">Availability: 
+                    <span id="stock-status" class="{% if primary_variant.stock > 0 %}text-green-500{% else %}text-red-500{% endif %}">
+                        {% if primary_variant.stock > 0 %}
+                            In Stock ({{ primary_variant.stock }} available)
+                        {% else %}
+                            Out of Stock
+                        {% endif %}
+                    </span>
+                </div>
                 <!-- Size Selection -->
                 <div class="space-y-4">
                     <label class="text-sm text-gray-400">Size</label>
                     <div class="flex flex-wrap gap-3" id="size-options">
                         {% for size in sizes %}
-                        <button 
-                            class="px-4 py-2 bg-[#222222] rounded-sm hover:bg-[#333333] transition-colors"
-                            data-size-name="{{ size.name }}"
-                        >
-                            {{ size.name }}
-                        </button>
+                            <div class="relative flex flex-col items-center">
+                                <!-- Size Button -->
+                                <button 
+                                    class="w-[45px] h-[45px] flex items-center justify-center border 
+                                        {% if size.stock > 0 %}border-[#333333] hover:border-[#555555]{% else %}border-gray-600 cursor-not-allowed opacity-50{% endif %} 
+                                        rounded-sm transition-colors"
+                                    data-size="{{ size.name }}"
+                                    {% if size.stock == 0 %}disabled{% endif %}
+                                >
+                                    <span class="text-sm font-medium {% if size.stock > 0 %}text-gray-200{% else %}text-gray-500{% endif %}">
+                                        {{ size.name }}
+                                    </span>
+                                </button>
+
+                                <!-- Stock Information -->
+                                <div class="text-xs mt-1 {% if size.stock > 0 %}text-green-500{% else %}text-red-500{% endif %}">
+                                    {% if size.stock > 0 %}
+                                        {{ size.stock }} left
+                                    {% else %}
+                                        Out of stock
+                                    {% endif %}
+                                </div>
+                            </div>
                         {% endfor %}
                     </div>
-                </div> 
+                </div>
                 {% comment %} <div class="space-y-4">
                     <label class="text-sm text-gray-400">Size</label>
                     <div class="flex flex-wrap gap-3" id="size-options">
@@ -165,90 +207,291 @@
     {% endfor %}
 </div>
 {% endif %}
-
 <!-- Notification -->
 <div id="notification" class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-md shadow-md hidden z-50">
     Item added to cart
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const mainImage = document.getElementById('main-image');
-        const colorOptions = document.getElementById('color-options');
-        const sizeOptions = document.getElementById('size-options');
-        const quantityInput = document.getElementById('quantity');
-        const addToCartBtn = document.getElementById('add-to-cart');
-        const notification = document.getElementById('notification');
-        const decreaseQuantityBtn = document.getElementById('decrease-quantity');
-        const increaseQuantityBtn = document.getElementById('increase-quantity');
-    
-        let selectedVariantId = addToCartBtn.dataset.variantId;
-        let selectedSizeName = null;
-    
-        // Update size options dynamically when a color is selected
-        async function fetchVariantDetails(variantId) {
-            try {
-                const response = await fetch(`/product/{{ product.id }}/variant/${variantId}/`);
-                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-    
-                const data = await response.json();
-                updateProductInfo(data);
-                updateSizeOptions(data.sizes);
-    
-                // Reset selected size name
-                selectedSizeName = null;
-                console.log('Selected size name reset:', selectedSizeName);
-    
-            } catch (error) {
-                console.error('Error fetching variant data:', error);
-                showNotification('Error fetching variant data. Please try again.', 'error');
-            }
+document.addEventListener('DOMContentLoaded', function() {
+    const mainImage = document.getElementById('main-image');
+    const colorOptions = document.getElementById('color-options');
+    const sizeOptions = document.getElementById('size-options');
+    const quantityInput = document.getElementById('quantity');
+    const addToCartBtn = document.getElementById('add-to-cart');
+    const notification = document.getElementById('notification');
+    const decreaseQuantityBtn = document.getElementById('decrease-quantity');
+    const increaseQuantityBtn = document.getElementById('increase-quantity');
+    const zoomContainer = document.getElementById('zoom-container');
+    const zoomLens = document.getElementById('zoom-lens');
+
+    let selectedVariantId = addToCartBtn.dataset.variantId;
+    let selectedSizeName = null;
+    let isZooming = false;
+    const zoomLevel = 2.5;
+
+    function initZoom() {
+        let zoomResult = document.getElementById('zoom-result');
+        if (!zoomResult) {
+            zoomResult = document.createElement('div');
+            zoomResult.id = 'zoom-result';
+            zoomContainer.appendChild(zoomResult); // Append to container instead of body
         }
-    
-        // Color selection handling
-        colorOptions.addEventListener('click', function(e) {
-            if (e.target.tagName === 'BUTTON') {
-                const variantId = e.target.dataset.variantId;
-                selectedVariantId = variantId;
-                fetchVariantDetails(variantId);
-    
+
+        const lensSize = 100;
+        zoomLens.style.width = lensSize + 'px';
+        zoomLens.style.height = lensSize + 'px';
+
+        zoomContainer.addEventListener('mouseenter', startZoom);
+        zoomContainer.addEventListener('mouseleave', stopZoom);
+        zoomContainer.addEventListener('mousemove', moveZoom);
+    }
+
+    function startZoom(e) {
+        isZooming = true;
+        zoomLens.classList.remove('hidden');
+        const zoomResult = document.getElementById('zoom-result');
+        zoomResult.style.display = 'block';
+        updateZoomPosition(e);
+    }
+
+    function stopZoom() {
+        isZooming = false;
+        zoomLens.classList.add('hidden');
+        const zoomResult = document.getElementById('zoom-result');
+        zoomResult.style.display = 'none';
+    }
+
+    function moveZoom(e) {
+        if (!isZooming) return;
+        e.preventDefault();
+        updateZoomPosition(e);
+    }
+
+    function updateZoomPosition(e) {
+        const rect = mainImage.getBoundingClientRect();
+        const zoomResult = document.getElementById('zoom-result');
+        
+        // Get cursor position relative to image
+        let mouseX = e.clientX - rect.left;
+        let mouseY = e.clientY - rect.top;
+
+        // Constrain to image bounds
+        mouseX = Math.min(Math.max(mouseX, 0), rect.width);
+        mouseY = Math.min(Math.max(mouseY, 0), rect.height);
+
+        // Calculate lens position
+        const lensWidth = parseInt(zoomLens.style.width);
+        const lensHeight = parseInt(zoomLens.style.height);
+        
+        let lensX = mouseX - lensWidth / 2;
+        let lensY = mouseY - lensHeight / 2;
+
+        // Constrain lens to image bounds
+        lensX = Math.min(Math.max(lensX, 0), rect.width - lensWidth);
+        lensY = Math.min(Math.max(lensY, 0), rect.height - lensHeight);
+
+        // Update lens position
+        zoomLens.style.left = `${lensX}px`;
+        zoomLens.style.top = `${lensY}px`;
+
+        // Calculate zoom ratios
+        const scaleX = zoomResult.offsetWidth / lensWidth;
+        const scaleY = zoomResult.offsetHeight / lensHeight;
+
+        // Update zoom result
+        zoomResult.style.backgroundImage = `url(${mainImage.src})`;
+        zoomResult.style.backgroundSize = `${rect.width * scaleX}px ${rect.height * scaleY}px`;
+        zoomResult.style.backgroundPosition = `-${lensX * scaleX}px -${lensY * scaleY}px`;
+    }
+
+    // Initialize zoom
+    initZoom();
+
+    // Handle thumbnail clicks
+    const thumbnailsContainer = document.getElementById('thumbnails');
+    if (thumbnailsContainer) {
+        thumbnailsContainer.addEventListener('click', function(e) {
+            const button = e.target.closest('button');
+            if (button) {
+                const imageUrl = button.dataset.imageUrl;
+                if (imageUrl) {
+                    mainImage.src = imageUrl;
+                    const zoomResult = document.getElementById('zoom-result');
+                    if (zoomResult) {
+                        zoomResult.style.backgroundImage = `url(${imageUrl})`;
+                    }
+                }
+            }
+        });
+    }
+
+    // Variant fetching and updating
+    async function fetchVariantDetails(variantId) {
+        try {
+            const response = await fetch(`/product/{{ product.id }}/variant/${variantId}/`);
+            if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+
+            const data = await response.json();
+            updateProductInfo(data);
+            updateSizeOptions(data.sizes);
+
+            selectedSizeName = null;
+            console.log('Selected size name reset:', selectedSizeName);
+
+        } catch (error) {
+            console.error('Error fetching variant data:', error);
+            showNotification('Error fetching variant data. Please try again.', 'error');
+        }
+    }
+
+    // Color selection handling
+    colorOptions.addEventListener('click', async function(e) {
+        const button = e.target.tagName === 'BUTTON' ? e.target : e.target.closest('button');
+        
+        if (button) {
+            const variantId = button.dataset.variantId;
+            selectedVariantId = variantId;
+            
+            button.classList.add('opacity-50');
+            
+            try {
+                await fetchVariantDetails(variantId);
+                
                 colorOptions.querySelectorAll('button').forEach(btn =>
                     btn.classList.remove('ring-2', 'ring-[#ff6b00]'));
-                e.target.classList.add('ring-2', 'ring-[#ff6b00]');
+                button.classList.add('ring-2', 'ring-[#ff6b00]');
+                
+            } catch (error) {
+                console.error('Error updating variant:', error);
+                showNotification('Error updating variant details', 'error');
+            } finally {
+                button.classList.remove('opacity-50');
             }
-        });
-    
-        // Update size buttons dynamically
-        function updateSizeOptions(sizes) {
-            sizeOptions.innerHTML = sizes.map(size => `
-                <button 
-                    class="px-4 py-2 bg-[#222222] rounded-sm hover:bg-[#333333] transition-colors"
-                    data-size-name="${size.name}"  <!-- Correct attribute -->
-                >
-                    ${size.name}
-                </button>
-            `).join('');
-    
-            // Reset selected size name
-            selectedSizeName = null;
-            console.log('Size options updated. Selected size name reset:', selectedSizeName);
         }
-    
-        // Size selection handling
-        document.addEventListener('click', function(e) {
-            const sizeButton = e.target.closest('#size-options button');
-            if (sizeButton) {
-                selectedSizeName = sizeButton.dataset.sizeName;
-                console.log('Selected size name:', selectedSizeName);
-                document.querySelectorAll('#size-options button').forEach(btn => 
-                    btn.classList.remove('ring-2', 'ring-[#ff6b00]')
-                );
-                sizeButton.classList.add('ring-2', 'ring-[#ff6b00]');
-            }
-            
+    });
+
+    // Update product info function
+    function updateProductInfo(data) {
+        const currentPriceElement = document.getElementById('current-price');
+        const originalPriceElement = document.getElementById('original-price');
+        
+        if (data.discount_price) {
+            currentPriceElement.textContent = `₹${data.discount_price}`;
+            originalPriceElement.textContent = `₹${data.price}`;
+            originalPriceElement.classList.remove('hidden');
+        } else {
+            currentPriceElement.textContent = `₹${data.price}`;
+            originalPriceElement.classList.add('hidden');
+        }
+        
+        const stockStatus = document.getElementById('stock-status');
+        
+        if (data.total_stock > 0) {
+            stockStatus.textContent = `In Stock (${data.total_stock} available)`;
+            stockStatus.classList.remove('text-red-500');
+            stockStatus.classList.add('text-green-500');
+            addToCartBtn.disabled = false;
+        } else {
+            stockStatus.textContent = 'Out of Stock';
+            stockStatus.classList.remove('text-green-500');
+            stockStatus.classList.add('text-red-500');
+            addToCartBtn.disabled = true;
+        }
+        
+        if (data.images && data.images.length > 0) {
+            updateImages(data.images);
+        }
+        
+        addToCartBtn.dataset.variantId = data.id;
+        addToCartBtn.dataset.maxStock = data.total_stock;
+        
+        quantityInput.value = 1;
+        quantityInput.max = data.total_stock;
+        
+        selectedSizeName = null;
+        updateSizeOptions(data.sizes);
+    }
+
+    // Update images function with zoom support
+    function updateImages(images) {
+        const thumbnailsContainer = document.getElementById('thumbnails');
+        
+        const primaryImage = images.find(img => img.is_primary) || images[0];
+        mainImage.src = primaryImage.image;
+        
+        thumbnailsContainer.innerHTML = images.map((image, index) => `
+            <button 
+                class="bg-[#222222] rounded-lg overflow-hidden hover:opacity-80 transition-opacity ${image.is_primary ? 'thumbnail-active' : ''}"
+                data-image-url="${image.image}"
+            >
+                <img 
+                    src="${image.image}"
+                    alt="${image.alt_text || `Product view ${index + 1}`}"
+                    class="w-full aspect-square object-cover"
+                >
+            </button>
+        `).join('');
+        
+        thumbnailsContainer.querySelectorAll('button').forEach(button => {
+            button.addEventListener('click', function() {
+                mainImage.src = this.dataset.imageUrl;
+                thumbnailsContainer.querySelectorAll('button').forEach(btn => 
+                    btn.classList.remove('thumbnail-active'));
+                this.classList.add('thumbnail-active');
+                
+                // Update zoom result background when thumbnail changes
+                const zoomResult = document.getElementById('zoom-result');
+                if (zoomResult) {
+                    zoomResult.style.backgroundImage = `url(${this.dataset.imageUrl})`;
+                }
+            });
         });
+    }
 
+    // Function to update size options with stock info
+    function updateSizeOptions(sizes) {
+        sizeOptions.innerHTML = sizes.map(size => `
+            <div class="relative flex flex-col items-center">
+                <!-- Size Button -->
+                <button 
+                    class="w-[45px] h-[45px] flex items-center justify-center border 
+                        ${size.stock > 0 ? 
+                            'border-[#333333] hover:border-[#555555]' : 
+                            'border-gray-600 cursor-not-allowed opacity-50'}
+                        rounded-sm transition-colors"
+                    data-size="${size.name}"
+                    ${size.stock === 0 ? 'disabled' : ''}
+                >
+                    <span class="text-sm font-medium 
+                        ${size.stock > 0 ? 'text-gray-200' : 'text-gray-500'}">
+                        ${size.name}
+                    </span>
+                </button>
 
+                <!-- Stock Information -->
+                <div class="text-xs mt-1 ${size.stock > 0 ? 'text-green-500' : 'text-red-500'}">
+                    ${size.stock > 0 ? `${size.stock} left` : 'Out of stock'}
+                </div>
+            </div>
+        `).join('');
+
+        // Re-bind size selection handlers
+        document.querySelectorAll('#size-options button').forEach(button => {
+            if (!button.disabled) {
+                button.addEventListener('click', handleSizeSelection);
+            }
+        });
+    }
+
+    // Handler for size selection
+    function handleSizeSelection(e) {
+        document.querySelectorAll('#size-options button').forEach(btn => 
+            btn.classList.remove('ring-2', 'ring-[#ff6b00]')
+        );
+        e.currentTarget.classList.add('ring-2', 'ring-[#ff6b00]');
+        selectedSizeName = e.currentTarget.dataset.size;
+    }
     // Quantity controls
     decreaseQuantityBtn.addEventListener('click', () => {
         let quantity = parseInt(quantityInput.value, 10);
@@ -262,28 +505,25 @@
         quantityInput.value = quantity;
     });
 
-
+    // Add to cart functionality
     addToCartBtn.addEventListener('click', async function() {
-        // Validate selected size
         if (!selectedSizeName) {
             showNotification('Please select a size', 'error');
             return;
         }
-    
-        // Validate quantity
+
         const quantity = parseInt(quantityInput.value, 10);
         if (isNaN(quantity) || quantity < 1) {
             showNotification('Please enter a valid quantity', 'error');
             return;
         }
-    
+
         try {
-            // Use FormData instead of JSON
             const formData = new FormData();
             formData.append('variant_id', selectedVariantId);
             formData.append('quantity', quantity);
             formData.append('size_name', selectedSizeName);
-    
+
             const response = await fetch('{% url "add_to_cart" %}', {
                 method: 'POST',
                 headers: {
@@ -291,28 +531,25 @@
                 },
                 body: formData,
             });
-    
+
             if (!response.ok) {
                 throw new Error('Failed to add item to cart');
             }
-    
+
             const data = await response.json();
-    
-            // Show success message
             showNotification('Item added to cart successfully!', 'success');
-    
-            // Update cart count
+
             if (data.cart_count !== undefined) {
                 updateCartCount(data.cart_count);
             }
-    
+
         } catch (error) {
             console.error('Error:', error);
             showNotification('An error occurred. Please try again.', 'error');
         }
     });
-    
 
+    // Utility functions
     function getCookie(name) {
         let cookieValue = null;
         if (document.cookie && document.cookie !== '') {
@@ -332,81 +569,11 @@
         const cartCountElement = document.querySelector('.cart-count');
         if (cartCountElement) {
             cartCountElement.textContent = count;
-        } else {
-            console.error('Cart count element not found');
         }
-    }
-    
-    function updateProductInfo(data) {
-        document.getElementById('current-price').textContent = `₹${data.discount_price || data.price}`;
-        const originalPriceElement = document.getElementById('original-price');
-        if (data.discount_price) {
-            originalPriceElement.textContent = `₹${data.price}`;
-            originalPriceElement.classList.remove('hidden');
-        } else {
-            originalPriceElement.classList.add('hidden');
-        }
-        
-        // Update stock status
-        const totalStock = data.stock + (data.size_stock || 0);
-        const stockStatus = document.getElementById('stock-status');
-        if (totalStock > 0) {
-            addToCartBtn.disabled = false;
-            addToCartBtn.textContent = 'Add To Cart';
-            stockStatus.textContent = `In Stock (${totalStock} available)`;
-            stockStatus.classList.remove('text-red-500');
-            stockStatus.classList.add('text-green-500');
-        } else {
-            addToCartBtn.disabled = true;
-            addToCartBtn.textContent = 'Out of Stock';
-            stockStatus.textContent = 'Out of Stock';
-            stockStatus.classList.remove('text-green-500');
-            stockStatus.classList.add('text-red-500');
-        }
-        
-        addToCartBtn.dataset.variantId = data.id;
-        addToCartBtn.dataset.maxStock = totalStock;
-        quantityInput.max = totalStock;
-        
-        updateImages(data.images);
-        updateSizeOptions(data.sizes);
-    }
-
-    
-
-    function updateImages(images) {
-        const primaryImage = images.find(img => img.is_primary) || images[0];
-        mainImage.src = primaryImage.image;
-
-        const thumbnailsContainer = document.getElementById('thumbnails');
-        thumbnailsContainer.innerHTML = images.map((image, index) => `
-            <button 
-                class="bg-[#222222] rounded-lg overflow-hidden hover:opacity-80 transition-opacity ${image.is_primary ? 'thumbnail-active' : ''}"
-                data-image-url="${image.image}"
-            >
-                <img 
-                    src="${image.image}"
-                    alt="Product view ${index + 1}"
-                    class="w-full aspect-square object-cover"
-                >
-            </button>
-        `).join('');
-
-        // Reattach thumbnail click handlers
-        thumbnailsContainer.querySelectorAll('button').forEach(button => {
-            button.addEventListener('click', function() {
-                mainImage.src = this.dataset.imageUrl;
-                thumbnailsContainer.querySelectorAll('button').forEach(btn => 
-                    btn.classList.remove('thumbnail-active'));
-                this.classList.add('thumbnail-active');
-            });
-        });
     }
 
     function showNotification(message, type = 'success') {
-        console.log('Showing type:', type);
         const notification = document.getElementById('notification');
-        console.log('Showing notification:', message);
         notification.textContent = message;
         notification.classList.remove('bg-green-500', 'bg-red-500');
         notification.classList.add(type === 'success' ? 'bg-green-500' : 'bg-red-500');
@@ -415,7 +582,88 @@
             notification.classList.add('hidden');
         }, 3000);
     }
+
+    // Initialize zoom functionality
+    initZoom();
 });
 </script>
+<style>
+    /* Size Button Styling */
+    .size-button {
+        width: 45px;
+        height: 45px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #333333;
+        border-radius: 4px;
+        transition: border-color 0.3s;
+    }
+
+    .size-button:hover {
+        border-color: #555555;
+    }
+
+    .size-button:disabled {
+        border-color: #666666;
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Stock Information Styling */
+    .stock-info {
+        font-size: 0.75rem; /* 12px */
+        margin-top: 0.25rem; /* 4px */
+    }
+
+    .stock-info.in-stock {
+        color: #22c55e; /* Green for in-stock */
+    }
+
+    .stock-info.out-of-stock {
+        color: #ef4444; /* Red for out-of-stock */
+    }
+    .variant-image-button img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    #zoom-container {
+        position: relative;
+        cursor: crosshair;
+        overflow: visible !important;
+    }
+    
+    #zoom-lens {
+        position: absolute;
+        border: 2px solid #ff6b00;
+        background-color: rgba(255, 107, 0, 0.1);
+        cursor: none;
+        pointer-events: none;
+        z-index: 10;
+    }
+    
+    #zoom-result {
+        position: absolute; /* Changed from fixed to absolute */
+        left: calc(100% + 10px); /* Position right next to the image */
+        top: 0;
+        width: 400px;
+        height: 400px;
+        background-repeat: no-repeat;
+        border: 2px solid #ff6b00;
+        z-index: 1000;
+        display: none;
+        background-color: #222222;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+    }
+    
+    #main-image {
+        cursor: crosshair;
+    }
+    
+    .thumbnail-active {
+        border: 2px solid #ff6b00;
+    }
+</style>
 {% endblock %}
 

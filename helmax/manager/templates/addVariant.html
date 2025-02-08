@@ -43,17 +43,6 @@
         </div>
 
         <div class="space-y-2">
-            <label for="stock" class="text-sm font-medium text-gray-300">Stock</label>
-            <input 
-                type="number" 
-                id="stock" 
-                name="stock" 
-                class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                required
-            >
-        </div>
-
-        <div class="space-y-2">
             <label for="discount_price" class="text-sm font-medium text-gray-300">Discount Price</label>
             <input 
                 type="number" 
@@ -65,13 +54,24 @@
         </div>
 
         <div class="space-y-2">
-            <label class="text-sm font-medium text-gray-300">Sizes</label>
-            <div class="flex flex-wrap gap-2">
+            <label class="text-sm font-medium text-gray-300">Sizes and Stock</label>
+            <div class="space-y-3">
                 {% for size_code, size_name in size_choices %}
-                    <label class="inline-flex items-center">
-                        <input type="checkbox" name="sizes" value="{{ size_code }}" class="form-checkbox text-purple-500">
-                        <span class="ml-2">{{ size_name }}</span>
-                    </label>
+                    <div class="flex items-center space-x-4">
+                        <label class="inline-flex items-center min-w-[120px]">
+                            <input type="checkbox" name="sizes" value="{{ size_code }}" class="form-checkbox text-purple-500">
+                            <span class="ml-2">{{ size_name }}</span>
+                        </label>
+                        <div class="flex-1">
+                            <input 
+                                type="number" 
+                                name="stock_{{ size_code }}" 
+                                placeholder="Stock for {{ size_name }}"
+                                class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                min="0"
+                            >
+                        </div>
+                    </div>
                 {% endfor %}
             </div>
         </div>

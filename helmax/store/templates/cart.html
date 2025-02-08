@@ -39,26 +39,33 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="lg:col-span-2 space-y-6">
             {% for item in cart_items %}
-            <div class="bg-[#222222] rounded-lg p-6 {% if item.variant.stock <= 0 %}opacity-50{% endif %}">
-                <div class="flex flex-col md:flex-row items-start md:items-center space-y-4 md:space-y-0 md:space-x-6">
-                    <img src="{{ item.variant.images.first.image.url }}" alt="{{ item.variant.product.name }}" 
-                         class="w-full md:w-32 h-32 object-cover rounded-md">
-                    <div class="flex-grow">
-                        <h3 class="text-lg font-semibold">{{ item.variant.product.name }}</h3>
-                        <p class="text-gray-400">{{ item.variant.color }} - {{ item.size }}</p>
-                        <p class="text-[#ff6b00] font-medium mt-2">₹{{ item.variant.discount_price }}</p>
-                        {% if item.variant.stock > 0 %}
-                            <p class="text-green-500 text-sm mt-1">In stock</p>
-                        {% else %}
-                            <p class="text-red-500 text-sm mt-1">Out of stock</p>
-                        {% endif %}
+            <div class="group bg-[#222222] rounded-lg p-6 hover:shadow-lg transition-all duration-300 {% if item.variant.stock <= 0 %}opacity-50{% endif %}">
+                <div class="relative">
+                    <!-- Clickable area wrapper -->
+                    <a href="{% url 'product_detail' item.variant.product.id %}" class="absolute inset-0 z-10"></a>
+                    
+                    <div class="flex flex-col md:flex-row items-start md:items-center space-y-4 md:space-y-0 md:space-x-6 group-hover:opacity-90 transition-opacity">
+                        <img src="{{ item.variant.images.first.image.url }}" alt="{{ item.variant.product.name }}" 
+                             class="w-full md:w-32 h-32 object-cover rounded-md group-hover:scale-[1.02] transition-transform duration-300">
+                        <div class="flex-grow">
+                            <h3 class="text-lg font-semibold group-hover:text-[#ff6b00] transition-colors">{{ item.variant.product.name }}</h3>
+                            <p class="text-gray-400">{{ item.variant.color }} - {{ item.size }}</p>
+                            <p class="text-[#ff6b00] font-medium mt-2">₹{{ item.variant.discount_price }}</p>
+                            {% if item.variant.stock > 0 %}
+                                <p class="text-green-500 text-sm mt-1">In stock</p>
+                            {% else %}
+                                <p class="text-red-500 text-sm mt-1">Out of stock</p>
+                            {% endif %}
+                        </div>
                     </div>
-                    <div class="flex flex-col items-end space-y-4">
-                        <div class="flex items-center space-x-2">
+    
+                    <!-- Controls section with higher z-index to remain clickable -->
+                    <div class="flex flex-col items-end space-y-4 relative z-20">
+                        <div class="flex items-center space-x-2" data-item-id="{{ item.id }}">
                             <button onclick="updateQuantity('{{ item.id }}', -1)" 
                                     class="w-8 h-8 bg-[#333333] rounded-md flex items-center justify-center hover:bg-[#444444] transition-colors"
                                     {% if item.quantity <= 1 or item.variant.stock <= 0 %}disabled{% endif %}>
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
                                 </svg>
                             </button>
@@ -66,7 +73,7 @@
                             <button onclick="updateQuantity('{{ item.id }}', 1)" 
                                     class="w-8 h-8 bg-[#333333] rounded-md flex items-center justify-center hover:bg-[#444444] transition-colors"
                                     {% if item.quantity >= item.variant.stock %}disabled{% endif %}>
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                                 </svg>
                             </button>
@@ -95,24 +102,21 @@
         <div class="lg:col-span-1">
             <div class="bg-[#222222] rounded-lg p-6 sticky top-6">
                 <h2 class="text-xl font-semibold mb-4">Order Summary</h2>
+                <!-- In your order summary section -->
                 <div class="space-y-2 mb-4">
                     <div class="flex justify-between">
                         <span class="text-gray-400">Bag total:</span>
-                        <span>₹{{ cart.total_price }}</span>
+                        <span class="cart-total">₹{{ cart.total_price }}</span>
                     </div>
-                    {% comment %} <div class="flex justify-between text-[#ff6b00]">
+                    <div class="flex justify-between text-[#ff6b00]">
                         <span>Bag discount:</span>
-                        <span>-₹{{ cart.total_discount }}</span>
-                    </div> {% endcomment %}
-                    <div class="flex justify-between">
-                        <span class="text-gray-400">Delivery fee:</span>
-                        <span class="text-green-500">Free</span>
+                        <span class="cart-discount">₹0.00</span>
                     </div>
-                </div>
-                <div class="border-t border-[#333333] pt-4">
-                    <div class="flex justify-between font-semibold text-lg">
-                        <span>Order total:</span>
-                        <span>₹{{ cart.total_price }}</span>
+                    <div class="border-t border-[#333333] pt-4">
+                        <div class="flex justify-between font-semibold text-lg">
+                            <span>Order total:</span>
+                            <span class="cart-final">₹{{ cart.total_price }}</span>
+                        </div>
                     </div>
                 </div>
                 {% if is_cart_empty %}
@@ -155,6 +159,12 @@
     const csrftoken = getCookie('csrftoken');
 
     function updateQuantity(itemId, quantityChange) {
+        // Show loading state
+        const itemContainer = document.querySelector(`div[data-item-id="${itemId}"]`);
+        if (itemContainer) {
+            itemContainer.style.opacity = '0.7';
+        }
+    
         fetch(`/cart/update/${itemId}/`, {
             method: 'POST',
             headers: {
@@ -165,16 +175,97 @@
         })
         .then(response => response.json())
         .then(data => {
+            // Reset loading state
+            if (itemContainer) {
+                itemContainer.style.opacity = '1';
+            }
+    
             if (data.success) {
-                location.reload();
+                // Update quantity
+                const quantityElement = itemContainer.querySelector('span.w-12.text-center');
+                if (quantityElement) {
+                    quantityElement.textContent = data.new_quantity;
+                }
+    
+                // Update cart totals
+                updatePrice('.cart-total', data.cart_total);
+                // updatePrice('.cart-discount', data.cart_discount);
+                //updatePrice('.cart-final', data.cart_final);
+                updatePrice('.cart-final', data.cart_total);
+    
+                // Update button states
+                updateButtonStates(itemContainer, data.new_quantity, data.variant_stock);
+    
+                // Show success message
+                showMessage('Quantity updated successfully!', 'success');
             } else {
-                alert(data.message || 'Failed to update quantity');
+                // Reset the quantity if there was an error
+                showMessage(data.message, 'error');
             }
         })
         .catch(error => {
+            // Reset loading state
+            if (itemContainer) {
+                itemContainer.style.opacity = '1';
+            }
             console.error('Error:', error);
-            alert('An error occurred. Please try again.');
+            showMessage('An error occurred. Please try again.', 'error');
         });
+    }
+    
+    // Helper function to update prices
+    function updatePrice(selector, value) {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.textContent = `₹${parseFloat(value).toFixed(2)}`;
+        }
+    }
+    
+    // Helper function to update button states
+    function updateButtonStates(container, quantity, maxStock) {
+        const decreaseBtn = container.querySelector('button:first-child');
+        const increaseBtn = container.querySelector('button:last-child');
+        
+        if (decreaseBtn) {
+            decreaseBtn.disabled = quantity <= 1;
+        }
+        if (increaseBtn) {
+            increaseBtn.disabled = quantity >= maxStock;
+        }
+    }
+    
+    function showMessage(message, type) {
+        let messageElement = document.getElementById('cart-message');
+        if (!messageElement) {
+            messageElement = document.createElement('div');
+            messageElement.id = 'cart-message';
+            messageElement.style.position = 'fixed';
+            messageElement.style.top = '20px';
+            messageElement.style.right = '20px';
+            messageElement.style.padding = '10px 20px';
+            messageElement.style.borderRadius = '4px';
+            messageElement.style.zIndex = '1000';
+            messageElement.style.transition = 'opacity 0.3s ease';
+            document.body.appendChild(messageElement);
+        }
+    
+        if (type === 'success') {
+            messageElement.style.backgroundColor = '#4CAF50';
+        } else {
+            messageElement.style.backgroundColor = '#f44336';
+        }
+        messageElement.style.color = 'white';
+    
+        messageElement.textContent = message;
+        messageElement.style.opacity = '1';
+        messageElement.style.display = 'block';
+    
+        setTimeout(() => {
+            messageElement.style.opacity = '0';
+            setTimeout(() => {
+                messageElement.style.display = 'none';
+            }, 300);
+        }, 3000);
     }
 
     function removeFromCart(itemId) {
@@ -199,7 +290,7 @@
     }
 
     function moveToWishlist(itemId) {
-        fetch(`/cart/move-to-wishlist/${itemId}/`, {
+        fetch(`/move-to-wishlist/${itemId}/`, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': csrftoken
