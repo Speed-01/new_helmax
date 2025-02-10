@@ -348,16 +348,15 @@ def logout(request):
 def get_variant_data(request, product_id, variant_id):
     variant = get_object_or_404(
         Variant.objects.select_related('product')
-        .prefetch_related('sizes', 'images'),
+        .prefetch_related('images', 'sizes'),
         product_id=product_id,
         id=variant_id,
         is_active=True
     )
     
-    # Calculate total stock including sizes
-    size_stock = sum(size.stock for size in variant.sizes.all())
-    total_stock = variant.stock + size_stock
-
+    # Calculate total stock by summing all size stocks
+    total_stock = sum(size.stock for size in variant.sizes.all())
+    
     # Get primary image
     primary_image = variant.images.filter(is_primary=True).first()
     
@@ -366,9 +365,7 @@ def get_variant_data(request, product_id, variant_id):
         'color': variant.color,
         'price': str(variant.price),  # Convert Decimal to string for JSON
         'discount_price': str(variant.discount_price) if variant.discount_price else None,
-        'stock': variant.stock,
-        'size_stock': size_stock,
-        'total_stock': variant.stock,
+        'total_stock': total_stock,  # Only using total from sizes
         'images': [
             {
                 'image': image.image.url,
@@ -380,7 +377,7 @@ def get_variant_data(request, product_id, variant_id):
             {
                 'id': size.id,
                 'name': size.name,
-                'stock': size.stock  # Individual size stock
+                'stock': size.stock  
             } for size in variant.sizes.all()
         ],
         'primary_image_url': primary_image.image.url if primary_image else (
@@ -389,7 +386,6 @@ def get_variant_data(request, product_id, variant_id):
     }
     
     return JsonResponse(data)
-
 
 
 
@@ -459,22 +455,21 @@ def product_list(request):
             
             for variant in product.active_variants:
                 # Calculate variant's total stock (sum of sizes' stock)
-                size_stock = sum(size.stock for size in variant.sizes.all())
-                variant_total_stock = variant.stock + size_stock
-                total_stock += variant_total_stock
+                total_stock = sum(size.stock for size in variant.sizes.all())
                 
-                # Prepare variant stock info
-                variant_stock_info.append({
-                    'color': variant.color or 'Default',
-                    'base_stock': variant.stock,
-                    'sizes': [
-                        {
-                            'size': size.get_name_display(),  # This will show the human-readable size name
-                            'stock': size.stock
-                        } for size in variant.sizes.all()
-                    ],
-                    'total_stock': variant_total_stock
-                })
+                
+                # # Prepare variant stock info
+                # variant_stock_info.append({
+                #     'color': variant.color or 'Default',
+                #     'base_stock': variant.stock,
+                #     'sizes': [
+                #         {
+                #             'size': size.get_name_display(),  # This will show the human-readable size name
+                #             'stock': size.stock
+                #         } for size in variant.sizes.all()
+                #     ],
+                #     'total_stock': variant_total_stock
+                # })
             
             product_data.append({
                 'id': product.id,
@@ -483,7 +478,6 @@ def product_list(request):
                 'price': first_variant.discount_price or first_variant.price,
                 'image_url': primary_image.image.url if primary_image else 'default_image.jpg',
                 'total_stock': total_stock,
-                'variant_stock_info': variant_stock_info,
                 'stock_status': 'In Stock' if total_stock > 0 else 'Out of Stock'
             })
 
@@ -526,11 +520,10 @@ def product_detail(request, product_id):
             'color': variant.color
         })
     
-    # Calculate initial variant stock info
-    primary_variant_stock = 0
-    if primary_variant:
-        size_stock = sum(size.stock for size in primary_variant.sizes.all())
-        primary_variant_stock = primary_variant.stock + size_stock
+    
+    
+    total_stock = sum(size.stock for size in primary_variant.sizes.all())
+    
 
     sizes = list(primary_variant.sizes.all()) if primary_variant else []
 
@@ -540,8 +533,8 @@ def product_detail(request, product_id):
         'primary_variant': primary_variant,
         'variants_with_images': variants_with_images,  # New context variable
         'sizes': sizes,
-        'current_stock': primary_variant_stock,
-        'stock_status': 'In Stock' if primary_variant_stock > 0 else 'Out of Stock',
+        'current_stock': total_stock,
+        'stock_status': 'In Stock' if total_stock > 0 else 'Out of Stock',
     }
     if primary_variant:
         sizes = [
@@ -560,9 +553,9 @@ def product_detail(request, product_id):
         'brand': product.brand.name, 
         'primary_variant': primary_variant,
         'variants_with_images': variants_with_images,  
-        'stock_status': 'In Stock' if primary_variant_stock > 0 else 'Out of Stock',
+        'stock_status': 'In Stock' if total_stock > 0 else 'Out of Stock',
         'sizes': sizes,
-        'current_stock': primary_variant.stock if primary_variant else 0,
+        'total_stock': total_stock
     }
     
     return render(request, 'product_details.html', context)
@@ -730,7 +723,7 @@ def update_quantity(request, item_id):
                 'success': False, 
                 'message': 'Quantity cannot be less than 1.'
             })
-        if new_quantity > cart_item.variant.stock:
+        if new_quantity > cart_item.size.stock:
             return JsonResponse({
                 'success': False, 
                 'message': 'Quantity exceeds available stock.'
@@ -751,7 +744,7 @@ def update_quantity(request, item_id):
             # 'cart_discount': float(cart.total_discount),
             'cart_final': float(cart.final_price), 
             'item_total': float(item_total),
-            'variant_stock': cart_item.variant.stock
+            'size_stock': cart_item.size.stock
         })
     except json.JSONDecodeError:
         return JsonResponse({
@@ -991,7 +984,7 @@ def user_checkout(request):
             })
 
             # Check stock
-            if item.quantity > item.variant.stock:
+            if item.quantity > item.size.stock:
                 out_of_stock_items.append(item)
 
         # Handle out-of-stock items
@@ -1107,7 +1100,7 @@ def place_order(request):
 
                     # Reduce stock for the variant
                     if cart_item.variant:
-                        cart_item.variant.stock -= cart_item.quantity
+                        cart_item.size.stock -= cart_item.quantity
                         cart_item.variant.save()
 
 

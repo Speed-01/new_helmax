@@ -53,7 +53,7 @@
                 </tr>
             </thead>
             <tbody id="products-body" class="bg-[#0A0A0A] divide-y divide-[#2A2A2A]">
-                {% if messages %}
+                {% comment %} {% if messages %}
                     <div class="mb-4">
                         {% for message in messages %}
                             <div class="p-4 {% if message.tags == 'success' %}bg-green-500{% else %}bg-red-500{% endif %} text-white rounded-md">
@@ -61,7 +61,7 @@
                             </div>
                         {% endfor %}
                     </div>
-                {% endif %}
+                {% endif %} {% endcomment %}
                 {% for product in products %}
                 <tr class="product-row hover:bg-[#111111] transition-colors duration-200" data-name="{{ product.name | lower }}" data-id="{{ product.id }}">
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">{{ product.name }}</td>

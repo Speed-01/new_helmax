@@ -64,7 +64,7 @@
                         <div class="flex items-center space-x-2" data-item-id="{{ item.id }}">
                             <button onclick="updateQuantity('{{ item.id }}', -1)" 
                                     class="w-8 h-8 bg-[#333333] rounded-md flex items-center justify-center hover:bg-[#444444] transition-colors"
-                                    {% if item.quantity <= 1 or item.variant.stock <= 0 %}disabled{% endif %}>
+                                    {% if item.quantity <= 1 or item.size.stock <= 0 %}disabled{% endif %}>
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
                                 </svg>
@@ -72,7 +72,7 @@
                             <span class="w-12 text-center">{{ item.quantity }}</span>
                             <button onclick="updateQuantity('{{ item.id }}', 1)" 
                                     class="w-8 h-8 bg-[#333333] rounded-md flex items-center justify-center hover:bg-[#444444] transition-colors"
-                                    {% if item.quantity >= item.variant.stock %}disabled{% endif %}>
+                                    {% if item.quantity >= item.size.stock %}disabled{% endif %}>
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                                 </svg>
@@ -194,7 +194,7 @@
                 updatePrice('.cart-final', data.cart_total);
     
                 // Update button states
-                updateButtonStates(itemContainer, data.new_quantity, data.variant_stock);
+                updateButtonStates(itemContainer, data.new_quantity, data.size_stock);
     
                 // Show success message
                 showMessage('Quantity updated successfully!', 'success');

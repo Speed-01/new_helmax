@@ -33,7 +33,7 @@ urlpatterns = [
     path('toggle_category_status/<int:category_id>/', views.toggle_category_status, name='toggle_category_status'),
 
     path('search-products/', views.search_products, name='search_products'),
-
+  
     
     path('admin_brands/', views.admin_brand, name='admin_brand'),
     path('admin_brands/add/', views.add_brand, name='add_brand'),
@@ -42,10 +42,17 @@ urlpatterns = [
 
 
 
+    # Admin orders page
     path('admin_orders/', views.admin_orders, name='admin_orders'),
+    
+    # API endpoint for fetching orders data
+    path('admin_orders/api/', views.admin_orders_api, name='admin_orders_api'),  # New
+    
+    # Other URLs
     path('admin_orders/edit/<int:order_id>/', views.edit_order, name='edit_order'),
     path('admin_orders/<int:order_id>/update-status/', views.update_order_status, name='update_order_status'),
     path('admin_return-request/<int:return_request_id>/', views.handle_return_request, name='handle_return_request'),
+    
 
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

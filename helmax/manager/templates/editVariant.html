@@ -5,17 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Variant</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Custom styles for dropdown */
-        .custom-select {
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-            background-position: right 0.5rem center;
-            background-repeat: no-repeat;
-            background-size: 1.5em 1.5em;
-            padding-right: 2.5rem;
-        }
-    </style>
 </head>
 <body class="bg-[#0A0A0A] text-gray-200">
     <div class="p-6 space-y-6">
@@ -23,17 +12,15 @@
             Edit Variant
         </h1>
 
-        <div class="mb-6">
-            <label for="variantSelect" class="block text-sm font-medium text-gray-300 mb-2">Select Variant</label>
-            <select id="variantSelect" class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent custom-select">
-                <option value="">Select a variant</option>
-                {% for v in product.variants.all %}
-                    <option value="{{ v.id }}" {% if v.id == variant.id %}selected{% endif %}>
-                        {{ v.color }}
-                    </option>
+        {% if messages %}
+            <div class="mb-4">
+                {% for message in messages %}
+                    <div class="p-4 {% if message.tags == 'success' %}bg-green-500{% else %}bg-red-500{% endif %} text-white rounded-md">
+                        {{ message }}
+                    </div>
                 {% endfor %}
-            </select>
-        </div>
+            </div>
+        {% endif %}
 
         <form id="editVariantForm" class="space-y-6" method="POST" enctype="multipart/form-data">
             {% csrf_token %}
@@ -45,6 +32,7 @@
                     type="text"
                     value="{{ variant.color }}"
                     class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    required
                 >
             </div>
 
@@ -54,8 +42,10 @@
                     id="price"
                     name="price"
                     type="number"
+                    step="0.01"
                     value="{{ variant.price }}"
                     class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    required
                 >
             </div>
 
@@ -65,32 +55,36 @@
                     id="discount_price"
                     name="discount_price"
                     type="number"
+                    step="0.01"
                     value="{{ variant.discount_price }}"
                     class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                 >
             </div>
 
             <div class="space-y-2">
-                <label for="stock" class="text-sm font-medium text-gray-300">Stock</label>
-                <input
-                    id="stock"
-                    name="stock"
-                    type="number"
-                    value="{{ variant.stock }}"
-                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                >
-            </div>
-
-            <div class="space-y-2">
-                <label class="text-sm font-medium text-gray-300">Sizes</label>
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {% for size in all_sizes %}
-                        <label class="inline-flex items-center">
-                            <input type="checkbox" name="sizes" value="{{ size }}" 
-                                   {% if size in existing_sizes %}checked{% endif %}
-                                   class="rounded bg-[#1A1A1A] border-[#2A2A2A] text-yellow-500 focus:ring-yellow-500">
-                            <span class="ml-2 text-gray-300">{{ size }}</span>
-                        </label>
+                <label class="text-sm font-medium text-gray-300">Sizes and Stock</label>
+                <div class="space-y-3">
+                    {% for size in size_data %}
+                        <div class="flex items-center space-x-4">
+                            <label class="inline-flex items-center min-w-[120px]">
+                                <input type="checkbox" 
+                                       name="sizes" 
+                                       value="{{ size.code }}" 
+                                       {% if size.checked %}checked{% endif %}
+                                       class="form-checkbox text-yellow-500">
+                                <span class="ml-2">{{ size.name }}</span>
+                            </label>
+                            <div class="flex-1">
+                                <input 
+                                    type="number" 
+                                    name="stock_{{ size.code }}" 
+                                    value="{{ size.stock }}"
+                                    placeholder="Stock for {{ size.name }}"
+                                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                                    min="0"
+                                >
+                            </div>
+                        </div>
                     {% endfor %}
                 </div>
             </div>
@@ -120,17 +114,15 @@
                     accept="image/*"
                     class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                 >
-                <p class="text-sm text-gray-400">Upload new images to replace the existing ones</p>
+                <p class="text-sm text-gray-400">Upload at least 4 images to replace the existing ones</p>
             </div>
 
             <div class="flex justify-between items-center">
-                <form action="{% url 'toggleVariant' variant.id %}" method="POST" class="inline-flex">
-                    {% csrf_token %}
-                    <button type="submit" 
-                            class="px-4 py-2 {% if variant.is_active %}bg-red-600 hover:bg-red-700{% else %}bg-green-600 hover:bg-green-700{% endif %} text-white rounded-md transition-colors duration-200">
-                        {% if variant.is_active %}Block{% else %}Unblock{% endif %} Variant
-                    </button>
-                </form>
+                <button type="submit" 
+                        form="toggleForm"
+                        class="px-4 py-2 {% if variant.is_active %}bg-red-600 hover:bg-red-700{% else %}bg-green-600 hover:bg-green-700{% endif %} text-white rounded-md transition-colors duration-200">
+                    {% if variant.is_active %}Block{% else %}Unblock{% endif %} Variant
+                </button>
                 <div class="flex space-x-4">
                     <a href="{% url 'adminProducts' %}" class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
                         Cancel
@@ -144,18 +136,10 @@
                 </div>
             </div>
         </form>
-    </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const variantSelect = document.getElementById('variantSelect');
-            variantSelect.addEventListener('change', function() {
-                const selectedVariantId = this.value;
-                if (selectedVariantId) {
-                    window.location.href = `/manager/edit-variant/${selectedVariantId}/`;
-                }
-            });
-        });
-    </script>
+        <form id="toggleForm" action="{% url 'toggleVariant' variant.id %}" method="POST" class="hidden">
+            {% csrf_token %}
+        </form>
+    </div>
 </body>
 </html>

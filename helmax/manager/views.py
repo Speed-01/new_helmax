@@ -336,54 +336,84 @@ def editVariant(request, variant_id):
     product = variant.product
     existing_sizes = variant.sizes.all()
     existing_images = variant.images.all()
-    all_sizes = ['S', 'M', 'L', 'XL']
     
     if request.method == 'POST':
         color = request.POST.get('color')
         price = request.POST.get('price')
-        stock = request.POST.get('stock')
         discount_price = request.POST.get('discount_price')
         new_sizes = request.POST.getlist('sizes')
         new_images = request.FILES.getlist('images')
         
-        # Update variant details
-        variant.color = color
-        variant.price = price
-        variant.stock = stock
-        variant.discount_price = discount_price
-        variant.save()
-        
-        # Update sizes
-        # Clear all existing sizes and add the new ones
-        variant.sizes.all().delete()
-        for size in new_sizes:
-            Size.objects.create(product_variant=variant, name=size)
-        
-        # Handle new images
-        if new_images:
-            # If new images are uploaded, delete old ones
-            existing_images.delete()
+        try:
+            # Update variant details
+            variant.color = color
+            variant.price = price
+            variant.discount_price = discount_price
+            variant.stock = 0  # Will be updated based on size stocks
+            variant.save()
             
-            # Add new images
-            for index, image in enumerate(new_images):
-                ProductImage.objects.create(
-                    variant=variant,
-                    image=image,
-                    is_primary=(index == 0)
+            # Update sizes
+            variant.sizes.all().delete()
+            total_stock = 0
+            
+            # Create sizes with their respective stocks
+            for size in new_sizes:
+                stock_for_size = request.POST.get(f'stock_{size}', 0)
+                stock_value = int(stock_for_size) if stock_for_size else 0
+                total_stock += stock_value
+                
+                Size.objects.create(
+                    product_variant=variant,
+                    name=size,
+                    stock=stock_value
                 )
+            
+            # Update variant's total stock
+            variant.stock = total_stock
+            variant.save()
+            
+            # Handle new images
+            if new_images:
+                if len(new_images) < 4:
+                    messages.error(request, 'Please upload at least 4 images.')
+                    return redirect('editVariant', variant_id=variant.id)
+                    
+                # If new images are uploaded, delete old ones
+                existing_images.delete()
+                
+                # Add new images
+                for index, image in enumerate(new_images):
+                    ProductImage.objects.create(
+                        variant=variant,
+                        image=image,
+                        is_primary=(index == 0)
+                    )
         
-        return redirect('adminProducts')
+            messages.success(request, 'Variant updated successfully.')
+            return redirect('adminProducts')
+            
+        except Exception as e:
+            messages.error(request, f'Error updating variant: {str(e)}')
+            return redirect('editVariant', variant_id=variant.id)
+    
+    # Prepare size data for template
+    size_data = []
+    for size_code, size_name in Size.SIZE_CHIOCES:
+        existing_size = existing_sizes.filter(name=size_code).first()
+        size_data.append({
+            'code': size_code,
+            'name': size_name,
+            'checked': existing_size is not None,
+            'stock': existing_size.stock if existing_size else 0
+        })
     
     context = {
         'product': product,
         'variant': variant,
-        'all_sizes': all_sizes,
-        'existing_sizes': [size.name for size in existing_sizes],
+        'size_data': size_data,
         'existing_images': existing_images
     }
     return render(request, 'editVariant.html', context)
-
-
 
 def deleteProduct(request, product_id):
     if request.method == 'POST':
@@ -448,36 +478,46 @@ from django.core.paginator import Paginator
 from django.contrib import messages
 from .models import Order, ReturnRequest
 
+# views.py
 def admin_orders(request):
-    orders = Order.objects.select_related('user').order_by('-created_at')
+    # Handle initial page render (HTML)
+    orders = Order.objects.select_related('user', 'paymentmethod').order_by('-created_at')
     search_query = request.GET.get('search', '')
     if search_query:
         orders = orders.filter(user__username__icontains=search_query)
     
-    paginator = Paginator(orders, 10)  # Show 10 orders per page
+    paginator = Paginator(orders, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
-    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-        data = {
-            'orders': [
-                {
-                    'id': order.id,
-                    'user__username': order.user.full_name,
-                    'payment_method': order.payment_method,
-                    'status': order.status,
-                    'total_price': float(order.total_price)
-                } for order in page_obj
-            ],
-            'total_pages': paginator.num_pages,
-        }
-        return JsonResponse(data)
-    
-    context = {
-        'orders': page_obj,
-        'search_query': search_query
-    }
+    context = {'orders': page_obj, 'search_query': search_query}
     return render(request, 'adminOrder.html', context)
+
+def admin_orders_api(request):
+    # Handle AJAX requests (JSON)
+    orders = Order.objects.select_related('user', 'paymentmethod').order_by('-created_at')
+    search_query = request.GET.get('search', '')
+    if search_query:
+        orders = orders.filter(user__username__icontains=search_query)
+    
+    paginator = Paginator(orders, 10)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    orders_data = [
+        {
+            'id': order.id,
+            'username': order.user.username,
+            'payment_method': order.paymentmethod.name if order.paymentmethod else 'N/A',
+            'status': order.order_status,
+            'total_price': float(order.total_amount)
+        } for order in page_obj
+    ]
+    
+    return JsonResponse({
+        'orders': orders_data,
+        'total_pages': paginator.num_pages
+    })
 
 def edit_order(request, order_id):
     order = get_object_or_404(Order.objects.select_related('user').prefetch_related('items__product'), id=order_id)

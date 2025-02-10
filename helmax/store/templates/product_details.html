@@ -64,8 +64,8 @@
             <div class="flex items-center space-x-4">
                 <div class="text-sm text-gray-400">Brand: <span class="text-[#ff6b00]">{{ brand }}</span></div>
                 <div class="text-sm text-gray-400">Availability: 
-                    <span id="stock-status" class="{% if current_stock > 0 %}text-green-500{% else %}text-red-500{% endif %}">
-                        {% if current_stock > 0 %}In Stock ({{ current_stock }} available){% else %}Out of Stock{% endif %}
+                    <span id="stock-status" class="{% if total_stock > 0 %}text-green-500{% else %}text-red-500{% endif %}">
+                        {% if total_stock > 0 %}In Stock ({{ total_stock }} available){% else %}Out of Stock{% endif %}
                     </span>
                 </div>
             </div>
@@ -117,15 +117,15 @@
                     </div>
                 </div>
             </div>
-                <div class="text-sm text-gray-400">Availability: 
-                    <span id="stock-status" class="{% if primary_variant.stock > 0 %}text-green-500{% else %}text-red-500{% endif %}">
-                        {% if primary_variant.stock > 0 %}
-                            In Stock ({{ primary_variant.stock }} available)
+                {% comment %} <div class="text-sm text-gray-400">Availability: 
+                    <span id="stock-status" class="{% if total_stock > 0 %}text-green-500{% else %}text-red-500{% endif %}">
+                        {% if total_stock > 0 %}
+                            In Stock ({{ total_stock }} available)
                         {% else %}
                             Out of Stock
                         {% endif %}
                     </span>
-                </div>
+                </div> {% endcomment %}
                 <!-- Size Selection -->
                 <div class="space-y-4">
                     <label class="text-sm text-gray-400">Size</label>
@@ -175,9 +175,9 @@
                     <button 
                         id="add-to-cart"
                         class="flex-1 bg-[#ff6b00] text-white px-6 py-3 rounded-sm hover:bg-[#ff7d1a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        {% if not primary_variant.stock > 0 %}disabled{% endif %}
-                        data-variant-id="{{ primary_variant.id }}"
-                        data-max-stock="{{ primary_variant.stock }}"
+                        {% if not item.size.stock > 0 %}disabled{% endif %}
+                        {% comment %} data-variant-id="{{ total_stock.id }}" {% endcomment %}
+                        data-max-stock="{{ size.stock }}"
                     >
                         Add To Cart
                     </button>
@@ -371,7 +371,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Update product info function
     function updateProductInfo(data) {
         const currentPriceElement = document.getElementById('current-price');
         const originalPriceElement = document.getElementById('original-price');
@@ -387,16 +386,35 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const stockStatus = document.getElementById('stock-status');
         
-        if (data.total_stock > 0) {
-            stockStatus.textContent = `In Stock (${data.total_stock} available)`;
-            stockStatus.classList.remove('text-red-500');
-            stockStatus.classList.add('text-green-500');
-            addToCartBtn.disabled = false;
+        // Update stock status based on selected size
+        if (selectedSizeName) {
+            const selectedSize = data.sizes.find(size => size.name === selectedSizeName);
+            if (selectedSize) {
+                if (selectedSize.stock > 0) {
+                    stockStatus.textContent = `In Stock (${selectedSize.stock} available)`;
+                    stockStatus.classList.remove('text-red-500');
+                    stockStatus.classList.add('text-green-500');
+                    addToCartBtn.disabled = false;
+                } else {
+                    stockStatus.textContent = 'Out of Stock';
+                    stockStatus.classList.remove('text-green-500');
+                    stockStatus.classList.add('text-red-500');
+                    addToCartBtn.disabled = true;
+                }
+            }
         } else {
-            stockStatus.textContent = 'Out of Stock';
-            stockStatus.classList.remove('text-green-500');
-            stockStatus.classList.add('text-red-500');
-            addToCartBtn.disabled = true;
+            // If no size is selected, show total stock
+            if (data.total_stock > 0) {
+                stockStatus.textContent = `In Stock (${data.total_stock} available)`;
+                stockStatus.classList.remove('text-red-500');
+                stockStatus.classList.add('text-green-500');
+                addToCartBtn.disabled = false;
+            } else {
+                stockStatus.textContent = 'Out of Stock';
+                stockStatus.classList.remove('text-green-500');
+                stockStatus.classList.add('text-red-500');
+                addToCartBtn.disabled = true;
+            }
         }
         
         if (data.images && data.images.length > 0) {
@@ -409,7 +427,6 @@ document.addEventListener('DOMContentLoaded', function() {
         quantityInput.value = 1;
         quantityInput.max = data.total_stock;
         
-        selectedSizeName = null;
         updateSizeOptions(data.sizes);
     }
 
@@ -449,7 +466,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Function to update size options with stock info
     function updateSizeOptions(sizes) {
         sizeOptions.innerHTML = sizes.map(size => `
             <div class="relative flex flex-col items-center">
@@ -468,14 +484,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         ${size.name}
                     </span>
                 </button>
-
+    
                 <!-- Stock Information -->
                 <div class="text-xs mt-1 ${size.stock > 0 ? 'text-green-500' : 'text-red-500'}">
                     ${size.stock > 0 ? `${size.stock} left` : 'Out of stock'}
                 </div>
             </div>
         `).join('');
-
+    
         // Re-bind size selection handlers
         document.querySelectorAll('#size-options button').forEach(button => {
             if (!button.disabled) {
@@ -484,13 +500,29 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Handler for size selection
     function handleSizeSelection(e) {
         document.querySelectorAll('#size-options button').forEach(btn => 
             btn.classList.remove('ring-2', 'ring-[#ff6b00]')
         );
         e.currentTarget.classList.add('ring-2', 'ring-[#ff6b00]');
         selectedSizeName = e.currentTarget.dataset.size;
+        
+        // Update stock status based on selected size
+        const selectedSize = sizes.find(size => size.name === selectedSizeName);
+        if (selectedSize) {
+            const stockStatus = document.getElementById('stock-status');
+            if (selectedSize.stock > 0) {
+                stockStatus.textContent = `In Stock (${selectedSize.stock} available)`;
+                stockStatus.classList.remove('text-red-500');
+                stockStatus.classList.add('text-green-500');
+                addToCartBtn.disabled = false;
+            } else {
+                stockStatus.textContent = 'Out of Stock';
+                stockStatus.classList.remove('text-green-500');
+                stockStatus.classList.add('text-red-500');
+                addToCartBtn.disabled = true;
+            }
+        }
     }
     // Quantity controls
     decreaseQuantityBtn.addEventListener('click', () => {
