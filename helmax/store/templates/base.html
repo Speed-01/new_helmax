@@ -43,6 +43,14 @@
                         </span>
                     </a>
                 </button>
+                <button class="p-2 hover:text-primary">
+                    <a href={% url 'my_orders'%} class="relative">
+                        <i class="fas fa-shopping-bag text-2xl"></i>
+                        <span class="cart-count absolute -top-2 -right-2 bg-yellow-500 text-black text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                            {{ request.user.cart.total_items }}
+                        </span>
+                    </a>
+                </button>
                 {% comment %} <a href="{% url 'user_profile' user.id %}">
                     <button class="p-2 hover:text-primary">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

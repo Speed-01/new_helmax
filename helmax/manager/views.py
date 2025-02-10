@@ -493,47 +493,55 @@ def admin_orders(request):
     context = {'orders': page_obj, 'search_query': search_query}
     return render(request, 'adminOrder.html', context)
 
-def admin_orders_api(request):
-    # Handle AJAX requests (JSON)
-    orders = Order.objects.select_related('user', 'paymentmethod').order_by('-created_at')
-    search_query = request.GET.get('search', '')
-    if search_query:
-        orders = orders.filter(user__username__icontains=search_query)
-    
-    paginator = Paginator(orders, 10)
-    page_number = request.GET.get('page', 1)
-    page_obj = paginator.get_page(page_number)
-    
-    orders_data = [
-        {
-            'id': order.id,
-            'username': order.user.username,
-            'payment_method': order.paymentmethod.name if order.paymentmethod else 'N/A',
-            'status': order.order_status,
-            'total_price': float(order.total_amount)
-        } for order in page_obj
-    ]
-    
-    return JsonResponse({
-        'orders': orders_data,
-        'total_pages': paginator.num_pages
-    })
+from django.http import JsonResponse
+from django.core.paginator import Paginator
+from .models import Order
 
-def edit_order(request, order_id):
-    order = get_object_or_404(Order.objects.select_related('user').prefetch_related('items__product'), id=order_id)
+def admin_orders_api(request):
+    try:
+        # Fetch orders with related user, paymentmethod, and order items
+        orders = Order.objects.select_related('user', 'paymentmethod').prefetch_related('order_items').order_by('-created_at')
+        
+        # Apply search filter
+        search_query = request.GET.get('search', '')
+        if search_query:
+            orders = orders.filter(user__username__icontains=search_query)
+        
+        # Paginate results
+        paginator = Paginator(orders, 10)
+        page_number = request.GET.get('page', 1)
+        page_obj = paginator.get_page(page_number)
+        
+        # Prepare data for JSON response
+        orders_data = []
+        for order in page_obj:
+            order_items = [
+                {
+                    'product_name': item.product.name if item.product else 'N/A',
+                    'variant_details': f"{item.variant.color}" if item.variant else 'N/A',
+                    'quantity': item.quantity,
+                    'price': float(item.price),
+                    'status': item.status
+                } for item in order.order_items.all()
+            ]
+            
+            orders_data.append({
+                'id': order.id,
+                'username': order.user.username if order.user else 'N/A',
+                'payment_method': order.paymentmethod.name if order.paymentmethod else 'N/A',
+                'status': order.order_status,
+                'total_price': float(order.total_amount) if order.total_amount else 0.0,
+                'created_at': order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'items': order_items
+            })
+        
+        return JsonResponse({
+            'orders': orders_data,
+            'total_pages': paginator.num_pages
+        })
     
-    if request.method == 'POST':
-        new_status = request.POST.get('status')
-        if new_status:
-            order.status = new_status
-            order.save()
-            messages.success(request, 'Order status updated successfully')
-            return redirect('admin_orders')
-    
-    context = {
-        'order': order,
-    }
-    return render(request, 'editOrder.html', context)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 def update_order_status(request, order_id):
     if request.method == 'POST':

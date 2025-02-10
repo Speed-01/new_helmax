@@ -1025,10 +1025,17 @@ def user_checkout(request):
 ################# Order ####################
 from manager.models import Order, OrderItem, Cart, CartItem
  
-
 @login_required(login_url='userlogin')
 def my_orders(request):
-    orders = Order.objects.filter(user=request.user).order_by('-created_at')
+    orders = Order.objects.filter(user=request.user)\
+        .prefetch_related(
+            'order_items',
+            'order_items__product',
+            'order_items__variant',
+            'order_items__variant__images'
+        )\
+        .select_related('paymentmethod')\
+        .order_by('-created_at')
     context = {'orders': orders}
     return render(request, 'my_orders.html', context)
 
@@ -1041,85 +1048,58 @@ def place_order(request):
             address_id = request.POST.get('address_id')
             payment_method = request.POST.get('payment_method')
 
+            # Get or create the user's cart
+            cart = Cart.objects.filter(user=request.user, is_ordered=False)\
+                .prefetch_related('items', 'items__variant', 'items__size')\
+                .first()
+
+            if not cart or not cart.items.exists():
+                return JsonResponse({'success': False, 'message': 'Your cart is empty.'}, status=400)
+
             selected_address = Address.objects.get(id=address_id, user=request.user)
 
-            address_data = {
-                'address_type': selected_address.address_type,
-                'full_name': selected_address.full_name,
-                'phone': selected_address.phone,
-                'pincode': selected_address.pincode,
-                'address_line1': selected_address.address_line1,
-                'address_line2': selected_address.address_line2,
-                'landmark': selected_address.landmark,
-                'city': selected_address.city,
-                'state': selected_address.state,
-                'is_default': selected_address.is_default,
-            }
+            # Create a new order
+            order = Order.objects.create(
+                user=request.user,
+                total_amount=cart.total_price,
+                paymentmethod_id=payment_method,
+                total_discount=cart.total_discount,
+                payment_status='PENDING',
+                order_status='PROCESSING',
+                address=selected_address
+            )
 
-            address_form = AddressForm(address_data)
-
-            if address_form.is_valid():
-                # Get or create the user's cart
-                cart, _ = Cart.objects.get_or_create(user=request.user, is_ordered=False)
-
-                if not cart.items.exists():
-                    return JsonResponse({'success': False, 'message': 'Your cart is empty.'}, status=400)
-
-                # Create a new order
-                order = Order.objects.create(
-                    user=request.user,
-                    total_amount=cart.total_price,
-                    paymentmethod_id=payment_method,
-                    total_discount=cart.total_discount,
-                    payment_status='PENDING',
-                    order_status='PROCESSING'
+            # Create order items from cart items
+            for cart_item in cart.items.all():
+                OrderItem.objects.create(
+                    order=order,
+                    product=cart_item.product,
+                    variant=cart_item.variant,
+                    quantity=cart_item.quantity,
+                    price=cart_item.variant.price if cart_item.variant.discount_price is None 
+                          else cart_item.variant.discount_price,
+                    status='Processing'
                 )
 
-                # Save the address
-                address = address_form.save(commit=False)
-                address.user = request.user
-                address.save()
-                order.address = address
-                order.save()
+                # Update stock only once
+                if cart_item.size:
+                    cart_item.size.stock -= cart_item.quantity
+                    cart_item.size.save()
 
-                # Create order items from cart items
-                for cart_item in cart.items.all():
-                    OrderItem.objects.create(
-                        order=order,
-                        product=cart_item.product,
-                        variant=cart_item.variant,
-                        quantity=cart_item.quantity,
-                        price=cart_item.variant.price,
-                        status='Processing'
-                    )
+            # Mark cart as ordered
+            cart.is_ordered = True
+            cart.is_active = False
+            cart.save()
 
-                    # Reduce stock for the size
-                    if cart_item.size:
-                        cart_item.size.stock -= cart_item.quantity
-                        cart_item.size.save()
-
-                    # Reduce stock for the variant
-                    if cart_item.variant:
-                        cart_item.size.stock -= cart_item.quantity
-                        cart_item.variant.save()
-
-
-                # Deactivate the cart
-                cart.is_active = False
-                cart.is_ordered = True
-                cart.save()
-
-                return JsonResponse({
-                    'success': True,
-                    'redirect_url': reverse('order_confirmation', args=[order.id])
-                })
-            else:
-                return JsonResponse({'success': False, 'message': 'Invalid address data', 'errors': address_form.errors}, status=400)
+            return JsonResponse({
+                'success': True,
+                'redirect_url': reverse('order_confirmation', args=[order.id])
+            })
 
         except Exception as e:
-            return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'}, status=500)
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
-    return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)
+    return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)    
 
 
 @login_required(login_url='userlogin')
