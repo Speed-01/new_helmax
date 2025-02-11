@@ -39,7 +39,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="lg:col-span-2 space-y-6">
             {% for item in cart_items %}
-            <div class="group bg-[#222222] rounded-lg p-6 hover:shadow-lg transition-all duration-300 {% if item.variant.stock <= 0 %}opacity-50{% endif %}">
+            <div class="group bg-[#222222] rounded-lg p-6 hover:shadow-lg transition-all duration-300 {% if item.size.stock <= 0 %}opacity-50{% endif %}">
                 <div class="relative">
                     <!-- Clickable area wrapper -->
                     <a href="{% url 'product_detail' item.variant.product.id %}" class="absolute inset-0 z-10"></a>
@@ -49,21 +49,21 @@
                              class="w-full md:w-32 h-32 object-cover rounded-md group-hover:scale-[1.02] transition-transform duration-300">
                         <div class="flex-grow">
                             <h3 class="text-lg font-semibold group-hover:text-[#ff6b00] transition-colors">{{ item.variant.product.name }}</h3>
-                            <p class="text-gray-400">{{ item.variant.color }} - {{ item.size }}</p>
+                            <p class="text-gray-400">{{ item.variant.color }} - {{ item.size.get_name_display }}</p>
                             <p class="text-[#ff6b00] font-medium mt-2">₹{{ item.variant.discount_price }}</p>
-                            {% if item.variant.stock > 0 %}
-                                <p class="text-green-500 text-sm mt-1">In stock</p>
+                            {% if item.size.stock > 0 %}
+                                <p class="text-green-500 text-sm mt-1">In stock ({{ item.size.stock }} available)</p>
                             {% else %}
                                 <p class="text-red-500 text-sm mt-1">Out of stock</p>
                             {% endif %}
                         </div>
                     </div>
     
-                    <!-- Controls section with higher z-index to remain clickable -->
+                    <!-- Controls section with higher z-index -->
                     <div class="flex flex-col items-end space-y-4 relative z-20">
                         <div class="flex items-center space-x-2" data-item-id="{{ item.id }}">
                             <button onclick="updateQuantity('{{ item.id }}', -1)" 
-                                    class="w-8 h-8 bg-[#333333] rounded-md flex items-center justify-center hover:bg-[#444444] transition-colors"
+                                    class="w-8 h-8 bg-[#333333] rounded-md flex items-center justify-center hover:bg-[#444444] transition-colors {% if item.quantity <= 1 or item.size.stock <= 0 %}opacity-50 cursor-not-allowed{% endif %}"
                                     {% if item.quantity <= 1 or item.size.stock <= 0 %}disabled{% endif %}>
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
@@ -71,7 +71,7 @@
                             </button>
                             <span class="w-12 text-center">{{ item.quantity }}</span>
                             <button onclick="updateQuantity('{{ item.id }}', 1)" 
-                                    class="w-8 h-8 bg-[#333333] rounded-md flex items-center justify-center hover:bg-[#444444] transition-colors"
+                                    class="w-8 h-8 bg-[#333333] rounded-md flex items-center justify-center hover:bg-[#444444] transition-colors {% if item.quantity >= item.size.stock %}opacity-50 cursor-not-allowed{% endif %}"
                                     {% if item.quantity >= item.size.stock %}disabled{% endif %}>
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
@@ -102,7 +102,6 @@
         <div class="lg:col-span-1">
             <div class="bg-[#222222] rounded-lg p-6 sticky top-6">
                 <h2 class="text-xl font-semibold mb-4">Order Summary</h2>
-                <!-- In your order summary section -->
                 <div class="space-y-2 mb-4">
                     <div class="flex justify-between">
                         <span class="text-gray-400">Bag total:</span>
@@ -119,19 +118,38 @@
                         </div>
                     </div>
                 </div>
-                {% if is_cart_empty %}
-                    <div class="alert alert-info mt-2">
+                
+                {% if cart_items|length == 0 %}
+                    <div class="text-yellow-500 mb-4">
                         Your cart is empty. Add some products to continue.
                     </div>
-                    <button id="checkoutButton" class="btn btn-warning btn-lg w-100" disabled>Checkout <i class="fa-solid fa-arrow-right"></i></button>
-                    {% elif out_of_stock_items %}
-                        <div class="alert alert-danger mt-2">
-                            Some items in your cart are out of stock. Please remove them to proceed.
-                        </div>
-                        <button id="checkoutButton" class="btn btn-warning btn-lg w-100" disabled>Checkout <i class="fa-solid fa-arrow-right"></i></button>
-                    {% else %}
-                        <a href="{% url 'user_checkout' %}" id="checkoutButton" class="btn btn-warning btn-lg w-100">Checkout <i class="fa-solid fa-arrow-right"></i></a>
+                    <button class="w-full bg-[#444444] text-gray-400 py-3 rounded-md cursor-not-allowed" disabled>
+                        Checkout
+                    </button>
+                {% else %}
+                    {% with out_of_stock=False %}
+                        {% for item in cart_items %}
+                            {% if item.size.stock <= 0 %}
+                                {% with out_of_stock=True %}{% endwith %}
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if out_of_stock %}
+                            <div class="text-red-500 mb-4">
+                                Some items in your cart are out of stock. Please remove them to proceed.
+                            </div>
+                            <button class="w-full bg-[#444444] text-gray-400 py-3 rounded-md cursor-not-allowed" disabled>
+                                Checkout
+                            </button>
+                        {% else %}
+                            <a href="{% url 'user_checkout' %}" 
+                               class="w-full bg-[#ff6b00] text-white py-3 rounded-md font-medium text-center block hover:bg-[#ff7d1a] transition-colors">
+                                Checkout
+                            </a>
+                        {% endif %}
+                    {% endwith %}
                 {% endif %}
+                
                 <a href="{% url 'product_list' %}" class="btn-outline w-full py-3 rounded-md mt-4 font-medium text-center block">
                     Continue Shopping
                 </a>

@@ -509,7 +509,6 @@ def product_detail(request, product_id):
     variants = list(product.variants.filter(is_active=True))
     primary_variant = variants[0] if variants else None
     
-    # Get primary images for each variant
     variants_with_images = []
     for variant in variants:
         primary_image = variant.images.filter(is_primary=True).first()
@@ -517,36 +516,26 @@ def product_detail(request, product_id):
             'variant': variant,
             'primary_image': primary_image,
             'id': variant.id,
-            'color': variant.color
+            'color': variant.color,
+            'stock': variant.get_total_stock(),
+            'in_stock': variant.is_in_stock()
         })
     
-    
-    
-    total_stock = sum(size.stock for size in primary_variant.sizes.all())
-    
-
-    sizes = list(primary_variant.sizes.all()) if primary_variant else []
-
-    context = {
-        'product': product,
-        'brand': product.brand.name, 
-        'primary_variant': primary_variant,
-        'variants_with_images': variants_with_images,  # New context variable
-        'sizes': sizes,
-        'current_stock': total_stock,
-        'stock_status': 'In Stock' if total_stock > 0 else 'Out of Stock',
-    }
+    # Get sizes with stock information for primary variant
     if primary_variant:
         sizes = [
             {
                 'name': size.name,
-                'stock': size.stock,  # Show individual size stock
-                'display_name': size.get_name_display()
+                'stock': size.stock,
+                'display_name': size.get_name_display(),
+                'available': size.stock > 0
             }
             for size in primary_variant.sizes.all()
         ]
+        total_stock = sum(size['stock'] for size in sizes)
     else:
         sizes = []
+        total_stock = 0
 
     context = {
         'product': product,
@@ -632,7 +621,6 @@ def add_to_cart(request):
         if not request.user.is_authenticated:
             return JsonResponse({'success': False, 'message': 'Please log in to add items to your cart'}, status=403)
 
-        # Get data from request.POST (not JSON)
         variant_id = request.POST.get('variant_id')
         quantity = int(request.POST.get('quantity', 1))
         size_name = request.POST.get('size_name')
@@ -646,10 +634,11 @@ def add_to_cart(request):
         except (Variant.DoesNotExist, Size.DoesNotExist):
             return JsonResponse({'success': False, 'message': 'Product variant or size not found'}, status=404)
 
+        # Check size stock instead of variant stock
         if size.stock < quantity:
             return JsonResponse({
                 'success': False,
-                'message': f'Only {size.stock} available in {size.name} size'
+                'message': f'Only {size.stock} items available in {size.get_name_display()} size'
             }, status=400)
 
         cleanup_carts(request.user)
@@ -667,16 +656,15 @@ def add_to_cart(request):
             defaults={'quantity': 0}
         )
 
+        # Check combined quantity against size stock
         if (cart_item.quantity + quantity) > size.stock:
             return JsonResponse({
                 'success': False,
-                'message': f'Only {size.stock - cart_item.quantity} more available in {size.name} size'
+                'message': f'Only {size.stock - cart_item.quantity} more available in {size.get_name_display()} size'
             }, status=400)
 
         cart_item.quantity += quantity
         cart_item.save()
-
-        
 
         cart_count = sum(item.quantity for item in cart.items.all())
 
@@ -684,12 +672,10 @@ def add_to_cart(request):
             'success': True,
             'message': 'Item added to cart successfully',
             'cart_count': cart_count,
-            
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error adding to cart: {str(e)}", exc_info=True)
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 @login_required
@@ -717,16 +703,17 @@ def update_quantity(request, item_id):
         # Calculate new quantity
         new_quantity = cart_item.quantity + quantity_change
         
-        # Validate new quantity
+        # Validate new quantity against size stock
         if new_quantity < 1:
             return JsonResponse({
                 'success': False, 
                 'message': 'Quantity cannot be less than 1.'
             })
+            
         if new_quantity > cart_item.size.stock:
             return JsonResponse({
                 'success': False, 
-                'message': 'Quantity exceeds available stock.'
+                'message': f'Only {cart_item.size.stock} items available in {cart_item.size.get_name_display()} size'
             })
         
         # Update quantity
@@ -741,18 +728,18 @@ def update_quantity(request, item_id):
             'message': 'Quantity updated successfully!',
             'new_quantity': new_quantity,
             'cart_total': float(cart.total_price),
-            # 'cart_discount': float(cart.total_discount),
             'cart_final': float(cart.final_price), 
             'item_total': float(item_total),
             'size_stock': cart_item.size.stock
         })
+        
     except json.JSONDecodeError:
         return JsonResponse({
             'success': False, 
             'message': 'Invalid request data'
         }, status=400)
     except Exception as e:
-        print(f"Error in update_quantity: {str(e)}")  # For debugging
+        logger.error(f"Error updating quantity: {str(e)}", exc_info=True)
         return JsonResponse({
             'success': False, 
             'message': str(e)
@@ -944,82 +931,125 @@ def set_primary_address(request):
 
 ################ checout #####################
 
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.cache import never_cache
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.http import JsonResponse
+from django.urls import reverse
+import logging
+
+from manager.models import Cart, CartItem, Address, PaymentMethod, Order, OrderItem
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
 @login_required(login_url='userlogin')
 @never_cache
 def user_checkout(request):
-    #removing the invalid cart iems beforeproceeding to checkout
-    CartItem.objects.filter(variant__isnull=True).delete()
-
-    # Fetch user addresses
-    user_addresses = Address.objects.filter(user=request.user, is_deleted=False)
-    payment_methods = PaymentMethod.objects.all()
-    
-
     try:
-        # Fetch the cart for the current user
-        cart, _ = Cart.objects.get_or_create(user=request.user, is_ordered=False, defaults={'is_active': True})
-        cart_items = cart.items.select_related('variant__product', 'size').all()
+        # Check if cart exists and has items
+        cart = Cart.objects.filter(
+            user=request.user, 
+            is_ordered=False
+        ).prefetch_related(
+            'items__variant__product',
+            'items__size'
+        ).first()
 
-        # Initialize variables
+        if not cart or not cart.items.exists():
+            messages.warning(request, "Your cart is empty")
+            return redirect('view_cart')
+
+        # Fetch user addresses and payment methods
+        user_addresses = Address.objects.filter(user=request.user, is_deleted=False)
+        if not user_addresses.exists():
+            messages.warning(request, "Please add a delivery address to proceed")
+            return redirect('userManageAddress')
+
+        payment_methods = PaymentMethod.objects.all()
+
+        # Validate cart items and check stock
         total_quantity = 0
-        cart_items_with_prices = []
-        out_of_stock_items = []
+        cart_items = []
+        stock_warnings = []
 
-        for item in cart_items:
-            # Skip items with no variant
-            if not item.variant:
+        for item in cart.items.all():
+            if not item.variant or not item.size:
                 messages.warning(
                     request,
                     f"One of your cart items is invalid and has been removed."
                 )
-                item.delete()  # Remove invalid items from the cart
+                item.delete()
                 continue
 
-            # Process valid items
-            total_quantity += item.quantity
-            total_price = item.subtotal  # Use the `subtotal` property
-            cart_items_with_prices.append({
-                'item': item,
-                'total_price': total_price,
-            })
-
-            # Check stock
+            # Check stock availability
             if item.quantity > item.size.stock:
-                out_of_stock_items.append(item)
+                if item.size.stock == 0:
+                    stock_warnings.append(
+                        f"{item.variant.product.name} - {item.size.get_name_display()} is out of stock"
+                    )
+                else:
+                    stock_warnings.append(
+                        f"Only {item.size.stock} units available for {item.variant.product.name} - {item.size.get_name_display()}"
+                    )
+                continue
 
-        # Handle out-of-stock items
-        if out_of_stock_items:
+            total_quantity += item.quantity
+            cart_items.append(item)
+
+        # If there are stock warnings, show them and redirect
+        if stock_warnings:
+            for warning in stock_warnings:
+                messages.warning(request, warning)
+            return redirect('view_cart')
+
+        # If cart is empty after validation, redirect
+        if not cart_items:
+            messages.warning(request, "No valid items in cart")
+            return redirect('view_cart')
+
+        # Check minimum order amount if applicable
+        min_order_amount = 0  # Set your minimum amount
+        if cart.total_price < min_order_amount:
             messages.warning(
-                request,
-                "Some items in your cart have insufficient stock. Please update your cart."
+                request, 
+                f"Minimum order amount is ₹{min_order_amount}"
             )
             return redirect('view_cart')
 
-    except Cart.DoesNotExist:
-        cart = None
-        cart_items_with_prices = []
-        total_quantity = 0
+        context = {
+            'user_addresses': user_addresses,
+            'cart_items': cart_items,
+            'cart': cart,
+            'total_price': cart.total_price,
+            'total_discount': cart.total_discount,
+            'final_price': cart.final_price,
+            'payment_methods': payment_methods,
+            'total_quantity': total_quantity,
+        }
 
-    # Prepare context for the template
-    context = {
-        'user_addresses': user_addresses,
-        'cart_items_with_prices': cart_items_with_prices,
-        'cart': cart,
-        'total_price': cart.total_price if cart else 0,  # Use the `Cart` model's property
-        'total_discount': cart.total_discount if cart else 0,
-        'final_total_price': cart.final_price if cart else 0,
-        'payment_methods': payment_methods,
-        'total_quantity': total_quantity,
-    }
+        return render(request, 'checkout.html', context)
 
-    return render(request, 'checkout.html', context)
-
+    except Exception as e:
+        logger.error(
+            f"Checkout error for user {request.user.id}: {str(e)}", 
+            exc_info=True
+        )
+        messages.error(
+            request, 
+            "An unexpected error occurred. Please try again."
+        )
+        return redirect('view_cart')
 
 
 
 
 
 
+from django.db.models import F
 
 
 ################# Order ####################
@@ -1043,63 +1073,140 @@ def my_orders(request):
 @login_required(login_url='userlogin')
 @transaction.atomic
 def place_order(request):
+    logger.debug("Starting place_order view")
+    logger.debug(f"Request method: {request.method}")
+    logger.debug(f"POST data: {request.POST}")
+
     if request.method == 'POST':
         try:
             address_id = request.POST.get('address_id')
             payment_method = request.POST.get('payment_method')
+            
+            logger.debug(f"Address ID: {address_id}")
+            logger.debug(f"Payment Method: {payment_method}")
 
-            # Get or create the user's cart
-            cart = Cart.objects.filter(user=request.user, is_ordered=False)\
-                .prefetch_related('items', 'items__variant', 'items__size')\
-                .first()
+            # Validate address exists and belongs to user
+            try:
+                selected_address = Address.objects.get(id=address_id, user=request.user)
+                logger.debug(f"Found address: {selected_address}")
+            except Address.DoesNotExist as e:
+                logger.error(f"Address validation failed: {str(e)}")
+                return JsonResponse({'success': False, 'message': 'Invalid address'}, status=400)
 
+            # Get user's cart
+            cart = Cart.objects.filter(
+                user=request.user, 
+                is_ordered=False
+            ).prefetch_related(
+                'items', 
+                'items__variant', 
+                'items__size'
+            ).first()
+
+            logger.debug(f"Found cart: {cart}")
+            
             if not cart or not cart.items.exists():
+                logger.error("Cart is empty or not found")
                 return JsonResponse({'success': False, 'message': 'Your cart is empty.'}, status=400)
 
-            selected_address = Address.objects.get(id=address_id, user=request.user)
-
-            # Create a new order
-            order = Order.objects.create(
-                user=request.user,
-                total_amount=cart.total_price,
-                paymentmethod_id=payment_method,
-                total_discount=cart.total_discount,
-                payment_status='PENDING',
-                order_status='PROCESSING',
-                address=selected_address
-            )
-
-            # Create order items from cart items
+            # Stock validation
+            stock_errors = []
             for cart_item in cart.items.all():
-                OrderItem.objects.create(
-                    order=order,
-                    product=cart_item.product,
-                    variant=cart_item.variant,
-                    quantity=cart_item.quantity,
-                    price=cart_item.variant.price if cart_item.variant.discount_price is None 
-                          else cart_item.variant.discount_price,
-                    status='Processing'
+                logger.debug(f"Checking stock for item: {cart_item.variant.product.name}")
+                
+                if not cart_item.size:
+                    stock_errors.append(f"Size not selected for {cart_item.variant.product.name}")
+                    continue
+                
+                if cart_item.size.stock < cart_item.quantity:
+                    if cart_item.size.stock == 0:
+                        stock_errors.append(
+                            f"{cart_item.variant.product.name} - {cart_item.size.get_name_display()} is out of stock"
+                        )
+                    else:
+                        stock_errors.append(
+                            f"Only {cart_item.size.stock} units available for {cart_item.variant.product.name}"
+                        )
+
+            if stock_errors:
+                logger.error(f"Stock validation failed: {stock_errors}")
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'Stock validation failed',
+                    'errors': stock_errors
+                }, status=400)
+
+            try:
+                # Create order
+                logger.debug("Creating order")
+                order = Order.objects.create(
+                    user=request.user,
+                    total_amount=cart.total_price,
+                    paymentmethod_id=payment_method,
+                    payment_status='PENDING',
+                    order_status='PROCESSING',
+                    # Address fields
+                    full_name=selected_address.full_name,
+                    email=selected_address.email,
+                    phone=selected_address.phone,
+                    address_line1=selected_address.address_line1,
+                    address_line2=selected_address.address_line2,
+                    city=selected_address.city,
+                    state=selected_address.state,
+                    pincode=selected_address.pincode
                 )
+                logger.debug(f"Order created: {order.id}")
 
-                # Update stock only once
-                if cart_item.size:
-                    cart_item.size.stock -= cart_item.quantity
+                # Create order items
+                for cart_item in cart.items.all():
+                    logger.debug(f"Creating order item for: {cart_item.variant.product.name}")
+                    OrderItem.objects.create(
+                        order=order,
+                        product=cart_item.variant.product,
+                        variant=cart_item.variant,
+                        size=cart_item.size,
+                        quantity=cart_item.quantity,
+                        price=cart_item.variant.discount_price or cart_item.variant.price,
+                        status='Processing'
+                    )
+
+                    # Update stock
+                    cart_item.size.stock = F('stock') - cart_item.quantity
                     cart_item.size.save()
+                    logger.debug(f"Updated stock for size: {cart_item.size}")
 
-            # Mark cart as ordered
-            cart.is_ordered = True
-            cart.is_active = False
-            cart.save()
+                # Refresh size objects
+                for cart_item in cart.items.all():
+                    cart_item.size.refresh_from_db()
+                    if cart_item.size.stock < 0:
+                        raise ValidationError(
+                            f"Insufficient stock for {cart_item.variant.product.name}"
+                        )
 
-            return JsonResponse({
-                'success': True,
-                'redirect_url': reverse('order_confirmation', args=[order.id])
-            })
+                # Update cart
+                cart.is_ordered = True
+                cart.is_active = False
+                cart.save()
+                logger.debug("Cart marked as ordered")
+
+                return JsonResponse({
+                    'success': True,
+                    'redirect_url': reverse('order_confirmation', args=[order.id])
+                })
+
+            except Exception as e:
+                logger.error(f"Error creating order: {str(e)}", exc_info=True)
+                raise  # Re-raise to be caught by outer try-catch
 
         except Exception as e:
-            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+            logger.error(f"Error in place_order: {str(e)}", exc_info=True)
+            return JsonResponse({
+                'success': False,
+                'message': str(e),
+                'error_type': 'system'
+            }, status=500)
 
-    return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)
 
 
 @login_required(login_url='userlogin')
@@ -1118,3 +1225,18 @@ def order_confirmation(request, order_id):
         'order_items': order_items,
     }
     return render(request, 'order_confirmation.html', context)
+# views.py
+from django.http import JsonResponse
+
+@login_required
+def cancel_order(request, order_id):
+    if request.method == 'POST':
+        try:
+            order = Order.objects.get(id=order_id, user=request.user)
+            # Update the order status to CANCELLED
+            order.order_status = 'CANCELLED'
+            order.save()
+            return JsonResponse({'success': True})
+        except Order.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Order not found'})
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})

@@ -13,6 +13,33 @@
     .highlight:hover {
         background-color: #333333;
     }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        margin-top: 20px;
+    }
+
+    .pagination a, .pagination span {
+        color: #fff;
+        padding: 8px 16px;
+        text-decoration: none;
+        border: 1px solid #2A2A2A;
+        margin: 0 4px;
+        border-radius: 4px;
+        transition: background-color 0.3s, color 0.3s;
+    }
+
+    .pagination a:hover {
+        background-color: #2A2A2A;
+        color: #fff;
+    }
+
+    .pagination .current {
+        background-color: #2A2A2A;
+        color: #fff;
+        font-weight: bold;
+    }
 </style>
 
 <div class="p-6 bg-[#0A0A0A]">
@@ -53,16 +80,7 @@
                 </tr>
             </thead>
             <tbody id="products-body" class="bg-[#0A0A0A] divide-y divide-[#2A2A2A]">
-                {% comment %} {% if messages %}
-                    <div class="mb-4">
-                        {% for message in messages %}
-                            <div class="p-4 {% if message.tags == 'success' %}bg-green-500{% else %}bg-red-500{% endif %} text-white rounded-md">
-                                {{ message }}
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endif %} {% endcomment %}
-                {% for product in products %}
+                {% for product in page_obj %}
                 <tr class="product-row hover:bg-[#111111] transition-colors duration-200" data-name="{{ product.name | lower }}" data-id="{{ product.id }}">
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">{{ product.name }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{{ product.category.name }}</td>
@@ -100,6 +118,23 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?page=1" class="pagination-link">&laquo; First</a>
+            <a href="?page={{ page_obj.previous_page_number }}" class="pagination-link">Previous</a>
+        {% endif %}
+
+        <span class="current">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="pagination-link">Next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}" class="pagination-link">Last &raquo;</a>
+        {% endif %}
     </div>
 </div>
 

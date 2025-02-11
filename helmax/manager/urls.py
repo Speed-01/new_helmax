@@ -44,8 +44,11 @@ urlpatterns = [
 
     path('admin_orders/', views.admin_orders, name='admin_orders'),
     path('admin_orders/api/', views.admin_orders_api, name='admin_orders_api'),
-    path('admin_orders/<int:order_id>/update-status/', views.update_order_status, name='update_order_status'),
-    path('admin_return-request/<int:return_request_id>/', views.handle_return_request, name='handle_return_request'),
+    path('order-detail/<int:order_id>/', views.order_detail, name='orderDetail'),
+    path('update-order-status/<int:order_id>/', views.update_order_status, name='updateOrderStatus'),
+    path('update-item-status/', views.update_item_status, name='updateItemStatus'),
+    # path('handle-return-request/<int:return_id>/', views.handle_return_request, name='handleReturnRequest'),
+    path('orders/<int:order_id>/cancel/', views.cancel_order, name='cancel_order'),
     
 
 

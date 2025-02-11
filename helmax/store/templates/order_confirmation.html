@@ -63,13 +63,30 @@
             </div> {% endcomment %}
         </div>
 
-        <!-- Shipping Address -->
+    
+        <!-- Shipping Address Section -->
         <div class="bg-zinc-900 rounded-lg p-6 text-white mb-6">
-            <h3 class="font-bold mb-4">Shipping Address</h3>
-            <p class="text-white">{{ order.address.full_name }}</p>
-            <p class="text-gray-400">{{ order.address.address_line1 }}, {{order.address.address_line2}} </p>
-            <p class="text-gray-400">{{ order.address.city }}, {{ order.address.state }} - {{ order.address.pincode }}</p>
-            <p class="text-gray-400">Phone: {{ order.address.phone }}</p>
+            <div class="flex justify-between items-start mb-4">
+                <h3 class="font-bold text-lg">Shipping Address</h3>
+            </div>
+            
+            <div class="space-y-2">
+                <!-- Name and Phone -->
+                <div class="flex flex-col">
+                    <span class="text-white text-lg font-medium">{{ order.full_name }}</span>
+                    <span class="text-gray-400">Phone: {{ order.phone }}</span>
+                </div>
+                
+                <!-- Address Details -->
+                <div class="mt-2 text-gray-400 space-y-1">
+                    <p>{{ order.address_line1 }}</p>
+                    {% if order.address_line2 %}
+                        <p>{{ order.address_line2 }}</p>
+                    {% endif %}
+                    <p>{{ order.city }}, {{ order.state }}</p>
+                    <p>PIN: {{ order.pincode }}</p>
+                </div>
+            </div>
         </div>
 
         <!-- Items -->
@@ -106,18 +123,53 @@
                         </span>
                     </p>
 
-                    <!-- OrderItem Status & Buttons -->
-                    {% if item.status == 'Processing' %}
-                    <button onclick="cancelOrder('{{ item.id }}')" 
-                            class="mt-2 bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors">
-                        Cancel
-                    </button>
-                    {% elif item.status == 'Delivered' %}
-                    <button onclick="returnOrder('{{ item.id }}')" 
-                            class="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
-                        Return
+                   <!-- In the order details page -->
+                    {% if order.order_status == 'PROCESSING' %}
+                    <button onclick="cancelOrderModal('{{ order.id }}')" 
+                            class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                        Cancel Order
                     </button>
                     {% endif %}
+                    {% if order.order_status == 'SHIPPED' %}
+                    <button onclick="cancelOrderModal('{{ order.id }}')" 
+                            class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                        Cancel Order
+                    </button>
+                    {% endif %}
+
+                    {% if order.order_status == 'DELIVERED' %}
+                    <button onclick="openReturnModal('{{ order.id }}')" 
+                            class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        Return Order
+                    </button>
+                    {% endif %}
+
+                    <!-- Return Modal -->
+                    <div id="returnModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center">
+                        <div class="bg-zinc-900 p-6 rounded-lg w-96">
+                            <h2 class="text-xl font-bold mb-4">Return Reason</h2>
+                            <select id="returnReason" class="w-full bg-zinc-800 text-white p-2 rounded mb-4">
+                                <option value="size_issue">Size Issue</option>
+                                <option value="product_defect">Product Defect</option>
+                                <option value="wrong_item">Wrong Item Received</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <textarea id="returnDescription" class="w-full bg-zinc-800 text-white p-2 rounded mb-4" 
+                                    placeholder="Additional details (optional)"></textarea>
+                            <div class="flex justify-between">
+                                <button onclick="submitReturnRequest()" 
+                                        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                                    Submit Return Request
+                                </button>
+                                <button onclick="closeReturnModal()" 
+                                        class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>  
+
+
                 </div>
             </div>
             {% endfor %}
@@ -126,6 +178,60 @@
   </div>
 
   <script>
+    function cancelOrderModal(orderId) {
+        if (confirm('Are you sure you want to cancel this order?')) {
+            fetch(`/api/orders/${orderId}/cancel/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload(); 
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+    }
+    
+    function openReturnModal(orderId) {
+        document.getElementById('returnModal').classList.remove('hidden');
+        document.getElementById('returnModal').dataset.orderId = orderId;
+    }
+    
+    function closeReturnModal() {
+        document.getElementById('returnModal').classList.add('hidden');
+    }
+    
+    function submitReturnRequest() {
+        const orderId = document.getElementById('returnModal').dataset.orderId;
+        const reason = document.getElementById('returnReason').value;
+        const description = document.getElementById('returnDescription').value;
+    
+        fetch(`/api/orders/${orderId}/return/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                reason: reason,
+                description: description
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Return request submitted successfully');
+                window.location.reload();
+            } else {
+                alert(data.message);
+            }
+        });
+    }
   function cancelOrder(itemId) {
     if (confirm('Are you sure you want to cancel this order?')) {
         fetch(`/api/orders/${itemId}/cancel/`, {

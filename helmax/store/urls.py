@@ -49,4 +49,6 @@ urlpatterns = [
     path('my-orders/', views.my_orders, name='my_orders'),
     path('order-confirmation/<int:order_id>/', views.order_confirmation, name='order_confirmation'),
 
+    # urls.py
+path('api/orders/<int:order_id>/cancel/', views.cancel_order, name='cancel_order'),
 ]

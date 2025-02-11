@@ -1,12 +1,14 @@
 {% extends 'base01.html' %}
 {% block content %}
 
-<div class="min-h-screen bg-gray-100 py-8">
+<div class="min-h-screen bg-[#0A0A0A] py-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->
         <div class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-900">Order Management</h1>
-            <p class="mt-2 text-sm text-gray-600">Manage and track all customer orders</p>
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
+                Order Management
+            </h1>
+            <p class="mt-2 text-sm text-gray-400">Manage and track all customer orders</p>
         </div>
 
         <!-- Search and Filter Section -->
@@ -15,7 +17,7 @@
                 <div class="relative">
                     <input type="text" 
                            id="searchInput"
-                           class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500"
+                           class="w-full pl-10 pr-4 py-2 rounded-md bg-[#1A1A1A] border border-[#2A2A2A] text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                            placeholder="Search by username...">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -27,35 +29,35 @@
         </div>
 
         <!-- Orders Table -->
-        <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+        <div class="bg-[#1A1A1A] shadow overflow-hidden sm:rounded-lg border border-[#2A2A2A]">
+            <table class="min-w-full divide-y divide-[#2A2A2A]">
+                <thead class="bg-[#242424]">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Method</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Price</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Order ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Username</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Payment Method</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Total Price</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
-                <tbody id="ordersTableBody" class="bg-white divide-y divide-gray-200">
+                <tbody id="ordersTableBody" class="bg-[#1A1A1A] divide-y divide-[#2A2A2A]">
                     <!-- Table content will be populated by JavaScript -->
                 </tbody>
             </table>
         </div>
 
         <!-- Pagination -->
-        <div class="mt-4 flex justify-between items-center">
-            <div class="text-sm text-gray-700">
+        <div class="mt-4 flex justify-between items-center text-gray-200">
+            <div class="text-sm">
                 Showing page <span id="currentPage">1</span> of <span id="totalPages">1</span>
             </div>
             <div class="flex space-x-2">
-                <button id="prevPage" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                <button id="prevPage" class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-sm font-medium text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
                     Previous
                 </button>
-                <button id="nextPage" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                <button id="nextPage" class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-sm font-medium text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
                     Next
                 </button>
             </div>
@@ -69,7 +71,7 @@ let currentPage = 1;
 let totalPages = 1;
 
 function fetchOrders(page = 1, search = '') {
-    fetch(`/admin_orders/api/?page=${page}&search=${encodeURIComponent(search)}`)
+    fetch(`/manager/admin_orders/api/?page=${page}&search=${encodeURIComponent(search)}`)
         .then(response => response.json())
         .then(data => {
             totalPages = data.total_pages;
@@ -84,107 +86,45 @@ function updateTable(orders) {
     tbody.innerHTML = '';
     
     orders.forEach(order => {
-        // Main order row
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-gray-50 cursor-pointer';
+        tr.className = 'hover:bg-[#242424] cursor-pointer transition-colors duration-150';
         tr.innerHTML = `
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#${order.id}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${order.username}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${order.payment_method}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">#${order.id}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.username}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.payment_method}</td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                     ${getStatusColor(order.status)}">
                     ${order.status}
                 </span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">$${order.total_price.toFixed(2)}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${order.created_at}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">$${order.total_price.toFixed(2)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.created_at}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button onclick="toggleOrderDetails(${order.id})" 
-                        class="text-indigo-600 hover:text-indigo-900">
+                <a href="/manager/order-detail/${order.id}/" 
+                   class="text-yellow-500 hover:text-yellow-400 transition-colors duration-150">
                     View Details
-                </button>
+                </a>
             </td>
         `;
         tbody.appendChild(tr);
-
-        // Order details row (initially hidden)
-        const detailsRow = document.createElement('tr');
-        detailsRow.id = `order-details-${order.id}`;
-        detailsRow.className = 'hidden bg-gray-50';
-        
-        // Create the details content
-        let detailsContent = `
-            <td colspan="7" class="px-6 py-4">
-                <div class="border-t border-gray-200 px-4 py-5 sm:p-0">
-                    <h4 class="font-semibold mb-4">Order Items</h4>
-                    <div class="grid grid-cols-1 gap-4">
-        `;
-
-        order.items.forEach(item => {
-            detailsContent += `
-                <div class="bg-white p-4 rounded-lg shadow-sm">
-                    <div class="grid grid-cols-4 gap-4">
-                        <div>
-                            <span class="text-sm font-medium text-gray-500">Product</span>
-                            <p class="mt-1 text-sm text-gray-900">${item.product_name}</p>
-                        </div>
-                        <div>
-                            <span class="text-sm font-medium text-gray-500">Variant</span>
-                            <p class="mt-1 text-sm text-gray-900">${item.variant_details}</p>
-                        </div>
-                        <div>
-                            <span class="text-sm font-medium text-gray-500">Quantity</span>
-                            <p class="mt-1 text-sm text-gray-900">${item.quantity}</p>
-                        </div>
-                        <div>
-                            <span class="text-sm font-medium text-gray-500">Price</span>
-                            <p class="mt-1 text-sm text-gray-900">$${item.price.toFixed(2)}</p>
-                        </div>
-                    </div>
-                    <div class="mt-2">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(item.status)}">
-                            ${item.status}
-                        </span>
-                    </div>
-                </div>
-            `;
-        });
-
-        detailsContent += `
-                    </div>
-                </div>
-            </td>
-        `;
-        
-        detailsRow.innerHTML = detailsContent;
-        tbody.appendChild(detailsRow);
     });
-}
-
-function toggleOrderDetails(orderId) {
-    const detailsRow = document.getElementById(`order-details-${orderId}`);
-    if (detailsRow.classList.contains('hidden')) {
-        detailsRow.classList.remove('hidden');
-    } else {
-        detailsRow.classList.add('hidden');
-    }
 }
 
 function getStatusColor(status) {
     const colors = {
-        'PROCESSING': 'bg-yellow-100 text-yellow-800',
-        'SHIPPED': 'bg-blue-100 text-blue-800',
-        'DELIVERED': 'bg-green-100 text-green-800',
-        'CANCELLED': 'bg-red-100 text-red-800',
-        'RETURNED': 'bg-gray-100 text-gray-800',
-        'Pending': 'bg-yellow-100 text-yellow-800',
-        'Delivered': 'bg-green-100 text-green-800',
-        'Cancelled': 'bg-red-100 text-red-800',
-        'Returned': 'bg-gray-100 text-gray-800',
-        'Shipped': 'bg-blue-100 text-blue-800'
+        'PROCESSING': 'bg-yellow-900/50 text-yellow-300',
+        'SHIPPED': 'bg-blue-900/50 text-blue-300',
+        'DELIVERED': 'bg-green-900/50 text-green-300',
+        'CANCELLED': 'bg-red-900/50 text-red-300',
+        'RETURNED': 'bg-gray-800 text-gray-300',
+        'Pending': 'bg-yellow-900/50 text-yellow-300',
+        'Delivered': 'bg-green-900/50 text-green-300',
+        'Cancelled': 'bg-red-900/50 text-red-300',
+        'Returned': 'bg-gray-800 text-gray-300',
+        'Shipped': 'bg-blue-900/50 text-blue-300'
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    return colors[status] || 'bg-gray-800 text-gray-300';
 }
 
 function updatePagination() {

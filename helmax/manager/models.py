@@ -138,9 +138,14 @@ class Variant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
     color = models.CharField(max_length=50, blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-   
-    discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True )
     is_active = models.BooleanField(default=True)
+    
+    def get_total_stock(self):
+        return sum(size.stock for size in self.sizes.all())
+    
+    def is_in_stock(self):
+        return self.get_total_stock() > 0
     
     def __str__(self):
         return f"{self.product.name} - {self.color}"
@@ -238,6 +243,22 @@ class CartItem(BaseModel):
         s = sum([quantity for quantity in CartItem])
         return s
     
+    @property
+    def subtotal(self):
+        if self.variant.discount_price:
+            return self.variant.discount_price * self.quantity
+        return self.variant.price * self.quantity
+    
+    def clean(self):
+        if not self.size:
+            raise ValidationError("Size must be specified")
+            
+        if self.quantity > self.size.stock:
+            raise ValidationError(f"Quantity cannot exceed available stock ({self.size.stock} available)")
+            
+        if self.quantity > 5:  # Maximum quantity per item
+            raise ValidationError("Maximum quantity per item is 5")
+    
     
 
     @property
@@ -315,6 +336,7 @@ class Address(BaseModel):
     )
     
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='user_addresses')
+    email = models.EmailField(null=True, blank=True)
     address_type = models.CharField(max_length=10, choices=ADDRESS_TYPE_CHOICES)
     full_name = models.CharField(max_length=100)
     phone = models.CharField(
@@ -376,7 +398,7 @@ class Order(BaseModel):
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='PENDING')
     order_status = models.CharField(max_length=20, choices=ORDER_STATUS_CHOICES, default='PROCESSING')
    
-
+    
     def __str__(self):
         return f"Order {self.id} - {self.user.username}"
 
@@ -412,19 +434,79 @@ class OrderItem(BaseModel):
     
 
 
-class ReturnRequest(models.Model):
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
-    ]
+# class ReturnRequest(models.Model):
+#     STATUS_CHOICES = [
+#         ('pending', 'Pending'),
+#         ('approved', 'Approved'),
+#         ('rejected', 'Rejected'),
+#     ]
 
-    order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='return_request')
-    reason = models.TextField()
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+#     order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='return_request')
+#     reason = models.TextField()
+#     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     updated_at = models.DateTimeField(auto_now=True)
+#     admin_response = models.TextField(blank=True, null=True)
+
+#     def __str__(self):
+#         return f"Return Request for Order {self.order.id}"
+
+# models.py
+from django.db import models
+
+class ReturnRequest(models.Model):
+    ORDER_STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected')
+    ]
+    
+    RETURN_REASON_CHOICES = [
+        ('size_issue', 'Size Issue'),
+        ('product_defect', 'Product Defect'),
+        ('wrong_item', 'Wrong Item Received'),
+        ('other', 'Other')
+    ]
+    
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='return_requests')
+    reason = models.CharField(max_length=50, choices=RETURN_REASON_CHOICES)
+    description = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=20, choices=ORDER_STATUS_CHOICES, default='PENDING')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    admin_response = models.TextField(blank=True, null=True)
 
-    def __str__(self):
-        return f"Return Request for Order {self.order.id}"
+# views.py
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
+import json
+
+@login_required
+@require_POST
+def cancel_order(request, order_id):
+    try:
+        order = Order.objects.get(id=order_id, user=request.user)
+        if order.order_status == 'PROCESSING':
+            order.order_status = 'CANCELLED'
+            order.save()
+            return JsonResponse({'success': True, 'message': 'Order cancelled successfully'})
+        return JsonResponse({'success': False, 'message': 'Cannot cancel this order'})
+    except Order.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Order not found'})
+
+@login_required
+@require_POST
+def create_return_request(request, order_id):
+    try:
+        order = Order.objects.get(id=order_id, user=request.user)
+        if order.order_status == 'DELIVERED':
+            data = json.loads(request.body)
+            return_request = ReturnRequest.objects.create(
+                order=order,
+                reason=data.get('reason'),
+                description=data.get('description')
+            )
+            return JsonResponse({'success': True, 'message': 'Return request submitted'})
+        return JsonResponse({'success': False, 'message': 'Cannot return this order'})
+    except Order.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Order not found'})

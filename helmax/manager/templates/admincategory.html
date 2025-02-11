@@ -156,7 +156,7 @@
     const modal = document.getElementById('editCategoryModal');
     document.getElementById('editCategoryName').value = name;
     const form = document.getElementById('editCategoryForm');
-    form.action = `/admin_categories/edit/${id}/`;
+    form.action = `/manager/edit_category/${id}/`;
     modal.classList.remove('hidden');
     setTimeout(() => {
       modal.querySelector('div').classList.remove('scale-95', 'opacity-0');

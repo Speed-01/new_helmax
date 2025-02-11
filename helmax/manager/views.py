@@ -214,12 +214,18 @@ def toggle_brand_status(request, brand_id):
 
 
 def adminProducts(request):
-    # products = Product.objects.filter(is_active=True).select_related('category').prefetch_related('variants__sizes', 'variants__images')
+    # Fetch all products ordered by ID
     products = Product.objects.all().order_by('id')
-    paginator = Paginator(products, 10)  
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    return render(request, 'adminProducts.html', {'products': page_obj})
+    
+    # Pagination Logic
+    paginator = Paginator(products, 10)  # Show 10 products per page
+    page_number = request.GET.get('page')  # Get the current page number from the request
+    page_obj = paginator.get_page(page_number)  # Get the page object
+
+    context = {
+        'page_obj': page_obj,  # Pass the paginated page object to the template
+    }
+    return render(request, 'adminProducts.html', context)
 
 def addProducts(request):
     categories = Category.objects.filter(is_active=True)
@@ -256,31 +262,24 @@ def addVariant(request, product_id):
         images = request.FILES.getlist('images')
 
         try:
-            # Create variant without stock first
+            # Create variant without the stock field
             variant = Variant.objects.create(
                 product=product,
                 color=color,
                 price=price,
-                discount_price=discount_price,
-                stock=0  # Will be updated based on size stocks
+                discount_price=discount_price if discount_price else None
             )
 
-            total_stock = 0
             # Create sizes with their respective stocks
             for size in sizes:
                 stock_for_size = request.POST.get(f'stock_{size}', 0)
                 stock_value = int(stock_for_size) if stock_for_size else 0
-                total_stock += stock_value
                 
                 Size.objects.create(
                     product_variant=variant,
                     name=size,
                     stock=stock_value
                 )
-            
-            # Update variant's total stock
-            variant.stock = total_stock
-            variant.save()
 
             # Handle images
             for index, image in enumerate(images):
@@ -477,6 +476,13 @@ from django.http import JsonResponse
 from django.core.paginator import Paginator
 from django.contrib import messages
 from .models import Order, ReturnRequest
+from django.shortcuts import render, get_object_or_404
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
+import json
+
+from django.core.paginator import Paginator
 
 # views.py
 def admin_orders(request):
@@ -543,44 +549,107 @@ def admin_orders_api(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+from django.shortcuts import render, get_object_or_404
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+import json
+from .models import Order, OrderItem, ReturnRequest
+
+@login_required
+def order_detail(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    return render(request, 'order_detail.html', {'order': order})
+
+@login_required
+@require_POST
 def update_order_status(request, order_id):
-    if request.method == 'POST':
+    try:
+        data = json.loads(request.body)
         order = get_object_or_404(Order, id=order_id)
-        new_status = request.POST.get('status')
         
-        if new_status:
-            order.status = new_status
-            order.save()
+        # Enhanced check for cancelled orders
+        if order.order_status == 'CANCELLED':
             return JsonResponse({
-                'success': True,
-                'message': 'Order status updated successfully'
-            })
-    
-    return JsonResponse({
-        'success': False,
-        'message': 'Invalid request'
-    })
-
-def handle_return_request(request, return_request_id):
-    return_request = get_object_or_404(ReturnRequest, id=return_request_id)
-    
-    if request.method == 'POST':
-        action = request.POST.get('action')
-        response = request.POST.get('response', '')
-        
-        if action == 'approve':
-            return_request.status = 'approved'
-            return_request.order.status = 'returned'
-            messages.success(request, 'Return request approved successfully')
-        elif action == 'reject':
-            return_request.status = 'rejected'
-            messages.success(request, 'Return request rejected successfully')
+                'success': False, 
+                'error': 'This order has been cancelled and cannot be modified'
+            }, status=400)
             
-        return_request.admin_response = response
-        return_request.save()
-        return_request.order.save()
-        
+        with transaction.atomic():
+            order.order_status = data['status']
+            order.save()
+            order.order_items.all().update(status=data['status'].capitalize())
+                
         return JsonResponse({'success': True})
-    
-    return JsonResponse({'success': False, 'message': 'Invalid request'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
+@login_required
+@require_POST
+def cancel_order(request, order_id):
+    try:
+        order = get_object_or_404(Order, id=order_id)
+        if order.order_status not in ['DELIVERED', 'CANCELLED']:
+            with transaction.atomic():
+                order.order_status = 'CANCELLED'
+                order.save()
+                order.order_items.all().update(status='Cancelled')
+            return JsonResponse({'success': True})
+        return JsonResponse({'success': False, 'message': 'Order cannot be cancelled'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})    
+
+@login_required
+@require_POST
+def update_item_status(request):
+    try:
+        data = json.loads(request.body)
+        item = get_object_or_404(OrderItem, id=data['item_id'])
+        
+        with transaction.atomic():
+            item.status = data['status']
+            if data['status'] in ['Cancelled', 'Returned'] and data.get('reason'):
+                if data['status'] == 'Cancelled':
+                    item.cancellation_reason = data['reason']
+                else:
+                    item.return_reason = data['reason']
+            item.save()
+            
+            # Update order status if all items have the same status
+            order = item.order
+            all_items_status = set(order.order_items.values_list('status', flat=True))
+            if len(all_items_status) == 1:
+                order.order_status = data['status'].upper()
+                order.save()
+                
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+# @login_required
+# def handle_return_request(request, return_id):
+#     try:
+#         data = json.loads(request.body)
+#         return_request = get_object_or_404(ReturnRequest, id=return_id)
+        
+#         with transaction.atomic():
+#             return_request.status = data['action']
+#             return_request.admin_response = data.get('response', '')
+#             return_request.save()
+            
+#             # Update order and items status based on return request decision
+#             order = return_request.order
+#             new_status = 'RETURNED' if data['action'] == 'approved' else order.order_status
+#             order.order_status = new_status
+#             order.save()
+            
+#             if data['action'] == 'approved':
+#                 order.order_items.all().update(status='Returned')
+                
+#         return JsonResponse({
+#             'success': True,
+#             'message': f'Return request has been {data["action"]}'
+#         })
+#     except Exception as e:
+#         return JsonResponse({'success': False, 'error': str(e)})
