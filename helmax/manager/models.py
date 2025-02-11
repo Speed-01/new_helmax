@@ -393,12 +393,20 @@ class Order(BaseModel):
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
     paymentmethod = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, default=1)
-    address = models.ForeignKey(Address, on_delete=models.PROTECT, null=True, blank=True)
     total_discount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='PENDING')
     order_status = models.CharField(max_length=20, choices=ORDER_STATUS_CHOICES, default='PROCESSING')
    
     
+    full_name = models.CharField(max_length=100, null=True, blank=True)
+    email = models.EmailField(null=True, blank=True)
+    phone = models.CharField(max_length=15, null=True, blank=True)
+    address_line1 = models.CharField(max_length=255, null=True, blank=True)
+    address_line2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100 , null=True, blank=True)
+    state = models.CharField(max_length=100, null=True, blank=True)
+    pincode = models.CharField(max_length=6, null=True, blank=True)
+
     def __str__(self):
         return f"Order {self.id} - {self.user.username}"
 
@@ -410,6 +418,7 @@ class OrderItem(BaseModel):
     product = models.ForeignKey(Product, on_delete=models.CASCADE , null=True, blank=True)
     variant = models.ForeignKey(Variant, on_delete=models.CASCADE, null=True, blank=True)
     quantity = models.PositiveIntegerField()
+    size = models.ForeignKey(Size, on_delete=models.SET_NULL, null=True, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=50, choices=[
         ("Pending", "Pending"), 
@@ -431,7 +440,8 @@ class OrderItem(BaseModel):
 
     def get_total_price(self):
         return self.price * self.quantity
-    
+    def __str__(self):
+        return f"{self.quantity} x {self.product.name} (Order: {self.order.id})"
 
 
 # class ReturnRequest(models.Model):

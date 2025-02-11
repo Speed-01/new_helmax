@@ -66,19 +66,19 @@
                             </div>
                             <div class="text-right">
                                 <span class="px-3 py-1 rounded-full text-sm 
-                                    {% if item.status == 'Processing' %}
+                                    {% if order.order_status == 'PROCESSING' %}
                                         bg-yellow-200 text-yellow-800
-                                    {% elif item.status == 'Delivered' %}
+                                    {% elif order.order_status == 'DELIVERED' %}
                                         bg-green-200 text-green-800
-                                    {% elif item.status == 'Cancelled' %}
+                                    {% elif order.order_status == 'CANCELLED' %}
                                         bg-red-200 text-red-800
-                                    {% elif item.status == 'Shipped' %}
+                                    {% elif order.order_status == 'SHIPPED' %}
                                         bg-blue-200 text-blue-800
                                     {% else %}
                                         bg-gray-200 text-gray-800
                                     {% endif %}
                                 ">
-                                    {{ item.status }}
+                                    {{ order.order_status }}
                                 </span>
                             </div>
                         </div>

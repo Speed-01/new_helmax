@@ -1066,31 +1066,26 @@ def my_orders(request):
         )\
         .select_related('paymentmethod')\
         .order_by('-created_at')
+    
+    logger.debug(f"Fetched {orders.count()} orders for user {request.user.id}")
+    for order in orders:
+        logger.debug(f"Order {order.id} status: {order.order_status}")
+
     context = {'orders': orders}
     return render(request, 'my_orders.html', context)
-
 
 @login_required(login_url='userlogin')
 @transaction.atomic
 def place_order(request):
-    logger.debug("Starting place_order view")
-    logger.debug(f"Request method: {request.method}")
-    logger.debug(f"POST data: {request.POST}")
-
     if request.method == 'POST':
         try:
             address_id = request.POST.get('address_id')
             payment_method = request.POST.get('payment_method')
-            
-            logger.debug(f"Address ID: {address_id}")
-            logger.debug(f"Payment Method: {payment_method}")
 
             # Validate address exists and belongs to user
             try:
                 selected_address = Address.objects.get(id=address_id, user=request.user)
-                logger.debug(f"Found address: {selected_address}")
-            except Address.DoesNotExist as e:
-                logger.error(f"Address validation failed: {str(e)}")
+            except Address.DoesNotExist:
                 return JsonResponse({'success': False, 'message': 'Invalid address'}, status=400)
 
             # Get user's cart
@@ -1103,100 +1098,78 @@ def place_order(request):
                 'items__size'
             ).first()
 
-            logger.debug(f"Found cart: {cart}")
-            
             if not cart or not cart.items.exists():
-                logger.error("Cart is empty or not found")
                 return JsonResponse({'success': False, 'message': 'Your cart is empty.'}, status=400)
 
             # Stock validation
             stock_errors = []
             for cart_item in cart.items.all():
-                logger.debug(f"Checking stock for item: {cart_item.variant.product.name}")
-                
                 if not cart_item.size:
                     stock_errors.append(f"Size not selected for {cart_item.variant.product.name}")
                     continue
-                
                 if cart_item.size.stock < cart_item.quantity:
-                    if cart_item.size.stock == 0:
-                        stock_errors.append(
-                            f"{cart_item.variant.product.name} - {cart_item.size.get_name_display()} is out of stock"
-                        )
-                    else:
-                        stock_errors.append(
-                            f"Only {cart_item.size.stock} units available for {cart_item.variant.product.name}"
-                        )
+                    stock_errors.append(
+                        f"Only {cart_item.size.stock} units available for {cart_item.variant.product.name}"
+                    )
 
             if stock_errors:
-                logger.error(f"Stock validation failed: {stock_errors}")
                 return JsonResponse({
                     'success': False, 
                     'message': 'Stock validation failed',
                     'errors': stock_errors
                 }, status=400)
 
-            try:
-                # Create order
-                logger.debug("Creating order")
-                order = Order.objects.create(
-                    user=request.user,
-                    total_amount=cart.total_price,
-                    paymentmethod_id=payment_method,
-                    payment_status='PENDING',
-                    order_status='PROCESSING',
-                    # Address fields
-                    full_name=selected_address.full_name,
-                    email=selected_address.email,
-                    phone=selected_address.phone,
-                    address_line1=selected_address.address_line1,
-                    address_line2=selected_address.address_line2,
-                    city=selected_address.city,
-                    state=selected_address.state,
-                    pincode=selected_address.pincode
-                )
-                logger.debug(f"Order created: {order.id}")
+            # Create order
+            order = Order.objects.create(
+                user=request.user,
+                total_amount=cart.total_price,
+                paymentmethod_id=payment_method,
+                payment_status='PENDING',
+                order_status='PROCESSING',
+                # Populate address fields
+                full_name=selected_address.full_name,
+                email=selected_address.email,
+                phone=selected_address.phone,
+                address_line1=selected_address.address_line1,
+                address_line2=selected_address.address_line2,
+                city=selected_address.city,
+                state=selected_address.state,
+                pincode=selected_address.pincode
+            )
 
-                # Create order items
-                for cart_item in cart.items.all():
-                    logger.debug(f"Creating order item for: {cart_item.variant.product.name}")
-                    OrderItem.objects.create(
-                        order=order,
-                        product=cart_item.variant.product,
-                        variant=cart_item.variant,
-                        size=cart_item.size,
-                        quantity=cart_item.quantity,
-                        price=cart_item.variant.discount_price or cart_item.variant.price,
-                        status='Processing'
+            # Create order items
+            for cart_item in cart.items.all():
+                OrderItem.objects.create(
+                    order=order,
+                    product=cart_item.variant.product,
+                    variant=cart_item.variant,
+                    size=cart_item.size,
+                    quantity=cart_item.quantity,
+                    price=cart_item.variant.discount_price or cart_item.variant.price,
+                    status='Processing'
+                )
+
+                # Update stock
+                cart_item.size.stock = F('stock') - cart_item.quantity
+                cart_item.size.save()
+
+            # Refresh size objects
+            for cart_item in cart.items.all():
+                cart_item.size.refresh_from_db()
+                if cart_item.size.stock < 0:
+                    raise ValidationError(
+                        f"Insufficient stock for {cart_item.variant.product.name}"
                     )
 
-                    # Update stock
-                    cart_item.size.stock = F('stock') - cart_item.quantity
-                    cart_item.size.save()
-                    logger.debug(f"Updated stock for size: {cart_item.size}")
+            # Update cart
+            cart.is_ordered = True
+            cart.is_active = False
+            cart.save()
 
-                # Refresh size objects
-                for cart_item in cart.items.all():
-                    cart_item.size.refresh_from_db()
-                    if cart_item.size.stock < 0:
-                        raise ValidationError(
-                            f"Insufficient stock for {cart_item.variant.product.name}"
-                        )
-
-                # Update cart
-                cart.is_ordered = True
-                cart.is_active = False
-                cart.save()
-                logger.debug("Cart marked as ordered")
-
-                return JsonResponse({
-                    'success': True,
-                    'redirect_url': reverse('order_confirmation', args=[order.id])
-                })
-
-            except Exception as e:
-                logger.error(f"Error creating order: {str(e)}", exc_info=True)
-                raise  # Re-raise to be caught by outer try-catch
+            return JsonResponse({
+                'success': True,
+                'redirect_url': reverse('order_confirmation', args=[order.id])
+            })
 
         except Exception as e:
             logger.error(f"Error in place_order: {str(e)}", exc_info=True)
@@ -1236,7 +1209,10 @@ def cancel_order(request, order_id):
             # Update the order status to CANCELLED
             order.order_status = 'CANCELLED'
             order.save()
+            logger.debug(f"Order {order.id} status updated to CANCELLED")
             return JsonResponse({'success': True})
         except Order.DoesNotExist:
+            logger.error(f"Order {order_id} not found for user {request.user.id}")
             return JsonResponse({'success': False, 'message': 'Order not found'})
+    logger.error("Invalid request method for cancel_order")
     return JsonResponse({'success': False, 'message': 'Invalid request method'})
