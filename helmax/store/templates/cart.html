@@ -39,14 +39,14 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="lg:col-span-2 space-y-6">
             {% for item in cart_items %}
-            <div class="group bg-[#222222] rounded-lg p-6 hover:shadow-lg transition-all duration-300 {% if item.size.stock <= 0 %}opacity-50{% endif %}">
+            <div class="group bg-[#222222] rounded-lg p-6 hover:shadow-lg transition-all duration-300 {% if not item.is_active %}opacity-50{% endif %}">
                 <div class="relative">
                     <!-- Clickable area wrapper -->
                     <a href="{% url 'product_detail' item.variant.product.id %}" class="absolute inset-0 z-10"></a>
                     
                     <div class="flex flex-col md:flex-row items-start md:items-center space-y-4 md:space-y-0 md:space-x-6 group-hover:opacity-90 transition-opacity">
                         <img src="{{ item.variant.images.first.image.url }}" alt="{{ item.variant.product.name }}" 
-                             class="w-full md:w-32 h-32 object-cover rounded-md group-hover:scale-[1.02] transition-transform duration-300">
+                            class="w-full md:w-32 h-32 object-cover rounded-md group-hover:scale-[1.02] transition-transform duration-300">
                         <div class="flex-grow">
                             <h3 class="text-lg font-semibold group-hover:text-[#ff6b00] transition-colors">{{ item.variant.product.name }}</h3>
                             <p class="text-gray-400">{{ item.variant.color }} - {{ item.size.get_name_display }}</p>
@@ -55,6 +55,9 @@
                                 <p class="text-green-500 text-sm mt-1">In stock ({{ item.size.stock }} available)</p>
                             {% else %}
                                 <p class="text-red-500 text-sm mt-1">Out of stock</p>
+                            {% endif %}
+                            {% if not item.is_active %}
+                                <p class="text-red-500 text-sm mt-1">This item is no longer available.</p>
                             {% endif %}
                         </div>
                     </div>

@@ -286,6 +286,32 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 300);
         }, 5000);
     }
+    // Real-time validation (polling example)
+    let lastValidation = Date.now();
+
+    function validateCart() {
+        fetch("{% url 'validate_cart' %}", {
+            method: 'GET',
+            headers: {
+                "X-Requested-With": "XMLHttpRequest",
+                "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.is_valid) {
+                // Redirect to cart with warnings
+                window.location.href = "{% url 'view_cart' %}";
+            }
+        });
+    }
+
+    // Validate cart every 10 seconds
+    setInterval(validateCart, 10000);
+
+    // Initial validation
+    validateCart();
+
 });
 </script>
 {% endblock %}

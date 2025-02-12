@@ -458,18 +458,10 @@ def product_list(request):
                 total_stock = sum(size.stock for size in variant.sizes.all())
                 
                 
-                # # Prepare variant stock info
-                # variant_stock_info.append({
-                #     'color': variant.color or 'Default',
-                #     'base_stock': variant.stock,
-                #     'sizes': [
-                #         {
-                #             'size': size.get_name_display(),  # This will show the human-readable size name
-                #             'stock': size.stock
-                #         } for size in variant.sizes.all()
-                #     ],
-                #     'total_stock': variant_total_stock
-                # })
+            total_stock = 0
+            for variant in product.active_variants:
+                # Sum stock for all sizes in the variant
+                total_stock += sum(size.stock for size in variant.sizes.all())    
             
             product_data.append({
                 'id': product.id,
@@ -562,22 +554,24 @@ import json
 from manager.models import Variant, CartItem, Cart
 
 
-@login_required
-
 def view_cart(request):
     if not request.user.is_authenticated:
-        
-        return redirect('Login')  
+        return redirect('login')  # Redirect to login if user is not authenticated
 
-   
+    # Get or create the user's cart
     cart, created = Cart.objects.get_or_create(
         user=request.user,
         is_ordered=False,
         defaults={'is_active': True}
     )
 
-   
-    cart_items = cart.items.select_related('variant', 'size').all()
+    # Filter out inactive cart items
+    cart_items = []
+    for item in cart.items.select_related('variant', 'size').all():
+        if item.is_active:  # Only include active items
+            cart_items.append(item)
+        else:
+            item.delete()  
 
     context = {
         'cart': cart,
@@ -634,7 +628,11 @@ def add_to_cart(request):
         except (Variant.DoesNotExist, Size.DoesNotExist):
             return JsonResponse({'success': False, 'message': 'Product variant or size not found'}, status=404)
 
-        # Check size stock instead of variant stock
+        # Check if the product, category, brand, and variant are active
+        if not (variant.is_active and variant.product.is_active and variant.product.category.is_active and variant.product.brand.is_active):
+            return JsonResponse({'success': False, 'message': 'This product is no longer available'}, status=400)
+
+        # Check size stock
         if size.stock < quantity:
             return JsonResponse({
                 'success': False,
@@ -943,6 +941,33 @@ import logging
 
 from manager.models import Cart, CartItem, Address, PaymentMethod, Order, OrderItem
 
+
+
+
+## this for validate the cart 
+@login_required
+def validate_cart(request):
+    cart = Cart.objects.filter(
+        user=request.user,
+        is_ordered=False
+    ).prefetch_related('items').first()
+
+    is_valid = True
+    errors = []
+
+    if cart:
+        for item in cart.items.all():
+            if not item.is_active:
+                is_valid = False
+                errors.append(f"{item.variant.product.name} is unavailable")
+                item.delete()
+
+    return JsonResponse({
+        'is_valid': is_valid,
+        'errors': errors
+    })
+
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -963,6 +988,46 @@ def user_checkout(request):
             messages.warning(request, "Your cart is empty")
             return redirect('view_cart')
 
+        # Validate cart items and remove inactive ones
+        total_quantity = 0
+        cart_items = []
+        stock_warnings = []
+        invalid_items = []
+
+        for item in cart.items.all():
+            # Check if product/variant/category/brand is inactive
+            if not item.is_active:  # Uses CartItem's is_active property
+                invalid_items.append(item)
+                continue
+
+            # Existing stock validation
+            if not item.size:
+                messages.warning(request, f"One of your cart items is invalid and has been removed.")
+                item.delete()
+                continue
+
+            if item.quantity > item.size.stock:
+                stock_warnings.append(f"Only {item.size.stock} units available for {item.variant.product.name}")
+                continue
+
+            total_quantity += item.quantity
+            cart_items.append(item)
+
+        # Remove invalid items from the cart
+        for item in invalid_items:
+            item.delete()
+            messages.warning(request, f"{item.variant.product.name} is no longer available and has been removed from your cart.")
+
+        # Handle remaining validation
+        if stock_warnings or invalid_items:
+            for warning in stock_warnings:
+                messages.warning(request, warning)
+            return redirect('view_cart')
+
+        if not cart_items:
+            messages.warning(request, "No valid items in cart")
+            return redirect('view_cart')
+
         # Fetch user addresses and payment methods
         user_addresses = Address.objects.filter(user=request.user, is_deleted=False)
         if not user_addresses.exists():
@@ -970,46 +1035,6 @@ def user_checkout(request):
             return redirect('userManageAddress')
 
         payment_methods = PaymentMethod.objects.all()
-
-        # Validate cart items and check stock
-        total_quantity = 0
-        cart_items = []
-        stock_warnings = []
-
-        for item in cart.items.all():
-            if not item.variant or not item.size:
-                messages.warning(
-                    request,
-                    f"One of your cart items is invalid and has been removed."
-                )
-                item.delete()
-                continue
-
-            # Check stock availability
-            if item.quantity > item.size.stock:
-                if item.size.stock == 0:
-                    stock_warnings.append(
-                        f"{item.variant.product.name} - {item.size.get_name_display()} is out of stock"
-                    )
-                else:
-                    stock_warnings.append(
-                        f"Only {item.size.stock} units available for {item.variant.product.name} - {item.size.get_name_display()}"
-                    )
-                continue
-
-            total_quantity += item.quantity
-            cart_items.append(item)
-
-        # If there are stock warnings, show them and redirect
-        if stock_warnings:
-            for warning in stock_warnings:
-                messages.warning(request, warning)
-            return redirect('view_cart')
-
-        # If cart is empty after validation, redirect
-        if not cart_items:
-            messages.warning(request, "No valid items in cart")
-            return redirect('view_cart')
 
         # Check minimum order amount if applicable
         min_order_amount = 0  # Set your minimum amount
@@ -1043,7 +1068,128 @@ def user_checkout(request):
             "An unexpected error occurred. Please try again."
         )
         return redirect('view_cart')
+    
+    
+logger = logging.getLogger(__name__)
 
+@login_required(login_url='userlogin')
+@require_POST
+@transaction.atomic
+def place_order(request):
+    try:
+        # Get address and payment method from POST data
+        address_id = request.POST.get('address_id')
+        payment_method = request.POST.get('payment_method')
+
+        # Validate address exists and belongs to user
+        try:
+            selected_address = Address.objects.get(id=address_id, user=request.user)
+        except Address.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Invalid address'}, status=400)
+
+        # Get user's cart
+        cart = Cart.objects.filter(
+            user=request.user, 
+            is_ordered=False
+        ).prefetch_related(
+            'items', 
+            'items__variant', 
+            'items__size'
+        ).first()
+
+        if not cart or not cart.items.exists():
+            return JsonResponse({'success': False, 'message': 'Your cart is empty.'}, status=400)
+
+        # Final validation before creating order
+        invalid_items = []
+        valid_items = []
+
+        for cart_item in cart.items.all():
+            # Check if product/variant/category/brand is active
+            if not cart_item.is_active:  # Uses CartItem's is_active property
+                invalid_items.append(cart_item)
+                continue
+
+            # Check stock availability
+            if cart_item.quantity > cart_item.size.stock:
+                invalid_items.append(cart_item)
+                continue
+
+            valid_items.append(cart_item)
+
+        # Remove invalid items from the cart
+        for item in invalid_items:
+            item.delete()
+
+        if invalid_items:
+            return JsonResponse({
+                'success': False,
+                'message': 'Some items are no longer available. Please review your cart.',
+                'errors': [f"{item.variant.product.name} is unavailable" for item in invalid_items]
+            }, status=400)
+
+        if not valid_items:
+            return JsonResponse({'success': False, 'message': 'No valid items in cart'}, status=400)
+
+        # Create order
+        order = Order.objects.create(
+            user=request.user,
+            total_amount=cart.total_price,
+            paymentmethod_id=payment_method,
+            payment_status='PENDING',
+            order_status='PROCESSING',
+            # Populate address fields
+            full_name=selected_address.full_name,
+            email=selected_address.email,
+            phone=selected_address.phone,
+            address_line1=selected_address.address_line1,
+            address_line2=selected_address.address_line2,
+            city=selected_address.city,
+            state=selected_address.state,
+            pincode=selected_address.pincode
+        )
+
+        # Create order items
+        for cart_item in valid_items:
+            OrderItem.objects.create(
+                order=order,
+                product=cart_item.variant.product,
+                variant=cart_item.variant,
+                size=cart_item.size,
+                quantity=cart_item.quantity,
+                price=cart_item.variant.discount_price or cart_item.variant.price,
+                status='Processing'
+            )
+
+            # Update stock
+            cart_item.size.stock = F('stock') - cart_item.quantity
+            cart_item.size.save()
+
+        # Refresh size objects
+        for cart_item in valid_items:
+            cart_item.size.refresh_from_db()
+            if cart_item.size.stock < 0:
+                raise ValidationError(
+                    f"Insufficient stock for {cart_item.variant.product.name}"
+                )
+
+        # Update cart
+        cart.is_ordered = True
+        cart.is_active = False
+        cart.save()
+
+        return JsonResponse({
+            'success': True,
+            'redirect_url': reverse('order_confirmation', args=[order.id])
+        })
+
+    except Exception as e:
+        logger.error(f"Error in place_order: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'message': str(e),
+            'error_type': 'system'
+        }, status=500)
 
 
 
@@ -1074,112 +1220,7 @@ def my_orders(request):
     context = {'orders': orders}
     return render(request, 'my_orders.html', context)
 
-@login_required(login_url='userlogin')
-@transaction.atomic
-def place_order(request):
-    if request.method == 'POST':
-        try:
-            address_id = request.POST.get('address_id')
-            payment_method = request.POST.get('payment_method')
 
-            # Validate address exists and belongs to user
-            try:
-                selected_address = Address.objects.get(id=address_id, user=request.user)
-            except Address.DoesNotExist:
-                return JsonResponse({'success': False, 'message': 'Invalid address'}, status=400)
-
-            # Get user's cart
-            cart = Cart.objects.filter(
-                user=request.user, 
-                is_ordered=False
-            ).prefetch_related(
-                'items', 
-                'items__variant', 
-                'items__size'
-            ).first()
-
-            if not cart or not cart.items.exists():
-                return JsonResponse({'success': False, 'message': 'Your cart is empty.'}, status=400)
-
-            # Stock validation
-            stock_errors = []
-            for cart_item in cart.items.all():
-                if not cart_item.size:
-                    stock_errors.append(f"Size not selected for {cart_item.variant.product.name}")
-                    continue
-                if cart_item.size.stock < cart_item.quantity:
-                    stock_errors.append(
-                        f"Only {cart_item.size.stock} units available for {cart_item.variant.product.name}"
-                    )
-
-            if stock_errors:
-                return JsonResponse({
-                    'success': False, 
-                    'message': 'Stock validation failed',
-                    'errors': stock_errors
-                }, status=400)
-
-            # Create order
-            order = Order.objects.create(
-                user=request.user,
-                total_amount=cart.total_price,
-                paymentmethod_id=payment_method,
-                payment_status='PENDING',
-                order_status='PROCESSING',
-                # Populate address fields
-                full_name=selected_address.full_name,
-                email=selected_address.email,
-                phone=selected_address.phone,
-                address_line1=selected_address.address_line1,
-                address_line2=selected_address.address_line2,
-                city=selected_address.city,
-                state=selected_address.state,
-                pincode=selected_address.pincode
-            )
-
-            # Create order items
-            for cart_item in cart.items.all():
-                OrderItem.objects.create(
-                    order=order,
-                    product=cart_item.variant.product,
-                    variant=cart_item.variant,
-                    size=cart_item.size,
-                    quantity=cart_item.quantity,
-                    price=cart_item.variant.discount_price or cart_item.variant.price,
-                    status='Processing'
-                )
-
-                # Update stock
-                cart_item.size.stock = F('stock') - cart_item.quantity
-                cart_item.size.save()
-
-            # Refresh size objects
-            for cart_item in cart.items.all():
-                cart_item.size.refresh_from_db()
-                if cart_item.size.stock < 0:
-                    raise ValidationError(
-                        f"Insufficient stock for {cart_item.variant.product.name}"
-                    )
-
-            # Update cart
-            cart.is_ordered = True
-            cart.is_active = False
-            cart.save()
-
-            return JsonResponse({
-                'success': True,
-                'redirect_url': reverse('order_confirmation', args=[order.id])
-            })
-
-        except Exception as e:
-            logger.error(f"Error in place_order: {str(e)}", exc_info=True)
-            return JsonResponse({
-                'success': False,
-                'message': str(e),
-                'error_type': 'system'
-            }, status=500)
-
-    return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)
 
 
 @login_required(login_url='userlogin')

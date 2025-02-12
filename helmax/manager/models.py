@@ -244,6 +244,16 @@ class CartItem(BaseModel):
         return s
     
     @property
+    def is_active(self):
+       
+        return (
+            self.variant.is_active and
+            self.variant.product.is_active and
+            self.variant.product.category.is_active and
+            self.variant.product.brand.is_active
+        )
+    
+    @property
     def subtotal(self):
         if self.variant.discount_price:
             return self.variant.discount_price * self.quantity

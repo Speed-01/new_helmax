@@ -32,7 +32,7 @@ urlpatterns = [
     path('move-to-wishlist/<int:item_id>/', views.move_to_wishlist, name='move_to_wishlist'),
     path('cart/update/<int:item_id>/', views.update_quantity, name='update_quantity'),
     path('remove-from-cart/<int:item_id>/', views.remove_from_cart, name='remove_from_cart'),
-
+    path('validate-cart/', views.validate_cart, name='validate_cart'),
 
     ######### Address ########
     path('userManageAddress/', views.userManageAddress, name='userManageAddress'),
