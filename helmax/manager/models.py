@@ -232,6 +232,7 @@ class CartItem(BaseModel):
     variant = models.ForeignKey(Variant, on_delete=models.CASCADE, null=False, blank=False)
     quantity = models.PositiveIntegerField(default=1)
     size = models.ForeignKey(Size, on_delete=models.CASCADE, null=True, blank=True)
+ 
     
     class Meta:
         unique_together = ('cart', 'variant', 'size')

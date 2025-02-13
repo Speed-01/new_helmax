@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="container mx-auto px-4 py-8">
-    <!-- Breadcrumb -->
+    {% comment %} <!-- Breadcrumb -->
     <nav class="mb-8 text-sm">
         <ol class="flex items-center space-x-2">
             {% for item in breadcrumb %}
@@ -15,7 +15,7 @@
                 {% endif %}
             {% endfor %}
         </ol>
-    </nav>
+    </nav> {% endcomment %}
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
         <!-- Left: Product Images -->
@@ -83,38 +83,31 @@
                 {{ product.description }}
             </p>
 
-            <div class="space-y-6 pt-6 border-t border-gray-800">
-                <!-- Variant Image Selection -->
-                <div class="space-y-4">
-                    <label class="text-sm text-gray-400">Color</label>
-                    <div class="flex space-x-3" id="color-options" data-product-id="{{ product.id }}">
-                        {% for item in variants_with_images %}
+            <!-- Variant Image Selection -->
+            <div class="space-y-4">
+                <label class="text-sm text-gray-400">Color</label>
+                <div class="flex space-x-3" id="color-options" data-product-id="{{ product.id }}">
+                    {% for item in variants_with_images %}
+                        <button 
+                            class="w-12 h-12 rounded-sm hover:opacity-80 transition-opacity overflow-hidden "
+                            data-variant-id="{{ item.id }}"
+                            data-color="{{ item.color }}"
+                        >
                             {% if item.primary_image %}
-                                <button 
-                                    class="w-12 h-12 rounded-sm hover:opacity-80 transition-opacity overflow-hidden {% if item.id == primary_variant.id %}ring-2 ring-[#ff6b00]{% endif %}"
-                                    data-variant-id="{{ item.id }}"
-                                    data-color="{{ item.color }}"
+                                <img 
+                                    src="{{ item.primary_image.image.url }}" 
+                                    alt="{{ item.color }} {{ product.name }}"
+                                    class="w-full h-full object-cover"
                                 >
-                                    <img 
-                                        src="{{ item.primary_image.image.url }}" 
-                                        alt="{{ item.variant.color }} {{ product.name }}"
-                                        class="w-full h-full object-cover"
-                                    >
-                                    <span class="sr-only">{{ item.variant.color }}</span>
-                                </button>
                             {% else %}
-                                <!-- Fallback for variants without images -->
-                                <button 
-                                    class="w-12 h-12 rounded-sm hover:opacity-80 transition-opacity {% if item.id == primary_variant.id %}ring-2 ring-[#ff6b00]{% endif %}"
+                                <div 
+                                    class="w-full h-full"
                                     style="background-color: {{ item.color }}"
-                                    data-variant-id="{{ item.id }}"
-                                    data-color="{{ item.color }}"
-                                >
-                                    <span class="sr-only">{{ item.variant.color }}</span>
-                                </button>
+                                ></div>
                             {% endif %}
-                        {% endfor %}
-                    </div>
+                            <span class="sr-only">{{ item.color }}</span>
+                        </button>
+                    {% endfor %}
                 </div>
             </div>
                 {% comment %} <div class="text-sm text-gray-400">Availability: 
@@ -229,6 +222,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedSizeName = null;
     let isZooming = false;
     const zoomLevel = 2.5;
+    let selectedSize = null;
+    let currentSizes = [];
 
     function initZoom() {
         let zoomResult = document.getElementById('zoom-result');
@@ -425,7 +420,7 @@ document.addEventListener('DOMContentLoaded', function() {
         addToCartBtn.dataset.maxStock = data.total_stock;
         
         quantityInput.value = 1;
-        quantityInput.max = data.total_stock;
+        quantityInput.max = data.s;
         
         updateSizeOptions(data.sizes);
     }
@@ -467,9 +462,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateSizeOptions(sizes) {
+        currentSizes = sizes; // Store sizes data globally
         sizeOptions.innerHTML = sizes.map(size => `
             <div class="relative flex flex-col items-center">
-                <!-- Size Button -->
                 <button 
                     class="w-[45px] h-[45px] flex items-center justify-center border 
                         ${size.stock > 0 ? 
@@ -477,6 +472,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             'border-gray-600 cursor-not-allowed opacity-50'}
                         rounded-sm transition-colors"
                     data-size="${size.name}"
+                    data-stock="${size.stock}"
                     ${size.stock === 0 ? 'disabled' : ''}
                 >
                     <span class="text-sm font-medium 
@@ -484,14 +480,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         ${size.name}
                     </span>
                 </button>
-    
-                <!-- Stock Information -->
                 <div class="text-xs mt-1 ${size.stock > 0 ? 'text-green-500' : 'text-red-500'}">
                     ${size.stock > 0 ? `${size.stock} left` : 'Out of stock'}
                 </div>
             </div>
         `).join('');
-    
+
         // Re-bind size selection handlers
         document.querySelectorAll('#size-options button').forEach(button => {
             if (!button.disabled) {
@@ -500,53 +494,113 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Update handleSizeSelection to store selected size and update quantity limits
     function handleSizeSelection(e) {
+        const button = e.currentTarget;
         document.querySelectorAll('#size-options button').forEach(btn => 
             btn.classList.remove('ring-2', 'ring-[#ff6b00]')
         );
-        e.currentTarget.classList.add('ring-2', 'ring-[#ff6b00]');
-        selectedSizeName = e.currentTarget.dataset.size;
         
-        // Update stock status based on selected size
-        const selectedSize = sizes.find(size => size.name === selectedSizeName);
-        if (selectedSize) {
+        button.classList.add('ring-2', 'ring-[#ff6b00]');
+        selectedSizeName = button.dataset.size;
+        
+        // Find the selected size data
+        const selectedSizeData = currentSizes.find(size => size.name === selectedSizeName);
+        
+        if (selectedSizeData) {
+            // Update stock status
             const stockStatus = document.getElementById('stock-status');
-            if (selectedSize.stock > 0) {
-                stockStatus.textContent = `In Stock (${selectedSize.stock} available)`;
+            if (selectedSizeData.stock > 0) {
+                stockStatus.textContent = `In Stock (${selectedSizeData.stock} available)`;
                 stockStatus.classList.remove('text-red-500');
                 stockStatus.classList.add('text-green-500');
                 addToCartBtn.disabled = false;
+                
+                // Update quantity input max value based on selected size stock
+                quantityInput.max = selectedSizeData.stock;
+                // Reset quantity to 1 if current quantity exceeds new max
+                if (parseInt(quantityInput.value) > selectedSizeData.stock) {
+                    quantityInput.value = 1;
+                }
             } else {
                 stockStatus.textContent = 'Out of Stock';
                 stockStatus.classList.remove('text-green-500');
                 stockStatus.classList.add('text-red-500');
                 addToCartBtn.disabled = true;
+                quantityInput.value = 0;
             }
         }
     }
-    // Quantity controls
+
+    // Update quantity controls to respect size-specific stock limits
     decreaseQuantityBtn.addEventListener('click', () => {
+        if (!selectedSizeName) {
+            showNotification('Please select a size first', 'error');
+            return;
+        }
         let quantity = parseInt(quantityInput.value, 10);
         quantity = Math.max(1, quantity - 1);
         quantityInput.value = quantity;
     });
 
     increaseQuantityBtn.addEventListener('click', () => {
-        let quantity = parseInt(quantityInput.value, 10);
-        quantity = Math.min(addToCartBtn.dataset.maxStock, quantity + 1);
-        quantityInput.value = quantity;
+        if (!selectedSizeName) {
+            showNotification('Please select a size first', 'error');
+            return;
+        }
+        
+        const selectedSizeData = currentSizes.find(size => size.name === selectedSizeName);
+        if (selectedSizeData) {
+            let quantity = parseInt(quantityInput.value, 10);
+            quantity = Math.min(selectedSizeData.stock, quantity + 1);
+            quantityInput.value = quantity;
+            
+            if (quantity === selectedSizeData.stock) {
+                showNotification('Maximum available quantity reached', 'error');
+            }
+        }
     });
 
-    // Add to cart functionality
+    // Update quantity input handler
+    quantityInput.addEventListener('change', () => {
+        if (!selectedSizeName) {
+            showNotification('Please select a size first', 'error');
+            quantityInput.value = 1;
+            return;
+        }
+        
+        const selectedSizeData = currentSizes.find(size => size.name === selectedSizeName);
+        if (selectedSizeData) {
+            let quantity = parseInt(quantityInput.value, 10);
+            
+            // Ensure quantity is within valid range
+            if (isNaN(quantity) || quantity < 1) {
+                quantity = 1;
+            } else if (quantity > selectedSizeData.stock) {
+                quantity = selectedSizeData.stock;
+                showNotification('Adjusted to maximum available quantity', 'error');
+            }
+            
+            quantityInput.value = quantity;
+        }
+    });
+
+    // Update add to cart validation
     addToCartBtn.addEventListener('click', async function() {
         if (!selectedSizeName) {
             showNotification('Please select a size', 'error');
             return;
         }
 
+        const selectedSizeData = currentSizes.find(size => size.name === selectedSizeName);
+        if (!selectedSizeData) {
+            showNotification('Invalid size selected', 'error');
+            return;
+        }
+
         const quantity = parseInt(quantityInput.value, 10);
-        if (isNaN(quantity) || quantity < 1) {
-            showNotification('Please enter a valid quantity', 'error');
+        if (isNaN(quantity) || quantity < 1 || quantity > selectedSizeData.stock) {
+            showNotification('Invalid quantity', 'error');
             return;
         }
 

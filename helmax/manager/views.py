@@ -61,7 +61,7 @@ def admin_logout(request):
 
 
 
-@login_required
+
 def customers(request):
     if request.method == "POST":
         user_id = request.POST.get("user_id")
@@ -260,34 +260,36 @@ def addVariant(request, product_id):
         discount_price = request.POST.get('discount_price')
         sizes = request.POST.getlist('sizes')
         images = request.FILES.getlist('images')
+        primary_image_index = int(request.POST.get('primary_image_index', 0))  # New field
 
         try:
-            # Create variant without the stock field
-            variant = Variant.objects.create(
-                product=product,
-                color=color,
-                price=price,
-                discount_price=discount_price if discount_price else None
-            )
-
-            # Create sizes with their respective stocks
-            for size in sizes:
-                stock_for_size = request.POST.get(f'stock_{size}', 0)
-                stock_value = int(stock_for_size) if stock_for_size else 0
-                
-                Size.objects.create(
-                    product_variant=variant,
-                    name=size,
-                    stock=stock_value
+            with transaction.atomic():  # Use transaction to ensure data consistency
+                # Create variant
+                variant = Variant.objects.create(
+                    product=product,
+                    color=color,
+                    price=price,
+                    discount_price=discount_price if discount_price else None
                 )
 
-            # Handle images
-            for index, image in enumerate(images):
-                ProductImage.objects.create(
-                    variant=variant,
-                    image=image,
-                    is_primary=(index == 0)
-                )
+                # Create sizes with their respective stocks
+                for size in sizes:
+                    stock_for_size = request.POST.get(f'stock_{size}', 0)
+                    stock_value = int(stock_for_size) if stock_for_size else 0
+                    
+                    Size.objects.create(
+                        product_variant=variant,
+                        name=size,
+                        stock=stock_value
+                    )
+
+                # Handle images
+                for index, image in enumerate(images):
+                    ProductImage.objects.create(
+                        variant=variant,
+                        image=image,
+                        is_primary=(index == primary_image_index)  # Set primary based on selected index
+                    )
 
             messages.success(request, 'Variant added successfully.')
         except Exception as e:
@@ -351,23 +353,38 @@ def editVariant(request, variant_id):
             variant.stock = 0  # Will be updated based on size stocks
             variant.save()
             
-            # Update sizes
-            variant.sizes.all().delete()
+            existing_sizes = {size.name: size for size in variant.sizes.all()}
             total_stock = 0
-            
-            # Create sizes with their respective stocks
-            for size in new_sizes:
-                stock_for_size = request.POST.get(f'stock_{size}', 0)
-                stock_value = int(stock_for_size) if stock_for_size else 0
-                total_stock += stock_value
+
+            for size_code in new_sizes:
+                stock_key = f'stock_{size_code}'
+                stock_value = int(request.POST.get(stock_key, 0))
                 
-                Size.objects.create(
-                    product_variant=variant,
-                    name=size,
-                    stock=stock_value
-                )
-            
-            # Update variant's total stock
+                if size_code in existing_sizes:
+                    # Update existing size
+                    size_obj = existing_sizes[size_code]
+                    size_obj.stock = stock_value
+                    size_obj.save()
+                    del existing_sizes[size_code]
+                else:
+                    # Create new size
+                    Size.objects.create(
+                        product_variant=variant,
+                        name=size_code,
+                        stock=stock_value
+                    )
+                
+                total_stock += stock_value
+
+            # Handle sizes not in new_sizes
+            for size_name, size_obj in existing_sizes.items():
+                if size_obj.cartitem_set.exists():
+                    # Set stock to 0 to retain cart items
+                    size_obj.stock = 0
+                    size_obj.save()
+                else:
+                    size_obj.delete()
+
             variant.stock = total_stock
             variant.save()
             

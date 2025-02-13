@@ -309,6 +309,7 @@ def forgot_password(request):
             
     return render(request, 'forgot_password.html')
 
+
 def reset_password(request):
     reset_email = request.session.get('reset_email')
     if not reset_email:
@@ -354,18 +355,16 @@ def get_variant_data(request, product_id, variant_id):
         is_active=True
     )
     
-    # Calculate total stock by summing all size stocks
-    total_stock = sum(size.stock for size in variant.sizes.all())
-    
-    # Get primary image
+    # Get primary image, with fallback
     primary_image = variant.images.filter(is_primary=True).first()
+    if not primary_image:
+        primary_image = variant.images.first()
     
     data = {
         'id': variant.id,
         'color': variant.color,
-        'price': str(variant.price),  # Convert Decimal to string for JSON
+        'price': str(variant.price),
         'discount_price': str(variant.discount_price) if variant.discount_price else None,
-        'total_stock': total_stock,  # Only using total from sizes
         'images': [
             {
                 'image': image.image.url,
@@ -377,16 +376,13 @@ def get_variant_data(request, product_id, variant_id):
             {
                 'id': size.id,
                 'name': size.name,
-                'stock': size.stock  
+                'stock': size.stock
             } for size in variant.sizes.all()
         ],
-        'primary_image_url': primary_image.image.url if primary_image else (
-            variant.images.first().image.url if variant.images.exists() else None
-        )
+        'primary_image_url': primary_image.image.url if primary_image else None
     }
     
     return JsonResponse(data)
-
 
 
 
@@ -490,53 +486,47 @@ def product_detail(request, product_id):
     product = get_object_or_404(
         Product.objects.select_related('category', 'brand')
         .prefetch_related(
-            'variants',
-            'variants__sizes',
-            'variants__images'
+            Prefetch('variants', 
+                queryset=Variant.objects.filter(is_active=True).prefetch_related(
+                    'sizes',
+                    Prefetch('images', queryset=ProductImage.objects.all())  # Remove filter to get all images
+                )
+            )
         ),
         id=product_id,
         is_active=True
     )
     
-    variants = list(product.variants.filter(is_active=True))
-    primary_variant = variants[0] if variants else None
+    variants = product.variants.all()
+    primary_variant = variants.first() if variants.exists() else None
     
+    # Get all active variants with their images
     variants_with_images = []
     for variant in variants:
+        # First try to get the primary image
         primary_image = variant.images.filter(is_primary=True).first()
+        # If no primary image exists, fall back to the first image
+        if not primary_image:
+            primary_image = variant.images.first()
+            
         variants_with_images.append({
             'variant': variant,
             'primary_image': primary_image,
             'id': variant.id,
             'color': variant.color,
-            'stock': variant.get_total_stock(),
-            'in_stock': variant.is_in_stock()
         })
     
-    # Get sizes with stock information for primary variant
+    # Size and stock handling for primary variant
+    sizes = []
     if primary_variant:
-        sizes = [
-            {
-                'name': size.name,
-                'stock': size.stock,
-                'display_name': size.get_name_display(),
-                'available': size.stock > 0
-            }
-            for size in primary_variant.sizes.all()
-        ]
-        total_stock = sum(size['stock'] for size in sizes)
-    else:
-        sizes = []
-        total_stock = 0
-
+        sizes = primary_variant.sizes.all().values('name', 'stock')
+    
     context = {
         'product': product,
-        'brand': product.brand.name, 
+        'brand': product.brand.name,
         'primary_variant': primary_variant,
-        'variants_with_images': variants_with_images,  
-        'stock_status': 'In Stock' if total_stock > 0 else 'Out of Stock',
+        'variants_with_images': variants_with_images,
         'sizes': sizes,
-        'total_stock': total_stock
     }
     
     return render(request, 'product_details.html', context)
@@ -556,7 +546,7 @@ from manager.models import Variant, CartItem, Cart
 
 def view_cart(request):
     if not request.user.is_authenticated:
-        return redirect('login')  # Redirect to login if user is not authenticated
+        return redirect('login')
 
     # Get or create the user's cart
     cart, created = Cart.objects.get_or_create(
@@ -565,13 +555,25 @@ def view_cart(request):
         defaults={'is_active': True}
     )
 
-    # Filter out inactive cart items
+    # Get all cart items
     cart_items = []
     for item in cart.items.select_related('variant', 'size').all():
-        if item.is_active:  # Only include active items
-            cart_items.append(item)
+        if item.is_active:
+            if item.quantity > item.size.stock:
+                new_quantity = item.size.stock
+                if new_quantity <= 0:
+                    item.delete()
+                    continue
+                else:
+                    item.quantity = new_quantity
+                    item.save()
+            # Only add to cart if quantity > 0 after adjustment
+            if item.quantity > 0:
+                cart_items.append(item)
+            else:
+                item.delete()
         else:
-            item.delete()  
+            continue
 
     context = {
         'cart': cart,
@@ -1208,29 +1210,38 @@ def my_orders(request):
             'order_items',
             'order_items__product',
             'order_items__variant',
-            'order_items__variant__images'
+            'order_items__variant__images',
+            'order_items__size'  # Add size to prefetch
         )\
         .select_related('paymentmethod')\
         .order_by('-created_at')
-    
+        
     logger.debug(f"Fetched {orders.count()} orders for user {request.user.id}")
+    
     for order in orders:
         logger.debug(f"Order {order.id} status: {order.order_status}")
-
+    
     context = {'orders': orders}
     return render(request, 'my_orders.html', context)
-
-
-
 
 @login_required(login_url='userlogin')
 def order_confirmation(request, order_id):
     try:
-        order = get_object_or_404(Order, id=order_id, user=request.user)
+        order = get_object_or_404(
+            Order.objects.prefetch_related(
+                'order_items',
+                'order_items__product',
+                'order_items__variant',
+                'order_items__size'  
+            ),
+            id=order_id,
+            user=request.user
+        )
         order_items = order.order_items.all()
+        logger.debug(f"Fetched order confirmation for order {order_id}")
         
-        print("order items >>>>>>>",order_items)
     except Order.DoesNotExist:
+        logger.error(f"Order {order_id} not found in confirmation page")
         messages.error(request, "Order Not found.")
         return redirect('my_orders')
     
@@ -1239,21 +1250,76 @@ def order_confirmation(request, order_id):
         'order_items': order_items,
     }
     return render(request, 'order_confirmation.html', context)
-# views.py
-from django.http import JsonResponse
 
 @login_required
 def cancel_order(request, order_id):
-    if request.method == 'POST':
-        try:
-            order = Order.objects.get(id=order_id, user=request.user)
-            # Update the order status to CANCELLED
+    if request.method != 'POST':
+        logger.error("Invalid request method for cancel_order")
+        return JsonResponse({'success': False, 'message': 'Invalid request method'})
+        
+    try:
+        with transaction.atomic():  # Use transaction to ensure data consistency
+            order = Order.objects.select_related('user').prefetch_related(
+                'order_items',
+                'order_items__variant',
+                'order_items__size'
+            ).get(id=order_id, user=request.user)
+            
+            # Check if order is already cancelled
+            if order.order_status == 'CANCELLED':
+                logger.warning(f"Order {order_id} is already cancelled")
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'Order is already cancelled'
+                })
+            
+            # Check if order can be cancelled (e.g., not already shipped)
+            if order.order_status not in ['PENDING', 'PROCESSING']:
+                logger.warning(f"Cannot cancel order {order_id} with status {order.order_status}")
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'Cannot cancel order with status {order.order_status}'
+                })
+            
+            # Restore stock for each order item
+            for order_item in order.order_items.all():
+                try:
+                    # Get the size object associated with this order item
+                    size = order_item.size
+                    if size:
+                        # Increase the stock
+                        size.stock += order_item.quantity
+                        size.save()
+                        
+                        logger.info(
+                            f"Restored {order_item.quantity} items to stock for "
+                            f"variant {order_item.variant.id}, size {size.name}"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Error restoring stock for order item {order_item.id}: {str(e)}"
+                    )
+                    raise  # Re-raise the exception to trigger rollback
+            
+            # Update order status
             order.order_status = 'CANCELLED'
             order.save()
-            logger.debug(f"Order {order.id} status updated to CANCELLED")
-            return JsonResponse({'success': True})
-        except Order.DoesNotExist:
-            logger.error(f"Order {order_id} not found for user {request.user.id}")
-            return JsonResponse({'success': False, 'message': 'Order not found'})
-    logger.error("Invalid request method for cancel_order")
-    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+            
+            logger.info(f"Successfully cancelled order {order_id}")
+            return JsonResponse({
+                'success': True,
+                'message': 'Order cancelled successfully'
+            })
+            
+    except Order.DoesNotExist:
+        logger.error(f"Order {order_id} not found for user {request.user.id}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Order not found'
+        })
+    except Exception as e:
+        logger.error(f"Error cancelling order {order_id}: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'An error occurred while cancelling the order'
+        })

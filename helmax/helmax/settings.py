@@ -62,18 +62,17 @@ INSTALLED_APPS = [
 
     'cloudinary',
     'cloudinary_storage',
-    'django.contrib.sites',
 
+    'django.contrib.sites',  
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
-    'allauth.socialaccount.providers.google',
+    'allauth.socialaccount.providers.google',  
 ]
 SITE_ID = 2
 
 MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',
-
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -104,6 +103,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "helmax.wsgi.application"
 
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',  # Default backend
+    'allauth.account.auth_backends.AuthenticationBackend',  # Allauth backend
+]
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
@@ -142,36 +145,6 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 
-
-
-
-# ACCOUNT_AUTHENTICATION_METHOD = 'email'  # Use email for authentication
-# ACCOUNT_EMAIL_REQUIRED = True
-# ACCOUNT_UNIQUE_EMAIL = True  # Enforce unique email addresses
-# SOCIALACCOUNT_QUERY_EMAIL = True
-ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-ACCOUNT_USERNAME_REQUIRED = False
-ACCOUNT_AUTHENTICATION_METHOD = "email"
-ACCOUNT_EMAIL_REQUIRED = True
-# # Optional: Disable email confirmation (useful for testing)
-# ACCOUNT_CONFIRM_EMAIL_ON_GET = False
-# SOCIALACCOUNT_QUERY_EMAIL = True
-
-SOCIALACCOUNT_PROVIDERS = {
-    'google': {
-        'SCOPE': [
-            'profile',
-            'email',
-        ],
-        'APP': {
-            'client_id': os.getenv('GOOGLE_OAUTH_CLIENT_ID'),
-            'secret': os.getenv('GOOGLE_CLIENT_SECRET'),
-        },
-        'AUTH_PARAMS': {
-            'access_type': 'online',
-        }
-    }
-}
 
 
 
@@ -222,11 +195,13 @@ cloudinary.config(
 AUTH_USER_MODEL = 'manager.User'
 
 
-# Authentication backends
-AUTHENTICATION_BACKENDS = (
-    'django.contrib.auth.backends.ModelBackend',  # Default authentication backend
-    'allauth.account.auth_backends.AuthenticationBackend',  # AllAuth backend
-)
+# Redirect to home page after login
+LOGIN_REDIRECT_URL = 'home/'
+
+# Don't ask for username, use email only
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
 
 # Redirect URLs
 LOGIN_REDIRECT_URL = '/'
