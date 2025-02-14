@@ -27,7 +27,19 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Subquery, OuterRef, Prefetch
+from django.urls import reverse   
 
+
+
+
+import re
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.contrib.auth.password_validation import validate_password
+from django.shortcuts import render, redirect
+from django.contrib import messages
+import logging
 
 
 
@@ -204,12 +216,12 @@ def login(request):
         del request.session['signup_success']
         print("signup_success")  
     if request.method == 'POST':
-        username = request.POST.get('username')
+        email = request.POST.get('email')
         password = request.POST.get('password')
         
-        user = authenticate(request, username=username, password=password)
+        user = authenticate(request, email=email, password=password)
         if user is not None:
-            auth_login(request, user)
+            auth_login(request, user,backend='django.contrib.auth.backends.ModelBackend')
             return redirect('home')
         else:
             messages.error(request, "Invalid email or password.")
@@ -220,74 +232,16 @@ def login(request):
     
     return render(request, 'login.html')
 
-from django.urls import reverse   
 
 
-
-
-
-
-# @receiver(post_save, sender=User)
-# def create_or_update_user_profile(sender, instance, created, **kwargs):
-#     if created:
-#         User.objects.create(user=instance)
-#     else:
-#         instance.User.save()
-
-
-
-# @csrf_exempt  # For simplicity; use CSRF token in production
-# def auth_receiver(request):
-#     if request.method != 'POST':
-#         return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
-
-#     try:
-#         # Parse JSON data from request body
-#         data = json.loads(request.body)
-#         credential = data.get('credential')
-
-#         if not credential:
-#             return JsonResponse({'error': 'No credential provided'}, status=400)
-
-#         # Verify token with Google
-#         CLIENT_ID = settings.GOOGLE_OAUTH_CLIENT_ID
-#         try:
-#             id_info = id_token.verify_oauth2_token(
-#                 credential,
-#                 requests.Request(),
-#                 CLIENT_ID
-#             )
-
-#             # Extract user info
-#             email = id_info.get('email')
-#             first_name = id_info.get('given_name', '')
-#             last_name = id_info.get('family_name', '')
-
-#             # Retrieve or create user
-#             user, created = User.objects.get_or_create(
-#                 email=email,
-#                 defaults={'username': email.split('@')[0], 'first_name': first_name, 'last_name': last_name}
-#             )
-
-#             # Log the user in
-#             auth_login(request, user)
-#             return JsonResponse({'success': True, 'redirect_url': '/store/home/'})
-
-#         except ValueError as e:
-#             print(f"Token verification error: {str(e)}")
-#             return JsonResponse({'error': 'Invalid token', 'details': str(e)}, status=400)
-
-#     except Exception as e:
-#         import traceback
-#         print(f"Error in auth_receiver: {traceback.format_exc()}")
-#         return JsonResponse({'error': 'Authentication failed'}, status=400)
-
-
+User = get_user_model()
+logger = logging.getLogger(__name__)
 
 def forgot_password(request):
     if request.method == 'POST':
         email = request.POST.get('email')
         try:
+            validate_email(email)
             user = User.objects.filter(email=email).first()
             if not user:
                 messages.error(request, "No account found with this email.")
@@ -295,20 +249,25 @@ def forgot_password(request):
             
             otp_instance, created = OTP.objects.get_or_create(email=email)
             otp_instance.generate_otp()
-            print(otp_instance.otp)
+            otp_instance.save()
+
+            logger.info(f"OTP generated for {email}: {otp_instance.otp}")
             
             try:
-                send_otp_email(email, otp_instance.otp, purpose="reset")
+                send_otp_email(email, otp_instance.otp)
                 request.session['reset_email'] = email
                 messages.success(request, "OTP sent to your email.")
                 return redirect('reset_password')
             except Exception as e:
+                logger.error(f"Failed to send OTP email to {email}: {e}")   
                 messages.error(request, "Failed to send OTP email. Please try again.")
+        except ValidationError:
+            messages.error(request, "Invalid email address.")
         except Exception as e:
+            logger.error(f"Error in forgot_password view: {e}")
             messages.error(request, "An error occurred. Please try again.")
             
     return render(request, 'forgot_password.html')
-
 
 def reset_password(request):
     reset_email = request.session.get('reset_email')
@@ -317,27 +276,42 @@ def reset_password(request):
         return redirect('forgot_password')
 
     if request.method == 'POST':
-        form = SetPasswordForm(request.POST)
         otp = request.POST.get('otp')
+        new_password = request.POST.get('new_password')
+        confirm_password = request.POST.get('confirm_password')
         
         try:
             otp_instance = OTP.objects.get(email=reset_email)
             if otp_instance.is_valid() and otp_instance.otp == otp:
-                if form.is_valid():
-                    user = User.objects.get(email=reset_email)
-                    user.set_password(form.cleaned_data['password1'])
-                    user.save()
-                    del request.session['reset_email']
-                    messages.success(request, "Password has been reset successfully!")
-                    return redirect('login')
+                if new_password == confirm_password:
+                    # Regex validation for password
+                    if not re.match(r'^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*]).{8,}$', new_password):
+                        messages.error(request, "Password must be at least 8 characters long, contain at least one uppercase letter, one lowercase letter, one number, and one special character.")
+                        return render(request, 'reset_password.html')
+                    
+                    try:
+                        validate_password(new_password)
+                        user = User.objects.get(email=reset_email)
+                        user.set_password(new_password)
+                        user.save()
+                        
+                        del request.session['reset_email']
+                        otp_instance.delete()
+                        
+                        messages.success(request, "Password has been reset successfully!")
+                        return redirect('Login')
+                    except ValidationError as e:
+                        messages.error(request, e.messages[0])
+                else:
+                    messages.error(request, "Passwords do not match.")
             else:
                 messages.error(request, "Invalid or expired OTP.")
         except (OTP.DoesNotExist, User.DoesNotExist):
             messages.error(request, "Invalid reset attempt.")
-    else:
-        form = SetPasswordForm()
     
-    return render(request, 'reset_password.html', {'form': form})
+    return render(request, 'reset_password.html')
+
+
 
 
 def logout(request):
@@ -470,7 +444,7 @@ def product_list(request):
             })
 
     # Pagination Logic
-    paginator = Paginator(product_data, 8)
+    paginator = Paginator(product_data, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
@@ -546,7 +520,9 @@ from manager.models import Variant, CartItem, Cart
 
 def view_cart(request):
     if not request.user.is_authenticated:
-        return redirect('login')
+        messages.warning(request, "Login to access Cart")
+        return redirect('Login')  # Redirect to login page if user is not authenticated
+ 
 
     # Get or create the user's cart
     cart, created = Cart.objects.get_or_create(
@@ -1203,8 +1179,12 @@ from django.db.models import F
 ################# Order ####################
 from manager.models import Order, OrderItem, Cart, CartItem
  
-@login_required(login_url='userlogin')
+
 def my_orders(request):
+    if not request.user.is_authenticated:
+        messages.warning(request, "Login to access Cart")
+        return redirect('Login')  # Redirect to login page if user is not authenticated
+    
     orders = Order.objects.filter(user=request.user)\
         .prefetch_related(
             'order_items',

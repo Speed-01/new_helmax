@@ -227,29 +227,53 @@ def adminProducts(request):
     }
     return render(request, 'adminProducts.html', context)
 
+
+from django.db.models import Q
+
 def addProducts(request):
     categories = Category.objects.filter(is_active=True)
     brands = Brand.objects.filter(is_active=True)
+    
     if request.method == 'POST':
-        name = request.POST.get('name')
-        brand = request.POST.get('brand')
-        category = request.POST.get('category')
-        description = request.POST.get('description')
-        
-        category = get_object_or_404(Category, id=category)
-        brand = get_object_or_404(Brand, id=brand)
-        
-        product = Product.objects.create(
-            name=name,
-            brand=brand,
-            description=description,
-            category=category,
-        )
+        # Get and sanitize input
+        name = request.POST.get('name', '').strip()  # Remove leading/trailing whitespace
+        brand_id = request.POST.get('brand')
+        category_id = request.POST.get('category')
+        description = request.POST.get('description', '').strip()
 
+        # Validate all fields are not empty
+        if not name or not brand_id or not category_id or not description:
+            messages.error(request, "All fields are required.")
+            return render(request, 'addProducts.html', {'categories': categories, 'brands': brands})
 
-        return redirect('adminProducts')
+        # # Validate product name (no symbols or only spaces)
+        # if not name.replace(" ", "").isalnum():
+        #     messages.error(request, "Product name cannot contain only symbols or spaces.")
+        #     return render(request, 'addProducts.html', {'categories': categories, 'brands': brands})
 
-    return render(request, 'addProducts.html', {'categories': categories,'brands':brands})
+        # Case-insensitive uniqueness check
+        if Product.objects.filter(name__iexact=name).exists():
+            messages.error(request, f"A product with the name '{name}' already exists (case-insensitive).")
+            return render(request, 'addProducts.html', {'categories': categories, 'brands': brands})
+
+        # Create product if valid
+        try:
+            category = get_object_or_404(Category, id=category_id)
+            brand = get_object_or_404(Brand, id=brand_id)
+            
+            Product.objects.create(
+                name=name,
+                brand=brand,
+                category=category,
+                description=description
+            )
+            messages.success(request, "Product added successfully!")
+            return redirect('adminProducts')
+            
+        except Exception as e:
+            messages.error(request, f"Error creating product: {str(e)}")
+
+    return render(request, 'addProducts.html', {'categories': categories, 'brands': brands})
 
 def addVariant(request, product_id):
     product = get_object_or_404(Product, id=product_id)

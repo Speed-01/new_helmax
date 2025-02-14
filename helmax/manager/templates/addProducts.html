@@ -6,6 +6,15 @@
     <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
         Add New Product
     </h1>
+    {% comment %} {% if messages %}
+    <div class="space-y-2">
+        {% for message in messages %}
+        <div class="p-4 text-sm rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %} {% endcomment %}
 
     <form action="{% url 'addProducts' %}" method="POST" enctype="multipart/form-data" class="space-y-6">
         {% csrf_token %}

@@ -1,18 +1,15 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from django.utils.text import slugify
 from django.core.validators import MinValueValidator
 from django.utils import timezone
 from django.utils.timezone import now
 from cloudinary.models import CloudinaryField
-import datetime
 from datetime import timedelta
 from django.core.validators import MinValueValidator, MaxValueValidator
 import random
 from django.core.validators import RegexValidator
 from django.db import models
 from django.contrib.auth.models import User
-
 from django.db import transaction
 from django.conf import settings
 from django.db.models.signals import post_save
@@ -76,15 +73,14 @@ class OTP(models.Model):
     def generate_otp(self):
         self.otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
         self.created_at = timezone.now()
-        self.expiration_time = self.created_at + timedelta(minutes=1)
+        self.expiration_time = self.created_at + timedelta(minutes=1)  # OTP expires in 1 minute
+        self.save()
 
     def is_valid(self):
         return timezone.now() <= self.expiration_time
 
-    def save(self, *args, **kwargs):
-        if not self.expiration_time:
-            self.expiration_time = self.created_at + timedelta(minutes=10)
-        super().save(*args, **kwargs)
+    def __str__(self):
+        return f"OTP for {self.email}: {self.otp} (Expires at {self.expiration_time})"
 
 
     

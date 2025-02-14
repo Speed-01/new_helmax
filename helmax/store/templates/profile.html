@@ -10,8 +10,8 @@
         <div class="space-y-2">
             <h2 class="text-lg font-semibold">Account</h2>
             <nav class="space-y-1">
-                <a href="{% url 'user_profile' user.id %}" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">My Profile</a>
-                <a href="{%  url 'my_orders' %}" class="block px-4 py-2 text-[#ff6b00] bg-opacity-20 bg-zinc-900">Orders</a>
+                <a href="{% url 'user_profile' user.id %}" class="block px-4 py-2 rounded-lg py-2 text-[#ff6b00] bg-opacity-50 bg-[#222222]">My Profile</a>
+                <a href="{%  url 'my_orders' %}" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Orders</a>
                 <a href="{% url 'userManageAddress' %}" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Address</a>
                 <a href="#" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Wallet</a>
                 <a href="#" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Coupons</a>
@@ -25,19 +25,32 @@
     <!-- Main Content -->
     <main class="flex-1 p-8">
         {% if messages %}
-            <div class="max-w-3xl mx-auto mb-4">
+            <div id="message-container" class="max-w-3xl mx-auto mb-4">
                 {% for message in messages %}
                     <div class="
                         {% if message.tags == 'success' %}bg-green-500
                         {% elif message.tags == 'error' %}bg-red-500
                         {% else %}bg-blue-500
                         {% endif %} 
-                        text-white px-4 py-2 rounded-lg mb-2">
+                        text-white px-4 py-2 rounded-lg mb-2 fade-out">
                         {{ message }}
                     </div>
                 {% endfor %}
             </div>
+
+            <script>
+                // Wait for 2 seconds, then fade out the messages
+                setTimeout(function () {
+                    var messageContainer = document.getElementById("message-container");
+                    if (messageContainer) {
+                        messageContainer.style.transition = "opacity 0.5s";
+                        messageContainer.style.opacity = "0";
+                        setTimeout(() => messageContainer.remove(), 500);  // Remove after fade out
+                    }
+                }, 2000);
+            </script>
         {% endif %}
+
 
         <div class="max-w-3xl mx-auto bg-zinc-900 rounded-lg p-8">
             <form method="POST" id="profileForm">

@@ -172,6 +172,8 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+SOCIALACCOUNT_ADAPTER = 'store.adapters.CustomSocialAccountAdapter'
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Add these settings for media files and Cloudinary
 MEDIA_URL = '/media/'  # URL prefix for media files
