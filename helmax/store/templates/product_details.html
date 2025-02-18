@@ -342,8 +342,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Color selection handling
     colorOptions.addEventListener('click', async function(e) {
-        const button = e.target.tagName === 'BUTTON' ? e.target : e.target.closest('button');
-        
+        const button = e.target.closest('button');
         if (button) {
             const variantId = button.dataset.variantId;
             selectedVariantId = variantId;
@@ -585,53 +584,58 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Update add to cart validation
     addToCartBtn.addEventListener('click', async function() {
         if (!selectedSizeName) {
             showNotification('Please select a size', 'error');
             return;
         }
-
+    
+        if (!selectedVariantId) {
+            showNotification('Please select a variant', 'error');
+            return;
+        }
+    
         const selectedSizeData = currentSizes.find(size => size.name === selectedSizeName);
         if (!selectedSizeData) {
             showNotification('Invalid size selected', 'error');
             return;
         }
-
+    
         const quantity = parseInt(quantityInput.value, 10);
         if (isNaN(quantity) || quantity < 1 || quantity > selectedSizeData.stock) {
             showNotification('Invalid quantity', 'error');
             return;
         }
-
+    
         try {
             const formData = new FormData();
             formData.append('variant_id', selectedVariantId);
             formData.append('quantity', quantity);
             formData.append('size_name', selectedSizeName);
-
+    
             const response = await fetch('{% url "add_to_cart" %}', {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': getCookie('csrftoken'),
                 },
-                body: formData,
+                body: formData
             });
-
-            if (!response.ok) {
-                throw new Error('Failed to add item to cart');
-            }
-
+    
             const data = await response.json();
-            showNotification('Item added to cart successfully!', 'success');
-
+            
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to add item to cart');
+            }
+    
+            showNotification(data.message || 'Item added to cart successfully!', 'success');
+    
             if (data.cart_count !== undefined) {
                 updateCartCount(data.cart_count);
             }
-
+    
         } catch (error) {
             console.error('Error:', error);
-            showNotification('An error occurred. Please try again.', 'error');
+            showNotification(error.message || 'An error occurred. Please try again.', 'error');
         }
     });
 

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wishlist</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'custom-gray': '#222222',
+                        'custom-orange': '#FFA500',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-black text-white min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-8 text-custom-orange">My Wishlist</h1>
+        
+        <!-- Error message container -->
+        <div id="error-message" class="hidden bg-red-500 text-white p-4 rounded-md mb-4"></div>
+
+        <!-- Wishlist items container -->
+        <div id="wishlist-items" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Wishlist items will be dynamically inserted here -->
+        </div>
+
+        <!-- Pagination -->
+        <div class="mt-8 flex justify-center">
+            <button id="prev-page" class="bg-custom-gray text-white px-4 py-2 rounded mr-2 hover:bg-opacity-80 transition-colors duration-300">Previous</button>
+            <span id="page-info" class="text-white px-4 py-2">Page <span id="current-page">1</span> of <span id="total-pages">1</span></span>
+            <button id="next-page" class="bg-custom-gray text-white px-4 py-2 rounded ml-2 hover:bg-opacity-80 transition-colors duration-300">Next</button>
+        </div>
+    </div>
+
+    <script>
+        const itemsPerPage = 6;
+        let currentPage = 1;
+        let wishlistItems = []; // This will be populated with data from your backend
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+            setTimeout(() => {
+                errorDiv.classList.add('hidden');
+            }, 5000);
+        }
+
+        function renderWishlistItems() {
+            const container = document.getElementById('wishlist-items');
+            container.innerHTML = '';
+
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const itemsToShow = wishlistItems.slice(startIndex, endIndex);
+
+            itemsToShow.forEach(item => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'bg-custom-gray p-6 rounded-lg shadow-lg transition-transform duration-300 hover:scale-105';
+                itemElement.innerHTML = `
+                    <img src="${item.image}" alt="${item.name}" class="w-full h-48 object-cover mb-4 rounded">
+                    <h2 class="text-xl font-semibold mb-2">${item.name}</h2>
+                    <p class="text-gray-400 mb-4">${item.description}</p>
+                    <div class="flex justify-between items-center">
+                        <span class="text-custom-orange font-bold">$${item.price.toFixed(2)}</span>
+                        <button onclick="addToCart(${item.id})" class="bg-custom-orange text-black px-4 py-2 rounded hover:bg-opacity-80 transition-colors duration-300">
+                            Add to Cart
+                        </button>
+                    </div>
+                    <button onclick="removeFromWishlist(${item.id})" class="mt-4 text-red-500 hover:text-red-400 transition-colors duration-300">
+                        Remove from Wishlist
+                    </button>
+                `;
+                container.appendChild(itemElement);
+            });
+
+            updatePagination();
+        }
+
+        function updatePagination() {
+            const totalPages = Math.ceil(wishlistItems.length / itemsPerPage);
+            document.getElementById('current-page').textContent = currentPage;
+            document.getElementById('total-pages').textContent = totalPages;
+            document.getElementById('prev-page').disabled = currentPage === 1;
+            document.getElementById('next-page').disabled = currentPage === totalPages;
+        }
+
+        function addToCart(itemId) {
+            // Implement your add to cart logic here
+            fetch(`/add-to-cart/${itemId}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showError('Item added to cart successfully!');
+                    } else {
+                        showError(data.message || 'Failed to add item to cart');
+                    }
+                })
+                .catch(error => {
+                    showError('An error occurred while adding to cart');
+                });
+        }
+
+        function removeFromWishlist(itemId) {
+            // Implement your remove from wishlist logic here
+            fetch(`/remove-from-wishlist/${itemId}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        wishlistItems = wishlistItems.filter(item => item.id !== itemId);
+                        renderWishlistItems();
+                        showError('Item removed from wishlist successfully!');
+                    } else {
+                        showError(data.message || 'Failed to remove item from wishlist');
+                    }
+                })
+                .catch(error => {
+                    showError('An error occurred while removing from wishlist');
+                });
+        }
+
+        document.getElementById('prev-page').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderWishlistItems();
+            }
+        });
+
+        document.getElementById('next-page').addEventListener('click', () => {
+            const totalPages = Math.ceil(wishlistItems.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderWishlistItems();
+            }
+        });
+
+        // Fetch wishlist items from your backend and populate the wishlistItems array
+        fetch('/wishlist-items')
+            .then(response => response.json())
+            .then(data => {
+                wishlistItems = data;
+                renderWishlistItems();
+            })
+            .catch(error => {
+                showError('Failed to load wishlist items');
+            });
+    </script>
+</body>
+</html>

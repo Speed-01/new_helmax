@@ -63,20 +63,6 @@ def admin_logout(request):
 
 
 def customers(request):
-    if request.method == "POST":
-        user_id = request.POST.get("user_id")
-        try:
-            user = User.objects.get(id=user_id)
-            user.is_active = not user.is_active  
-            user.save()
-            messages.success(
-                request, 
-                f"User {user.username} has been {'activated' if user.is_active else 'blocked'}."
-            )
-        except User.DoesNotExist:
-            messages.error(request, "User does not exist.")
-        return redirect("customers")  
-
     credential = request.GET.get("value", "")
     if credential:
         customers = User.objects.filter(
@@ -84,10 +70,25 @@ def customers(request):
         ).exclude(is_superuser=True)
     else:
         customers = User.objects.all().exclude(is_superuser=True)
+        
+    search_query = request.GET.get('search', '')
+    if search_query:
+        customers = customers.filter(first_name__icontains=search_query)
 
-    context = {"customers": customers}
+    paginator = Paginator(customers, 10)  
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        "customers": page_obj,
+        "search_query": search_query
+    }
+
     return render(request, "customers.html", context)
 
+
+
+@login_required
 def toggle_user_status(request, user_id):
     if request.method == 'POST':
         user = get_object_or_404(User, id=user_id)
@@ -98,14 +99,36 @@ def toggle_user_status(request, user_id):
                 'success': True,
                 'status': 'active' if user.is_active else 'blocked'
             })
+        
     return JsonResponse({'success': False}, status=400)
         
 
 
+
+from django.core.paginator import Paginator
+from django.template.loader import render_to_string
+from django.http import JsonResponse
+
 def admin_category(request):
+    search_query = request.GET.get('search', '')
     
+    # Filter categories based on search query
     categories = Category.objects.all().order_by("-id")
-    return render(request, 'admincategory.html', {'categories': categories})
+    if search_query:
+        categories = categories.filter(name__icontains=search_query)
+    
+    # Pagination
+    page_number = request.GET.get('page', 1)
+    paginator = Paginator(categories, 10)  # 10 items per page
+    page_obj = paginator.get_page(page_number)
+    
+    context ={
+        'categories': page_obj,
+        'search_query': search_query
+    }
+    
+    return render(request, 'admincategory.html', context )
+
 
 def add_category(request):
     if request.method == "POST":
@@ -174,8 +197,28 @@ def toggle_category_status(request, category_id):
 
 
 def admin_brand(request):
+    # Fetch all brands ordered by ID in descending order
     brands = Brand.objects.all().order_by("-id")
-    return render(request, 'adminBrand.html', {'brands': brands})
+    
+    # Search functionality for brands
+    search_query = request.GET.get('search', '')
+    if search_query:
+        
+        brands = brands.filter(name__icontains=search_query)
+    
+    # Paginate brands
+    paginator = Paginator(brands, 10)  # Show 10 brands per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Prepare context
+    context = {
+        'brands': page_obj,  # Pass the paginated brands
+        'search_query': search_query,  # Pass the search query
+    }
+    
+    # Render the template with the context
+    return render(request, 'adminBrand.html', context)
 
 def add_brand(request):
     if request.method == "POST":
@@ -188,6 +231,7 @@ def add_brand(request):
 def edit_brand(request, brand_id):
     brand = get_object_or_404(Brand, id=brand_id)
     if request.method == "POST":
+        
         name = request.POST.get('brand_name')
         if name and not Brand.objects.filter(name__iexact=name).exclude(id=brand_id).exists():
             brand.name = name

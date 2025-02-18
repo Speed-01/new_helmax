@@ -49,6 +49,14 @@ urlpatterns = [
     path('my-orders/', views.my_orders, name='my_orders'),
     path('order-confirmation/<int:order_id>/', views.order_confirmation, name='order_confirmation'),
 
+    ########### Wishlist ########
+    path('get-wishlist-items/', views.get_wishlist_items, name='get_wishlist_items'),
+    path('move-to-wishlist/<int:item_id>', views.move_to_wishlist, name='move_to_wishlist'),
+
+    path('wishlist-items', views.get_wishlist_items, name='get_wishlist_items'),
+    path('add-to-cart/<int:item_id>', views.add_to_cart, name='add_to_cart'),
+    path('remove-from-wishlist/<int:item_id>', views.remove_from_wishlist, name='remove_from_wishlist'),
+
     # urls.py
-path('api/orders/<int:order_id>/cancel/', views.cancel_order, name='cancel_order'),
+    path('api/orders/<int:order_id>/cancel/', views.cancel_order, name='cancel_order'),
 ]

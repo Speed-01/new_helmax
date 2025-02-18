@@ -744,6 +744,33 @@ def move_to_wishlist(request, item_id):
         except Exception as e:
             return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'})
     return JsonResponse({'success': False, 'message': 'Invalid request method.'})
+
+@login_required
+def get_wishlist_items(request):
+    wishlist_items = Wishlist.objects.filter(user=request.user).select_related('variant')
+    items = [
+        {
+            'id': item.id,
+            'name': item.variant.product.name,
+            'description': item.variant.product.description,
+            'price': float(item.variant.price),
+            'image': item.variant.product.image.url,
+        }
+        for item in wishlist_items
+    ]
+    return JsonResponse(items, safe=False)
+
+
+
+@login_required
+@require_POST
+def remove_from_wishlist(request, item_id):
+    try:
+        wishlist_item = Wishlist.objects.get(id=item_id, user=request.user)
+        wishlist_item.delete()
+        return JsonResponse({'success': True})
+    except Wishlist.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Item not found in wishlist'})
 import re
 ####### profile ##########
 @login_required(login_url='userlogin')

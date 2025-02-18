@@ -2,25 +2,22 @@
 
 {% block content %}
 <div class="p-6 bg-[#0A0A0A]">
-  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-
   <div class="flex justify-between items-center mb-6">
     <h1 class="text-3xl font-bold bg-gradient-to-r from-red-500 to-purple-600 bg-clip-text text-transparent">Brands</h1>
     <div class="flex space-x-4">
-      <div class="relative">
+      <form method="GET" action="" class="relative">
         <input type="text" 
+            name="search"
             id="searchInput"
             class="w-full pl-10 pr-4 py-2 rounded-md bg-[#1A1A1A] border border-[#2A2A2A] text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-            placeholder="Search by username...">
+            placeholder="Search by brand name..."
+            value="{{ search_query }}">
         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
         </div>
-        <svg class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-        </svg>
-      </div>
+      </form>
       <button 
         onclick="showAddBrandModal()" 
         class="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50"
@@ -43,7 +40,7 @@
       <tbody class="bg-[#0A0A0A] divide-y divide-[#2A2A2A]">
         {% for brand in brands %}
         <tr class="hover:bg-[#111111] transition-colors duration-200" id="brand-row-{{ brand.id }}">
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{{ forloop.counter }}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{{ brand.id }}</td>
           <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">{{ brand.name }}</td>
           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300" id="status-{{ brand.id }}">
             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {% if brand.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
@@ -68,11 +65,33 @@
         </tr>
         {% empty %}
         <tr>
-          <td colspan="4" class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 text-center">No brands available</td>
+          <td colspan="4" class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 text-center">No brands found</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+  </div>
+
+  <!-- Pagination -->
+  <div class="mt-4 flex justify-between items-center text-gray-200">
+    <div class="text-sm">
+        Page {{ brands.number }} of {{ brands.paginator.num_pages }}
+    </div>
+    <div class="flex space-x-2">
+        {% if brands.has_previous %}
+        <a href="?page={{ brands.previous_page_number }}&search={{ search_query }}" 
+           class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-sm font-medium text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+            Previous
+        </a>
+        {% endif %}
+        
+        {% if brands.has_next %}
+        <a href="?page={{ brands.next_page_number }}&search={{ search_query }}" 
+           class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-sm font-medium text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+            Next
+        </a>
+        {% endif %}
+    </div>
   </div>
 </div>
 
@@ -160,7 +179,7 @@
     const modal = document.getElementById('editBrandModal');
     document.getElementById('editBrandName').value = name;
     const form = document.getElementById('editBrandForm');
-    form.action = `/admin_brands/edit/${id}/`;
+    form.action = `/manager/admin_brands/edit/${id}/`;
     modal.classList.remove('hidden');
     setTimeout(() => {
       modal.querySelector('div').classList.remove('scale-95', 'opacity-0');
@@ -214,5 +233,6 @@
       console.error('Error:', error);
     });
   }
+  
 </script>
 {% endblock %}
