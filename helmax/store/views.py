@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.utils.timezone import now
 from manager.forms import SignupForm, OTPVerificationForm, PasswordResetRequestForm,SetPasswordForm
 from .forms import AddressForm
-from manager.models import OTP,User,Category, Brand, Size, Product, Variant, ProductImage, Review, Address, Cart, CartItem, Wishlist,PaymentMethod
+from manager.models import OTP,User,Category, Brand, Size, Product, Variant, ProductImage, Review, Address, Cart, CartItem,PaymentMethod, Coupon, CouponUsage, Wishlist
 from datetime import timezone
 from django.views.decorators.cache import never_cache
 from django.http import  JsonResponse
@@ -28,9 +28,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.db.models import Subquery, OuterRef, Prefetch
 from django.urls import reverse   
-
-
-
+from django.db.models import Q
 
 import re
 from django.contrib.auth import get_user_model
@@ -41,7 +39,128 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 import logging
 
+def prepare_product_data(products):
+    product_data = []
+    for product in products:
+        # Get first active variant
+        first_variant = product.variants.filter(is_active=True).first()
+        if first_variant:
+            # Get primary image or first image
+            primary_image = first_variant.images.filter(is_primary=True).first()
+            if not primary_image:
+                primary_image = first_variant.images.first()
 
+            # Calculate total stock
+            total_stock = sum(
+                size.stock 
+                for variant in product.variants.all() 
+                for size in variant.sizes.all()
+            )
+
+            # Calculate discount percentage
+            discount_percentage = None
+            if first_variant.discount_price and first_variant.price:
+                discount_percentage = int(
+                    ((first_variant.price - first_variant.discount_price) / first_variant.price) * 100
+                )
+
+            product_data.append({
+                'id': product.id,
+                'name': product.name,
+                'price': first_variant.price,
+                'discount_price': first_variant.discount_price or first_variant.price,
+                'image_url': primary_image.image.url if primary_image else None,
+                'total_stock': total_stock,
+                'discount_percentage': discount_percentage,
+                'category': product.category.name,
+                'brand': product.brand.name if product.brand else None,
+            })
+    return product_data
+
+def product_search(request):
+    query = request.GET.get('q', '')
+    products = Product.objects.filter(
+        Q(name__icontains=query) | 
+        Q(description__icontains=query),
+        is_active=True
+    ).prefetch_related('variants')
+
+    product_data = []
+    for product in products:
+        variant = product.variants.first()
+        product_data.append({
+            'id': product.id,
+            'name': product.name,
+            'price': variant.price,
+            'image_url': variant.images.first().image.url if variant.images.exists() else '',
+            'description': product.description[:100]
+        })
+
+    return render(request, 'product_list.html', {'products': product_data})
+
+@require_POST
+def filter_products(request):
+    data = json.loads(request.body)
+    
+    # Start with base queryset
+    products = Product.objects.filter(
+        is_active=True,
+        category__is_active=True,
+        brand__is_active=True,
+        variants__is_active=True
+    ).distinct()
+    
+    # Apply category filters
+    if data.get('categories'):
+        products = products.filter(category_id__in=data['categories'])
+    
+    # Apply brand filters
+    if data.get('brands'):
+        products = products.filter(brand_id__in=data['brands'])
+    
+    # Apply price filter
+    min_price = float(data.get('minPrice', 0))
+    max_price = float(data.get('maxPrice', float('inf')))
+    products = products.filter(
+        variants__price__gte=min_price,
+        variants__price__lte=max_price
+    ).distinct()
+    
+    # Apply search
+    if data.get('search'):
+        search_query = data['search']
+        products = products.filter(
+            Q(name__icontains=search_query) |
+            Q(description__icontains=search_query)
+        )
+    
+    # Apply sorting
+    sort_by = data.get('sort', 'new_arrivals')
+    if sort_by == 'price_low_high':
+        products = products.order_by('variants__price')
+    elif sort_by == 'price_high_low':
+        products = products.order_by('-variants__price')
+    elif sort_by == 'name_asc':
+        products = products.order_by('name')
+    elif sort_by == 'name_desc':
+        products = products.order_by('-name')
+    else:  # new_arrivals
+        products = products.order_by('-id')
+    
+    # Prepare product data
+    product_data = prepare_product_data(products)
+    
+    # Pagination
+    page = int(data.get('page', 1))
+    paginator = Paginator(product_data, 12)
+    page_obj = paginator.get_page(page)
+    
+    return JsonResponse({
+        'products': list(page_obj),
+        'has_next': page_obj.has_next(),
+        'has_previous': page_obj.has_previous(),
+        'total_pages': paginator.num_pages
+    })
 
 def home(request):
     products = (
@@ -361,101 +480,75 @@ def get_variant_data(request, product_id, variant_id):
 
 
 def product_list(request):
-    # Start with base queryset of active products
-    products = (
-        Product.objects.filter(
-            is_active=True,
-            category__is_active=True,
-            brand__is_active=True,
-        )
-        .select_related('category', 'brand')
-        .prefetch_related(
-            Prefetch(
-                'variants',
-                queryset=Variant.objects.filter(is_active=True).prefetch_related(
-                    Prefetch(
-                        'images',
-                        queryset=ProductImage.objects.filter(is_primary=True),
-                        to_attr='primary_images'
-                    ),
-                    'sizes'  # Prefetch sizes for stock calculation
-                ),
-                to_attr='active_variants'
-            )
-        )
-    )
-
-    # Sorting Logic
-    sort_by = request.GET.get('sort', '')
-    if sort_by == 'price_low_high':
-        products = products.annotate(
-            variant_price=Subquery(
-                Variant.objects.filter(
-                    product=OuterRef('pk'),
-                    is_active=True
-                ).order_by('price').values('price')[:1]
-            )
-        ).order_by('variant_price')
-    elif sort_by == 'price_high_low':
-        products = products.annotate(
-            variant_price=Subquery(
-                Variant.objects.filter(
-                    product=OuterRef('pk'),
-                    is_active=True
-                ).order_by('-price').values('price')[:1]
-            )
-        ).order_by('-variant_price')
-    elif sort_by == 'new_arrivals':
-        products = products.order_by('-id')
-    elif sort_by == 'name_asc':
-        products = products.order_by('name')
-    elif sort_by == 'name_desc':
-        products = products.order_by('-name')
+    # Get all active categories and brands for filters
+    categories = Category.objects.filter(is_active=True)
+    brands = Brand.objects.filter(is_active=True)
+    
+    # Get initial products with their first active variant and image
+    products = Product.objects.filter(
+        is_active=True,
+        category__is_active=True,
+        brand__is_active=True,
+        variants__is_active=True  # Only products with active variants
+    ).select_related(
+        'category', 
+        'brand'
+    ).prefetch_related(
+        'variants',
+        'variants__images',
+        'variants__sizes'
+    ).distinct().order_by('-id')
 
     # Prepare product data for template
     product_data = []
     for product in products:
-        if hasattr(product, 'active_variants') and product.active_variants:
-            first_variant = product.active_variants[0]
-            primary_image = first_variant.primary_images[0] if first_variant.primary_images else None
-            
-            # Calculate total stock for all variants
-            total_stock = 0
-            variant_stock_info = []
-            
-            for variant in product.active_variants:
-                # Calculate variant's total stock (sum of sizes' stock)
-                total_stock = sum(size.stock for size in variant.sizes.all())
-                
-                
-            total_stock = 0
-            for variant in product.active_variants:
-                # Sum stock for all sizes in the variant
-                total_stock += sum(size.stock for size in variant.sizes.all())    
-            
+        # Get first active variant
+        first_variant = product.variants.filter(is_active=True).first()
+        if first_variant:
+            # Get primary image or first image
+            primary_image = first_variant.images.filter(is_primary=True).first()
+            if not primary_image:
+                primary_image = first_variant.images.first()
+
+            # Calculate total stock
+            total_stock = sum(
+                size.stock 
+                for variant in product.variants.all() 
+                for size in variant.sizes.all()
+            )
+
+            # Calculate discount percentage if applicable
+            discount_percentage = None
+            if first_variant.discount_price and first_variant.price:
+                discount_percentage = int(
+                    ((first_variant.price - first_variant.discount_price) / first_variant.price) * 100
+                )
+
             product_data.append({
                 'id': product.id,
                 'name': product.name,
-                'description': product.description,
-                'price': first_variant.discount_price or first_variant.price,
-                'image_url': primary_image.image.url if primary_image else 'default_image.jpg',
+                'price': first_variant.price,
+                'discount_price': first_variant.discount_price or first_variant.price,
+                'image_url': primary_image.image.url if primary_image else None,
                 'total_stock': total_stock,
-                'stock_status': 'In Stock' if total_stock > 0 else 'Out of Stock'
+                'discount_percentage': discount_percentage,
+                'category': product.category.name,
+                'brand': product.brand.name if product.brand else None,
             })
 
-    # Pagination Logic
-    paginator = Paginator(product_data, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
+    # Pagination
+    paginator = Paginator(product_data, 12)  # 12 products per page
+    page = request.GET.get('page', 1)
+    products_page = paginator.get_page(page)
+    
     context = {
-        'products': page_obj,
-        'categories': Category.objects.filter(is_active=True),
-        'brands': Brand.objects.filter(is_active=True),
-        'sort_by': sort_by,
+        'products': products_page,
+        'categories': categories,
+        'brands': brands
     }
-
+    
     return render(request, 'product_list.html', context)
+
 def product_detail(request, product_id):
     product = get_object_or_404(
         Product.objects.select_related('category', 'brand')
@@ -508,7 +601,7 @@ def product_detail(request, product_id):
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from manager.models import Cart, CartItem, Variant, Size, Wishlist
+
 
 # In your app's views.py file
 from django.http import JsonResponse
@@ -720,57 +813,101 @@ def update_quantity(request, item_id):
             'success': False, 
             'message': str(e)
         }, status=500)
+    
+
 
 @login_required
-def move_to_wishlist(request, item_id):
-    if request.method == 'POST':
-        try:
-            cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
-            
-            # Check if the item is already in the wishlist
-            if Wishlist.objects.filter(user=request.user, variant=cart_item.variant).exists():
-                return JsonResponse({'success': False, 'message': 'Item is already in your wishlist.'})
-            
-            # Add to wishlist
-            Wishlist.objects.get_or_create(
-                user=request.user,
-                variant=cart_item.variant
-            )
-            
-            # Remove from cart
-            cart_item.delete()
-            
-            return JsonResponse({'success': True, 'message': 'Item moved to wishlist successfully!'})
-        except Exception as e:
-            return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'})
-    return JsonResponse({'success': False, 'message': 'Invalid request method.'})
+def wishlist_view(request):
+    try:
+        # Get or create single wishlist for user
+        wishlist = Wishlist.get_or_create_wishlist(request.user)
+        
+        # Get all active variants in wishlist
+        wishlist_items = wishlist.variants.filter(
+            is_active=True,
+            product__is_active=True
+        ).select_related(
+            'product'
+        ).prefetch_related('images')
+
+        items_data = []
+        for variant in wishlist_items:
+            # Get primary image or first image
+            primary_image = variant.images.filter(is_primary=True).first()
+            if not primary_image:
+                primary_image = variant.images.first()
+
+            items_data.append({
+                'id': variant.id,
+                'product_name': variant.product.name,
+                'color': variant.color,
+                'price': variant.price,
+                'discount_price': variant.discount_price,
+                'image_url': primary_image.image.url if primary_image else None,
+                'stock': sum(size.stock for size in variant.sizes.all())
+            })
+
+        return render(request, 'wishlist.html', {
+            'wishlist_items': items_data
+        })
+        
+    except Exception as e:
+        messages.error(request, "Error loading wishlist")
+        return redirect('home')
 
 @login_required
-def get_wishlist_items(request):
-    wishlist_items = Wishlist.objects.filter(user=request.user).select_related('variant')
-    items = [
-        {
-            'id': item.id,
-            'name': item.variant.product.name,
-            'description': item.variant.product.description,
-            'price': float(item.variant.price),
-            'image': item.variant.product.image.url,
-        }
-        for item in wishlist_items
-    ]
-    return JsonResponse(items, safe=False)
+def move_to_wishlist(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    wishlist, created = Wishlist.objects.get_or_create(user=request.user)
+    
+    if product in wishlist.products.all():
+        wishlist.products.remove(product)
+        is_added = False
+    else:
+        wishlist.products.add(product)
+        is_added = True
+    
+    return JsonResponse({
+        'is_added': is_added,
+        'wishlist_count': wishlist.count
+    })
 
+# @login_required
+# def get_wishlist_items(request):
+#     """Fetch wishlist items for AJAX requests"""
+#     wishlist_items = Wishlist.objects.filter(user=request.user).select_related('variant__product')
+#     items = [{
+#         'id': item.id,
+#         'name': item.variant.product.name,
+#         'description': item.variant.product.description[:100],  # Trim description
+#         'price': float(item.variant.price),
+#         'image': item.variant.images.first().image.url if item.variant.images.exists() else '/static/default-image.jpg',
 
+#     } for item in wishlist_items]
+#     return JsonResponse(items, safe=False)
 
 @login_required
 @require_POST
 def remove_from_wishlist(request, item_id):
+    """Remove item from wishlist"""
     try:
         wishlist_item = Wishlist.objects.get(id=item_id, user=request.user)
         wishlist_item.delete()
         return JsonResponse({'success': True})
     except Wishlist.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Item not found in wishlist'})
+        return JsonResponse({'success': False, 'message': 'Item not found'})
+
+# Optional: Add to wishlist directly from products
+@login_required
+@require_POST
+def add_to_wishlist(request, variant_id):
+    """Add item directly to wishlist"""
+    variant = get_object_or_404(Variant, id=variant_id)
+    Wishlist.objects.get_or_create(user=request.user, variant=variant)
+    return JsonResponse({'success': True, 'message': 'Added to wishlist!'})
+
+
+
 import re
 ####### profile ##########
 @login_required(login_url='userlogin')
@@ -980,7 +1117,7 @@ logger = logging.getLogger(__name__)
 @never_cache
 def user_checkout(request):
     try:
-        # Check if cart exists and has items
+        # Get cart and related items
         cart = Cart.objects.filter(
             user=request.user, 
             is_ordered=False
@@ -993,85 +1130,59 @@ def user_checkout(request):
             messages.warning(request, "Your cart is empty")
             return redirect('view_cart')
 
-        # Validate cart items and remove inactive ones
-        total_quantity = 0
+        # Validate cart items
         cart_items = []
-        stock_warnings = []
-        invalid_items = []
-
+        total_quantity = 0
         for item in cart.items.all():
-            # Check if product/variant/category/brand is inactive
-            if not item.is_active:  # Uses CartItem's is_active property
-                invalid_items.append(item)
-                continue
-
-            # Existing stock validation
-            if not item.size:
-                messages.warning(request, f"One of your cart items is invalid and has been removed.")
+            if not item.is_active:
+                messages.warning(request, f"{item.variant.product.name} is no longer available")
                 item.delete()
                 continue
-
+                
             if item.quantity > item.size.stock:
-                stock_warnings.append(f"Only {item.size.stock} units available for {item.variant.product.name}")
+                messages.warning(request, f"Only {item.size.stock} units available for {item.variant.product.name}")
                 continue
-
-            total_quantity += item.quantity
+                
             cart_items.append(item)
-
-        # Remove invalid items from the cart
-        for item in invalid_items:
-            item.delete()
-            messages.warning(request, f"{item.variant.product.name} is no longer available and has been removed from your cart.")
-
-        # Handle remaining validation
-        if stock_warnings or invalid_items:
-            for warning in stock_warnings:
-                messages.warning(request, warning)
-            return redirect('view_cart')
+            total_quantity += item.quantity
 
         if not cart_items:
             messages.warning(request, "No valid items in cart")
             return redirect('view_cart')
 
-        # Fetch user addresses and payment methods
+        # Get addresses and payment methods
         user_addresses = Address.objects.filter(user=request.user, is_deleted=False)
-        if not user_addresses.exists():
-            messages.warning(request, "Please add a delivery address to proceed")
-            return redirect('userManageAddress')
-
         payment_methods = PaymentMethod.objects.all()
 
-        # Check minimum order amount if applicable
-        min_order_amount = 0  # Set your minimum amount
-        if cart.total_price < min_order_amount:
-            messages.warning(
-                request, 
-                f"Minimum order amount is ₹{min_order_amount}"
-            )
-            return redirect('view_cart')
+        # Calculate totals
+        subtotal = cart.total_price
+        product_discount = sum(
+            (item.variant.price - item.variant.discount_price) * item.quantity
+            for item in cart_items
+            if item.variant.discount_price
+        )
+        coupon_discount = cart.calculate_coupon_discount()
+        total_discount = product_discount + coupon_discount
+        final_price = cart.final_price
 
         context = {
             'user_addresses': user_addresses,
             'cart_items': cart_items,
-            'cart': cart,
-            'total_price': cart.total_price,
-            'total_discount': cart.total_discount,
-            'final_price': cart.final_price,
             'payment_methods': payment_methods,
             'total_quantity': total_quantity,
+            'subtotal': subtotal,
+            'product_discount': product_discount,
+            'coupon_discount': coupon_discount,
+            'total_discount': total_discount,
+            'final_price': final_price,
+            'cart': cart,
         }
 
         return render(request, 'checkout.html', context)
 
     except Exception as e:
-        logger.error(
-            f"Checkout error for user {request.user.id}: {str(e)}", 
-            exc_info=True
-        )
-        messages.error(
-            request, 
-            "An unexpected error occurred. Please try again."
-        )
+        logger.error(f"Checkout error for user {request.user.id}: {str(e)}", exc_info=True)
+        messages.error(request, "An unexpected error occurred. Please try again.")
         return redirect('view_cart')
     
     
@@ -1330,3 +1441,105 @@ def cancel_order(request, order_id):
             'success': False,
             'message': 'An error occurred while cancelling the order'
         })
+
+def available_coupons(request):
+    today = timezone.now().date()
+    coupons = Coupon.objects.filter(
+        is_active=True,
+        start_date__lte=today,
+        end_date__gte=today
+    )
+    
+    # Get cart total if exists
+    cart = None
+    cart_total = 0
+    
+    if request.user.is_authenticated:
+        cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
+        if cart:
+            cart_total = cart.total_price
+    
+    coupon_data = []
+    for coupon in coupons:
+        # Check if coupon is applicable based on cart total
+        is_applicable = cart_total >= coupon.minimum_purchase if cart else False
+        
+        # Calculate amount needed to use coupon
+        amount_needed = coupon.minimum_purchase - cart_total if cart_total < coupon.minimum_purchase else 0
+        
+        # Format discount text based on type
+        if coupon.type == 'percentage':
+            discount_text = f"{int(coupon.value)}% OFF"
+        else:
+            discount_text = f"₹{int(coupon.value)} OFF"
+            
+        coupon_data.append({
+            'code': coupon.code,
+            'discount_text': discount_text,
+            'minimum_purchase': coupon.minimum_purchase,
+            'is_applicable': is_applicable,
+            'expiry_date': coupon.end_date,
+            'amount_needed': amount_needed  # Add this field
+        })
+    
+    return render(request, 'store/available_coupons.html', {
+        'coupons': coupon_data,
+        'cart_total': cart_total
+    })
+
+@login_required
+def apply_coupon(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            code = data.get('coupon_code')
+            
+            cart = Cart.objects.get(user=request.user, is_ordered=False)
+            
+            try:
+                coupon = Coupon.objects.get(
+                    code=code,
+                    is_active=True,
+                    start_date__lte=timezone.now().date(),
+                    end_date__gte=timezone.now().date()
+                )
+                
+                # Check minimum purchase
+                if cart.total_price < coupon.minimum_purchase:
+                    return JsonResponse({
+                        'success': False,
+                        'message': f'Minimum purchase amount of ₹{coupon.minimum_purchase} required'
+                    })
+                
+                # Check usage limit
+                usage_count = CouponUsage.objects.filter(coupon=coupon, user=request.user).count()
+                if usage_count >= coupon.usage_limit:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Coupon usage limit exceeded'
+                    })
+                
+                # Apply coupon to cart
+                cart.coupon = coupon
+                cart.save()
+                
+                return JsonResponse({
+                    'success': True,
+                    'discount': float(cart.calculate_coupon_discount()),
+                    'final_amount': float(cart.final_price),
+                    'message': 'Coupon applied successfully!'
+                })
+                
+            except Coupon.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Invalid coupon code'
+                })
+                
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            })
+            
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})

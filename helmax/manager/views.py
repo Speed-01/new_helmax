@@ -7,12 +7,13 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from PIL import Image
 from django.core.paginator import Paginator
-from .models import Product,Category,ProductImage,User, Brand, Variant, Size
+from .models import Product,Category,ProductImage,User, Brand, Variant, Size, Coupon, CouponUsage
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from django.utils import timezone
 
 
 
@@ -738,3 +739,143 @@ def update_item_status(request):
 #         })
 #     except Exception as e:
 #         return JsonResponse({'success': False, 'error': str(e)})
+
+def admin_coupons(request):
+    coupons = Coupon.objects.all().order_by('-created_at')
+    return render(request, 'admin_coupons.html', {'coupons': coupons})
+
+def add_coupon(request):
+    if request.method == 'POST':
+        try:
+            code = request.POST.get('code')
+            coupon_type = request.POST.get('type')
+            value = request.POST.get('value')
+            minimum_purchase = request.POST.get('minimum_purchase')
+            start_date = request.POST.get('start_date')
+            end_date = request.POST.get('end_date')
+            usage_limit = request.POST.get('usage_limit')
+            is_active = request.POST.get('is_active') == 'on'
+
+            # Validate coupon code uniqueness
+            if Coupon.objects.filter(code=code).exists():
+                messages.error(request, 'Coupon code already exists')
+                return redirect('admin_coupons')
+
+            # Create the coupon
+            Coupon.objects.create(
+                code=code,
+                type=coupon_type,
+                value=value,
+                minimum_purchase=minimum_purchase,
+                start_date=start_date,
+                end_date=end_date,
+                usage_limit=usage_limit,
+                is_active=is_active
+            )
+            messages.success(request, 'Coupon added successfully')
+            
+        except Exception as e:
+            messages.error(request, f'Error creating coupon: {str(e)}')
+        
+    return redirect('admin_coupons')
+
+@require_POST
+def delete_coupon(request, coupon_id):
+    try:
+        coupon = get_object_or_404(Coupon, id=coupon_id)
+        coupon.delete()
+        return JsonResponse({'success': True, 'message': 'Coupon deleted successfully'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+# Add this to your existing checkout view or create a new one
+def apply_coupon(request):
+    if request.method == 'POST':
+        code = request.POST.get('coupon_code')
+        cart = request.user.cart_set.filter(is_ordered=False).first()
+        
+        try:
+            coupon = Coupon.objects.get(
+                code=code,
+                is_active=True,
+                start_date__lte=timezone.now().date(),
+                end_date__gte=timezone.now().date()
+            )
+            
+            # Check minimum purchase
+            if cart.total_price < coupon.minimum_purchase:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Minimum purchase amount of ₹{coupon.minimum_purchase} required'
+                })
+            
+            # Check usage limit
+            usage_count = CouponUsage.objects.filter(
+                coupon=coupon,
+                user=request.user
+            ).count()
+            
+            if usage_count >= coupon.usage_limit:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Coupon usage limit exceeded'
+                })
+            
+            # Calculate discount
+            if coupon.type == 'percentage':
+                discount = (cart.total_price * coupon.value) / 100
+            else:
+                discount = coupon.value
+                
+            return JsonResponse({
+                'success': True,
+                'discount': float(discount),
+                'final_amount': float(cart.total_price - discount)
+            })
+            
+        except Coupon.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid coupon code'
+            })
+
+def get_coupon_details(request, coupon_id):
+    try:
+        coupon = get_object_or_404(Coupon, id=coupon_id)
+        return JsonResponse({
+            'code': coupon.code,
+            'type': coupon.type,
+            'value': str(coupon.value),
+            'minimum_purchase': str(coupon.minimum_purchase),
+            'start_date': coupon.start_date.strftime('%Y-%m-%d'),
+            'end_date': coupon.end_date.strftime('%Y-%m-%d'),
+            'usage_limit': coupon.usage_limit,
+            'is_active': coupon.is_active
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+def edit_coupon(request, coupon_id):
+    if request.method == 'POST':
+        try:
+            coupon = get_object_or_404(Coupon, id=coupon_id)
+            
+            # Check if code exists for other coupons
+            if Coupon.objects.filter(code=request.POST.get('code')).exclude(id=coupon_id).exists():
+                messages.error(request, 'Coupon code already exists')
+                return redirect('admin_coupons')
+
+            coupon.code = request.POST.get('code')
+            coupon.type = request.POST.get('type')
+            coupon.value = request.POST.get('value')
+            coupon.minimum_purchase = request.POST.get('minimum_purchase')
+            coupon.start_date = request.POST.get('start_date')
+            coupon.end_date = request.POST.get('end_date')
+            coupon.usage_limit = request.POST.get('usage_limit')
+            coupon.is_active = request.POST.get('is_active') == 'on'
+            coupon.save()
+            
+            messages.success(request, 'Coupon updated successfully')
+        except Exception as e:
+            messages.error(request, f'Error updating coupon: {str(e)}')
+    return redirect('admin_coupons')

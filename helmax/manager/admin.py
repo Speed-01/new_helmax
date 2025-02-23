@@ -44,7 +44,7 @@ models_to_register = [
     OrderItem,
     ReturnRequest,
     Address,
-    Wishlist
+   
     
 ]
 for model in models_to_register:

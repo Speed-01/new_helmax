@@ -1,177 +1,402 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block content %}
-<div class="min-h-screen bg-black text-white p-4 sm:p-6 lg:p-8">
-    <div class="max-w-7xl mx-auto">
-        <!-- Page Title -->
-        <h1 class="text-3xl md:text-4xl font-bold mb-8 text-[#ff6b00]">PRODUCTS</h1>
-
-        <div class="flex flex-col lg:flex-row gap-8">
-            {% comment %} <!-- Filters Sidebar -->
-            <div class="w-full lg:w-64 space-y-6 bg-[#222222] p-6 rounded-sm">
-                <!-- Categories -->
-                <div class="border-b border-[#333333] pb-4">
-                    <h2 class="font-semibold mb-3 text-lg text-[#ff6b00]">Categories</h2>
-                    <div class="space-y-2">
-                        {% for category in categories %}
-                        <label class="flex items-center space-x-3 cursor-pointer group">
-                            <input type="checkbox" class="form-checkbox text-[#ff6b00] rounded border-[#333333] focus:ring-[#ff6b00] focus:ring-opacity-50">
-                            <span class="text-sm text-gray-400 group-hover:text-[#ff6b00] transition-colors">{{ category.name }}</span>
-                        </label>
-                        {% endfor %}
+<div class="min-h-screen bg-black text-white">
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <div class="flex gap-6">
+            <!-- Filters Sidebar -->
+            <div class="w-64 flex-shrink-0">
+                <div class="bg-zinc-900 rounded-lg p-4 sticky top-4">
+                    <h2 class="text-xl font-bold mb-6">Filters</h2>
+                    
+                    <!-- Search -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2">Search</label>
+                        <input 
+                            type="text" 
+                            id="searchInput"
+                            placeholder="Search products..."
+                            class="w-full bg-black border border-zinc-700 rounded px-3 py-2 focus:outline-none focus:border-[#ff6b00]"
+                        >
                     </div>
-                </div>
 
-                <!-- Brand -->
-                <div class="border-b border-[#333333] pb-4">
-                    <h2 class="font-semibold mb-3 text-lg text-[#ff6b00]">Brand</h2>
-                    <div class="space-y-2">
-                        {% for brand in brands %}
-                        <label class="flex items-center space-x-3 cursor-pointer group">
-                            <input type="checkbox" class="form-checkbox text-[#ff6b00] rounded border-[#333333] focus:ring-[#ff6b00] focus:ring-opacity-50">
-                            <span class="text-sm text-gray-400 group-hover:text-[#ff6b00] transition-colors">{{ brand.name }}</span>
-                        </label>
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <!-- Price Range -->
-                <div>
-                    <h2 class="font-semibold mb-3 text-lg text-[#ff6b00]">Price</h2>
-                    <div class="space-y-3">
-                        <div class="flex items-center justify-between">
-                            <input type="text" placeholder="Min" class="w-24 px-3 py-2 bg-[#1a1a1a] rounded-sm text-sm border border-[#333333] focus:ring-1 focus:ring-[#ff6b00] focus:outline-none">
-                            <span class="mx-2 text-gray-400">-</span>
-                            <input type="text" placeholder="Max" class="w-24 px-3 py-2 bg-[#1a1a1a] rounded-sm text-sm border border-[#333333] focus:ring-1 focus:ring-[#ff6b00] focus:outline-none">
-                        </div>
-                        <button class="w-full bg-[#ff6b00] text-white font-medium py-2 rounded-sm hover:bg-[#ff7d1a] transition-colors focus:outline-none focus:ring-2 focus:ring-[#ff6b00] focus:ring-opacity-50">
-                            Apply Filter
-                        </button>
-                    </div>
-                </div>
-            </div> {% endcomment %}
-
-            <!-- Product Grid -->
-            <div class="flex-1 space-y-6">
-                <!-- Sorting Dropdown -->
-                <div class="flex justify-end mb-4">
-                    <div class="relative">
-                        <select id="sort-select" class="pl-10 pr-4 py-2 rounded-sm bg-[#1a1a1a] border border-[#333333] text-gray-300 focus:ring-1 focus:ring-[#ff6b00] focus:outline-none transition-all duration-300">
-                            <option value="">Sort By</option>
-                            <option value="price_low_high" {% if sort_by == 'price_low_high' %}selected{% endif %}>Price: Low to High</option>
-                            <option value="price_high_low" {% if sort_by == 'price_high_low' %}selected{% endif %}>Price: High to Low</option>
-                            <option value="new_arrivals" {% if sort_by == 'new_arrivals' %}selected{% endif %}>New Arrivals</option>
-                            <option value="name_asc" {% if sort_by == 'name_asc' %}selected{% endif %}>aA - zZ</option>
-                            <option value="name_desc" {% if sort_by == 'name_desc' %}selected{% endif %}>zZ - aA</option>
-                        </select>
-                        <svg class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </div>
-                </div>
-
-                <!-- Product Grid -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {% for product in products %}
-                    <a href="{% url 'product_detail' product.id %}" class="block">
-                        <div class="bg-[#222222] rounded-sm overflow-hidden group hover:shadow-lg hover:shadow-[#ff6b00]/10 transition-all duration-300">
-                            <div class="relative aspect-square overflow-hidden">
-                                <img 
-                                    src="{{ product.image_url }}" 
-                                    alt="{{ product.name }}"
-                                    class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    <!-- Categories -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2">Categories</label>
+                        <div class="space-y-2 max-h-48 overflow-y-auto">
+                            {% for category in categories %}
+                            <label class="flex items-center space-x-2">
+                                <input 
+                                    type="checkbox" 
+                                    value="{{ category.id }}"
+                                    class="category-filter form-checkbox text-[#ff6b00] rounded"
                                 >
-                                <div class="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent opacity-0 group-hover:opacity-60 transition-opacity duration-300"></div>
+                                <span>{{ category.name }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Brands -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2">Brands</label>
+                        <div class="space-y-2 max-h-48 overflow-y-auto">
+                            {% for brand in brands %}
+                            <label class="flex items-center space-x-2">
+                                <input 
+                                    type="checkbox" 
+                                    value="{{ brand.id }}"
+                                    class="brand-filter form-checkbox text-[#ff6b00] rounded"
+                                >
+                                <span>{{ brand.name }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Price Range -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2">Price Range</label>
+                        <div class="space-y-4">
+                            <div>
+                                <input 
+                                    type="range" 
+                                    id="minPrice" 
+                                    min="0" 
+                                    max="10000" 
+                                    step="100"
+                                    class="w-full"
+                                >
+                                <div class="flex justify-between text-sm mt-1">
+                                    <span>₹0</span>
+                                    <span id="minPriceValue">₹0</span>
+                                </div>
                             </div>
-                            <!-- Update the product card section in your template -->
-                            <div class="p-4">
-                                <h3 class="text-lg font-medium mb-2 truncate group-hover:text-[#ff6b00] transition-colors">
-                                    {{ product.name }}
-                                </h3>
-                                <p class="text-sm text-gray-400 mb-3 line-clamp-2 h-10">
-                                    {{ product.description }}
-                                </p>
-                                <div class="flex flex-col space-y-2">
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.price }}</span>
-                                        <span class="text-sm {% if product.total_stock > 0 %}text-green-500{% else %}text-red-500{% endif %}">
-                                            {{ product.stock_status }}
-                                        </span>
-                                    </div>
-                                    
-                                    <!-- Stock Information -->
-                                    <div class="text-sm text-gray-400">
-                                        <div class="flex items-center space-x-1">
-                                            <span>Total Stock:</span>
-                                            <span class="font-medium">{{ product.total_stock }}</span>
-                                        </div>
-                                        
-                                        <!-- Variant Stock Details (Collapsed by default) -->
-                                        {% comment %} <div class="relative group">
-                                            <button class="text-xs text-[#ff6b00] hover:underline">View Details</button>
-                                            <div class="hidden group-hover:block absolute left-0 bottom-full mb-2 w-48 bg-[#222222] border border-[#333333] rounded-sm p-2 z-10">
-                                                {% for variant in product.variant_stock_info %}
-                                                <div class="mb-2 last:mb-0">
-                                                    <div class="font-medium text-white">{{ variant.color }}</div>
-                                                    <div class="text-xs">Base Stock: {{ variant.base_stock }}</div>
-                                                    {% if variant.sizes %}
-                                                    <div class="text-xs mt-1">
-                                                        Sizes:
-                                                        {% for size in variant.sizes %}
-                                                        <div class="pl-2">{{ size.size }}: {{ size.stock }}</div>
-                                                        {% endfor %}
-                                                    </div>
-                                                    {% endif %}
-                                                </div>
-                                                {% endfor %}
-                                            </div>
-                                        </div> {% endcomment %}
-                                    </div>
+                            <div>
+                                <input 
+                                    type="range" 
+                                    id="maxPrice" 
+                                    min="0" 
+                                    max="10000" 
+                                    step="100"
+                                    class="w-full"
+                                >
+                                <div class="flex justify-between text-sm mt-1">
+                                    <span>Max</span>
+                                    <span id="maxPriceValue">₹10000</span>
                                 </div>
                             </div>
                         </div>
-                    </a>
+                    </div>
+
+                    <!-- Sort By -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2">Sort By</label>
+                        <select id="sortBy" class="w-full bg-black border border-zinc-700 rounded px-3 py-2 focus:outline-none focus:border-[#ff6b00]">
+                            <option value="new_arrivals">New Arrivals</option>
+                            <option value="price_low_high">Price: Low to High</option>
+                            <option value="price_high_low">Price: High to Low</option>
+                            <option value="name_asc">Name: A to Z</option>
+                            <option value="name_desc">Name: Z to A</option>
+                        </select>
+                    </div>
+
+                    <!-- Clear Filters Button -->
+                    <button 
+                        onclick="clearFilters()"
+                        class="w-full bg-zinc-800 hover:bg-zinc-700 py-2 rounded transition-colors"
+                    >
+                        Clear All Filters
+                    </button>
+                </div>
+            </div>
+
+            <!-- Products Grid -->
+            <div class="flex-1">
+                <!-- Active Filters -->
+                <div id="activeFilters" class="flex flex-wrap gap-2 mb-6">
+                    <!-- Active filters will be added here dynamically -->
+                </div>
+
+                <!-- Products Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="productsGrid">
+                    {% for product in products %}
+                    <div class="bg-zinc-900 rounded-lg overflow-hidden group">
+                        <!-- Product Image -->
+                        <div class="relative aspect-square overflow-hidden">
+                            {% if product.image_url %}
+                            <img 
+                                src="{{ product.image_url }}" 
+                                alt="{{ product.name }}"
+                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            >
+                            {% else %}
+                            <div class="w-full h-full bg-zinc-800 flex items-center justify-center">
+                                <span class="text-gray-400">No image available</span>
+                            </div>
+                            {% endif %}
+                            
+                            {% if product.discount_percentage %}
+                            <div class="absolute top-2 right-2 bg-[#ff6b00] text-black px-2 py-1 rounded text-sm font-bold">
+                                {{ product.discount_percentage }}% OFF
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Product Info -->
+                        <div class="p-4">
+                            <div class="mb-2">
+                                <span class="text-sm text-gray-400">{{ product.category }}</span>
+                                {% if product.brand %}
+                                <span class="text-sm text-gray-400"> • {{ product.brand }}</span>
+                                {% endif %}
+                            </div>
+                            
+                            <h3 class="font-medium text-lg mb-2 line-clamp-2">{{ product.name }}</h3>
+                            
+                            <div class="flex items-baseline gap-2 mb-2">
+                                <span class="text-lg font-bold">₹{{ product.discount_price }}</span>
+                                {% if product.price != product.discount_price %}
+                                <span class="text-sm text-gray-400 line-through">₹{{ product.price }}</span>
+                                {% endif %}
+                            </div>
+
+                            <!-- Stock Status -->
+                            <div class="mb-4">
+                                {% if product.total_stock > 0 %}
+                                <span class="text-green-500 text-sm">In Stock</span>
+                                {% else %}
+                                <span class="text-red-500 text-sm">Out of Stock</span>
+                                {% endif %}
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="flex gap-2">
+                                <a 
+                                    href="{% url 'product_detail' product.id %}" 
+                                    class="flex-1 bg-[#ff6b00] text-black text-center py-2 rounded hover:bg-[#ff7d1a] transition-colors"
+                                >
+                                    View Details
+                                </a>
+                                <button 
+                                    onclick="addToWishlist({{ product.id }})"
+                                    class="p-2 bg-zinc-800 rounded hover:bg-zinc-700 transition-colors"
+                                >
+                                    <i class="far fa-heart"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-span-full text-center py-12 text-gray-400">
+                        No products found matching your criteria
+                    </div>
                     {% endfor %}
                 </div>
 
                 <!-- Pagination -->
-                <div class="flex justify-center space-x-2 mt-6">
+                <div class="mt-8 flex justify-center gap-2">
                     {% if products.has_previous %}
-                    <a href="?page={{ products.previous_page_number }}{% if sort_by %}&sort={{ sort_by }}{% endif %}" class="w-10 h-10 flex items-center justify-center rounded-sm bg-[#222222] hover:bg-[#333333] transition-colors">
-                        &laquo;
-                    </a>
+                    <button class="px-4 py-2 bg-zinc-800 rounded" onclick="changePage({{ products.previous_page_number }})">
+                        Previous
+                    </button>
                     {% endif %}
-
-                    {% for page_num in products.paginator.page_range %}
-                    <a href="?page={{ page_num }}{% if sort_by %}&sort={{ sort_by }}{% endif %}" 
-                    class="w-10 h-10 flex items-center justify-center rounded-sm {% if page_num == products.number %}bg-[#ff6b00] text-white font-medium{% else %}bg-[#222222] hover:bg-[#333333] text-white{% endif %} transition-colors">
-                        {{ page_num }}
-                    </a>
-                    {% endfor %}
+                    
+                    <span class="px-4 py-2">
+                        Page {{ products.number }} of {{ products.paginator.num_pages }}
+                    </span>
 
                     {% if products.has_next %}
-                    <a href="?page={{ products.next_page_number }}{% if sort_by %}&sort={{ sort_by }}{% endif %}" class="w-10 h-10 flex items-center justify-center rounded-sm bg-[#222222] hover:bg-[#333333] transition-colors">
-                        &raquo;
-                    </a>
+                    <button class="px-4 py-2 bg-zinc-800 rounded" onclick="changePage({{ products.next_page_number }})">
+                        Next
+                    </button>
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
-<hr>
 
 <script>
-    document.getElementById('sort-select').addEventListener('change', function () {
-        const sortBy = this.value;
-        const url = new URL(window.location.href);
-        if (sortBy) {
-            url.searchParams.set('sort', sortBy);
-        } else {
-            url.searchParams.delete('sort');
-        }
-        window.location.href = url.toString();
-    });
-</script>
+let currentFilters = {
+    categories: [],
+    brands: [],
+    minPrice: 0,
+    maxPrice: 10000,
+    search: '',
+    sort: 'new_arrivals',
+    page: 1
+};
 
+function updateProducts() {
+    // Show loading state
+    document.getElementById('productsGrid').classList.add('opacity-50');
+    
+    fetch('/api/filter-products/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(currentFilters)
+    })
+    .then(response => response.json())
+    .then(data => {
+        const grid = document.getElementById('productsGrid');
+        grid.innerHTML = '';
+        grid.classList.remove('opacity-50');
+        
+        data.products.forEach(product => {
+            grid.innerHTML += createProductCard(product);
+        });
+        
+        updateActiveFilters();
+        updatePagination(data);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error loading products', 'error');
+    });
+}
+
+function updateActiveFilters() {
+    const container = document.getElementById('activeFilters');
+    container.innerHTML = '';
+    
+    // Add category filters
+    currentFilters.categories.forEach(catId => {
+        const category = document.querySelector(`.category-filter[value="${catId}"]`);
+        if (category) {
+            addActiveFilter(category.nextElementSibling.textContent, () => {
+                category.checked = false;
+                currentFilters.categories = currentFilters.categories.filter(id => id != catId);
+                updateProducts();
+            });
+        }
+    });
+    
+    // Add brand filters
+    currentFilters.brands.forEach(brandId => {
+        const brand = document.querySelector(`.brand-filter[value="${brandId}"]`);
+        if (brand) {
+            addActiveFilter(brand.nextElementSibling.textContent, () => {
+                brand.checked = false;
+                currentFilters.brands = currentFilters.brands.filter(id => id != brandId);
+                updateProducts();
+            });
+        }
+    });
+    
+    // Add price range filter if changed from default
+    if (currentFilters.minPrice > 0 || currentFilters.maxPrice < 10000) {
+        addActiveFilter(
+            `₹${currentFilters.minPrice} - ₹${currentFilters.maxPrice}`,
+            () => {
+                currentFilters.minPrice = 0;
+                currentFilters.maxPrice = 10000;
+                document.getElementById('minPrice').value = 0;
+                document.getElementById('maxPrice').value = 10000;
+                updatePriceLabels();
+                updateProducts();
+            }
+        );
+    }
+}
+
+function addActiveFilter(text, removeCallback) {
+    const filter = document.createElement('div');
+    filter.className = 'bg-zinc-800 px-3 py-1 rounded-full flex items-center gap-2';
+    filter.innerHTML = `
+        <span>${text}</span>
+        <button class="text-gray-400 hover:text-white">×</button>
+    `;
+    filter.querySelector('button').onclick = removeCallback;
+    document.getElementById('activeFilters').appendChild(filter);
+}
+
+// Event Listeners
+document.querySelectorAll('.category-filter').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+        if (this.checked) {
+            currentFilters.categories.push(this.value);
+        } else {
+            currentFilters.categories = currentFilters.categories.filter(id => id != this.value);
+        }
+        currentFilters.page = 1;
+        updateProducts();
+    });
+});
+
+document.querySelectorAll('.brand-filter').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+        if (this.checked) {
+            currentFilters.brands.push(this.value);
+        } else {
+            currentFilters.brands = currentFilters.brands.filter(id => id != this.value);
+        }
+        currentFilters.page = 1;
+        updateProducts();
+    });
+});
+
+// Price range handlers
+function updatePriceLabels() {
+    document.getElementById('minPriceValue').textContent = `₹${currentFilters.minPrice}`;
+    document.getElementById('maxPriceValue').textContent = `₹${currentFilters.maxPrice}`;
+}
+
+let priceTimeout;
+document.getElementById('minPrice').addEventListener('input', function() {
+    currentFilters.minPrice = parseInt(this.value);
+    updatePriceLabels();
+    clearTimeout(priceTimeout);
+    priceTimeout = setTimeout(updateProducts, 500);
+});
+
+document.getElementById('maxPrice').addEventListener('input', function() {
+    currentFilters.maxPrice = parseInt(this.value);
+    updatePriceLabels();
+    clearTimeout(priceTimeout);
+    priceTimeout = setTimeout(updateProducts, 500);
+});
+
+function clearFilters() {
+    currentFilters = {
+        categories: [],
+        brands: [],
+        minPrice: 0,
+        maxPrice: 10000,
+        search: '',
+        sort: 'new_arrivals',
+        page: 1
+    };
+    
+    // Reset all checkboxes
+    document.querySelectorAll('.category-filter, .brand-filter').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    // Reset price range
+    document.getElementById('minPrice').value = 0;
+    document.getElementById('maxPrice').value = 10000;
+    updatePriceLabels();
+    
+    // Reset sort
+    document.getElementById('sortBy').value = 'new_arrivals';
+    
+    // Reset search
+    document.getElementById('searchInput').value = '';
+    
+    updateProducts();
+}
+
+function changePage(page) {
+    currentFilters.page = page;
+    updateProducts();
+}
+
+// Initial load
+updateProducts();
+</script>
 {% endblock %}

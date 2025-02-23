@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="min-h-screen bg-black text-white px-4 py-8">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">Available Coupons</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for coupon in coupons %}
+            <div class="bg-zinc-900 rounded-lg p-6 relative overflow-hidden">
+                <!-- Discount Badge -->
+                <div class="absolute top-0 right-0 bg-[#ff6b00] text-black px-4 py-2 rounded-bl-lg font-bold">
+                    {{ coupon.discount_text }}
+                </div>
+                
+                <!-- Coupon Code -->
+                <div class="bg-zinc-800 rounded px-4 py-2 mb-4 font-mono text-lg">
+                    {{ coupon.code }}
+                </div>
+                
+                <!-- Minimum Purchase -->
+                <p class="text-gray-400 mb-2">
+                    Minimum purchase: ₹{{ coupon.minimum_purchase }}
+                </p>
+                
+                <!-- Expiry Date -->
+                <p class="text-gray-400 text-sm">
+                    Valid till: {{ coupon.expiry_date|date:"d M Y" }}
+                </p>
+                
+                <!-- Copy Button -->
+                <button 
+                    onclick="copyCode('{{ coupon.code }}')"
+                    class="mt-4 w-full bg-zinc-800 hover:bg-zinc-700 py-2 rounded transition-colors"
+                >
+                    Copy Code
+                </button>
+                
+                {% if not coupon.is_applicable %}
+                <p class="text-red-500 text-sm mt-2">
+                    *Add more items worth ₹{{ coupon.amount_needed }} to use this coupon
+                </p>
+                {% endif %}
+            </div>
+            {% empty %}
+            <div class="col-span-full text-center py-8 text-gray-400">
+                No coupons available at the moment
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+function copyCode(code) {
+    navigator.clipboard.writeText(code).then(() => {
+        showNotification('Coupon code copied!', 'success');
+    });
+}
+
+function showNotification(message, type) {
+    // Add your notification logic here
+    alert(message);  // Simple alert for now
+}
+</script>
+{% endblock %} 

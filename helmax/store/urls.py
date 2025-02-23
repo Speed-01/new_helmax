@@ -11,13 +11,14 @@ urlpatterns = [
     path('forgot-password/', views.forgot_password, name='forgot_password'),
     path('reset-password/', views.reset_password, name='reset_password'),
     path('resend-otp/', views.resend_otp, name='resend_otp'),
+    path('search/', views.product_search, name='product_search'),
    
     # path('auth-receiver/', views.auth_receiver, name='auth_receiver'),
 
 
 
-
-    path('products/', views.product_list, name='product_list'),
+    path('api/filter-products/', views.filter_products, name='filter_products'),
+    path('products/', views.product_list    , name='product_list'),
     path('product/<int:product_id>/', views.product_detail, name='product_detail'),
     path('product/<int:product_id>/variant/<int:variant_id>/', views.get_variant_data, name='get_variant_data'),
     
@@ -29,7 +30,7 @@ urlpatterns = [
     ######## CART ########  
     path('cart/', views.view_cart, name='view_cart'),
     path('cart/add/', views.add_to_cart, name='add_to_cart'),
-    path('move-to-wishlist/<int:item_id>/', views.move_to_wishlist, name='move_to_wishlist'),
+    # path('move-to-wishlist/<int:item_id>/', views.move_to_wishlist, name='move_to_wishlist'),
     path('cart/update/<int:item_id>/', views.update_quantity, name='update_quantity'),
     path('remove-from-cart/<int:item_id>/', views.remove_from_cart, name='remove_from_cart'),
     path('validate-cart/', views.validate_cart, name='validate_cart'),
@@ -49,14 +50,13 @@ urlpatterns = [
     path('my-orders/', views.my_orders, name='my_orders'),
     path('order-confirmation/<int:order_id>/', views.order_confirmation, name='order_confirmation'),
 
-    ########### Wishlist ########
-    path('get-wishlist-items/', views.get_wishlist_items, name='get_wishlist_items'),
-    path('move-to-wishlist/<int:item_id>', views.move_to_wishlist, name='move_to_wishlist'),
-
-    path('wishlist-items', views.get_wishlist_items, name='get_wishlist_items'),
-    path('add-to-cart/<int:item_id>', views.add_to_cart, name='add_to_cart'),
-    path('remove-from-wishlist/<int:item_id>', views.remove_from_wishlist, name='remove_from_wishlist'),
-
+        ########### Wishlist ########
+    path('wishlist/', views.wishlist_view, name='view_wishlist'),
+    #path('wishlist/items/', views.get_wishlist_items, name='get_wishlist_items'),
+    path('move-to-wishlist/<int:item_id>/', views.move_to_wishlist, name='move_to_wishlist'),
+    path('remove-from-wishlist/<int:item_id>/', views.remove_from_wishlist, name='remove_from_wishlist'),
+    path('add-to-wishlist/<int:variant_id>/', views.move_to_wishlist, name='move_to_wishlist'),
     # urls.py
     path('api/orders/<int:order_id>/cancel/', views.cancel_order, name='cancel_order'),
+    path('coupons/', views.available_coupons, name='available_coupons'),
 ]

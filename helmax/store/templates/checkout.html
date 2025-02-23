@@ -99,7 +99,7 @@
                 </div>
                 
 
-                {% comment %} <!-- Apply Coupon -->
+            <!-- Apply Coupon -->
                 <div class="bg-zinc-900 p-6 rounded mb-6">
                     <h2 class="text-xl mb-4">Apply Coupons</h2>
                     <div class="flex gap-2">
@@ -116,26 +116,31 @@
                             Apply
                         </button>
                     </div>
-                </div> {% endcomment %}
+                </div> 
 
                 <!-- Order Summary -->
                 <div class="bg-zinc-900 p-6 rounded mb-6">
+                    <h2 class="text-xl mb-4">Order Summary</h2>
                     <div class="space-y-4">
                         <div class="flex justify-between">
-                            <span>Number of items:</span>
-                            <span>{{ total_quantity }}</span>
+                            <span>Subtotal:</span>
+                            <span>₹{{ subtotal }}</span>
                         </div>
-                        <div class="flex justify-between">
-                            <span>Total Amount:</span>
-                            <span>₹{{ total_price }}</span>
+                        {% if product_discount > 0 %}
+                        <div class="flex justify-between text-green-500">
+                            <span>Product Discount:</span>
+                            <span>-₹{{ product_discount }}</span>
                         </div>
-                        <div class="flex justify-between">
-                            <span>Coupon discount</span>
-                            <span id="coupon-discount" class="text-red-500">Not applicable</span>
+                        {% endif %}
+                        {% if cart.coupon %}
+                        <div class="flex justify-between text-green-500">
+                            <span>Coupon Discount ({{ cart.coupon.code }}):</span>
+                            <span>-₹{{ coupon_discount }}</span>
                         </div>
-                        <div class="flex justify-between font-medium">
-                            <span>Payable amount:</span>
-                            <span id="final-amount">₹{{ total_price }}</span>
+                        {% endif %}
+                        <div class="flex justify-between font-medium text-lg border-t border-zinc-700 pt-4">
+                            <span>Final Amount:</span>
+                            <span id="final-amount">₹{{ final_price }}</span>
                         </div>
                     </div>
                 </div>
@@ -313,5 +318,47 @@ document.addEventListener('DOMContentLoaded', function() {
     validateCart();
 
 });
+
+function applyCoupon() {
+    const code = document.getElementById('coupon-code').value;
+    const messageDiv = document.getElementById('coupon-message');
+    
+    fetch('/apply-coupon/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ coupon_code: code })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            messageDiv.innerHTML = `Coupon applied! Discount: ₹${data.discount}`;
+            document.getElementById('final-amount').innerHTML = `₹${data.final_amount}`;
+        } else {
+            messageDiv.innerHTML = data.message;
+        }
+    })
+    .catch(error => {
+        messageDiv.innerHTML = 'Error applying coupon';
+    });
+}
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
 </script>
 {% endblock %}

@@ -1,6 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import AbstractUser
-from django.core.validators import MinValueValidator
+from django.contrib.auth.models import AbstractUser, User
 from django.utils import timezone
 from django.utils.timezone import now
 from cloudinary.models import CloudinaryField
@@ -8,21 +7,14 @@ from datetime import timedelta
 from django.core.validators import MinValueValidator, MaxValueValidator
 import random
 from django.core.validators import RegexValidator
-from django.db import models
-from django.contrib.auth.models import User
 from django.db import transaction
 from django.conf import settings
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-
-
-
-
-from django.utils.text import slugify
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
+import json
+from django.core.exceptions import ValidationError
 from django.contrib.auth.models import AbstractUser
-from django.db import models
-from django.utils.timezone import now
-import re
 from django.utils.crypto import get_random_string
 
 
@@ -111,13 +103,6 @@ class Brand(models.Model):
     def __str__(self):
         return self.name
 
-from django.db import models
-from django.core.exceptions import ValidationError
-
-
-
-
-
 
 class Product(models.Model):
     name = models.CharField(max_length=255)
@@ -168,12 +153,7 @@ class ProductImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.variant}"
-    
-
-
-
-
-    
+      
 
 class Review(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
@@ -190,11 +170,6 @@ class Review(models.Model):
 
     def __str__(self):
         return f"{self.user.username}'s review for {self.product.name}"
-    
-
-
-
-
 
 
 ########### Cart Models ####################
@@ -202,6 +177,7 @@ class Review(models.Model):
 class Cart(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='carts')
     is_ordered = models.BooleanField(default=False)
+    coupon = models.ForeignKey('Coupon', on_delete=models.SET_NULL, null=True, blank=True)
     
     def __str__(self):
         return f"Cart for {self.user.username}"
@@ -212,15 +188,30 @@ class Cart(BaseModel):
     
     @property
     def total_discount(self):
-        return sum(
+        # Product discounts (from variant discount_price)
+        product_discount = sum(
             (item.variant.price - item.variant.discount_price) * item.quantity
             for item in self.items.all()
             if item.variant.discount_price
         )
+        
+        # Coupon discount
+        coupon_discount = self.calculate_coupon_discount()
+        
+        return product_discount + coupon_discount
+    
+    def calculate_coupon_discount(self):
+        if not self.coupon:
+            return 0
+            
+        if self.coupon.type == 'percentage':
+            return (self.total_price * self.coupon.value) / 100
+        else:
+            return min(self.coupon.value, self.total_price)  # Don't exceed cart total
     
     @property
     def final_price(self):
-        return self.total_price - self.total_discount
+        return max(0, self.total_price - self.total_discount)
 
 class CartItem(BaseModel):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
@@ -282,22 +273,16 @@ class CartItem(BaseModel):
         
 
 class Wishlist(BaseModel):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='wishlists')
-    variant = models.ForeignKey(Variant, on_delete=models.CASCADE)
-    
-    class Meta:
-        unique_together = ('user', 'variant')
-    
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    variants = models.ManyToManyField(Variant)
+
     def __str__(self):
-        return f"Wishlist item for {self.user.username}: {self.variant}"
+        return f"Wishlist for {self.user.username}"
 
-
-
-
-
-
-
-
+    @classmethod
+    def get_or_create_wishlist(cls, user):
+        wishlist, created = cls.objects.get_or_create(user=user)
+        return wishlist
 
 
 
@@ -307,13 +292,6 @@ class PaymentMethod(models.Model):
     def __str__(self):
         return self.name
 
-
-
-##################                 ##################       
-##################  Profile Models ##################                   
-##################                 ##################
-
-
 class Profile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL , on_delete=models.CASCADE)
     phone = models.CharField(max_length=15, blank=True)
@@ -322,18 +300,6 @@ class Profile(models.Model):
     def __str__(self):
         return self.user.username
     
-
-# @receiver(post_save, sender=User)
-# def create_user_profile(sender, instance, created, **kwargs):
-#     if created:
-#         Profile.objects.create(user=instance)
-
-# @receiver(post_save, sender=User)
-# def save_user_profile(sender, instance, **kwargs):
-#     instance.profile.save()
-
-    ################# order models ####################
-
 
 class Address(BaseModel):
     ADDRESS_TYPE_CHOICES = (
@@ -377,10 +343,6 @@ class Address(BaseModel):
         verbose_name_plural = "Addresses"
 
 
-import uuid
-from django.db.models.signals import pre_save
-from django.dispatch import receiver
-
 class Order(BaseModel):
     PAYMENT_STATUS_CHOICES = (
         ('PENDING', 'Pending'),
@@ -416,9 +378,7 @@ class Order(BaseModel):
 
     def __str__(self):
         return f"Order {self.id} - {self.user.username}"
-
-    
-    
+ 
 
 class OrderItem(BaseModel):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="order_items")
@@ -451,26 +411,6 @@ class OrderItem(BaseModel):
         return f"{self.quantity} x {self.product.name} (Order: {self.order.id})"
 
 
-# class ReturnRequest(models.Model):
-#     STATUS_CHOICES = [
-#         ('pending', 'Pending'),
-#         ('approved', 'Approved'),
-#         ('rejected', 'Rejected'),
-#     ]
-
-#     order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='return_request')
-#     reason = models.TextField()
-#     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-#     created_at = models.DateTimeField(auto_now_add=True)
-#     updated_at = models.DateTimeField(auto_now=True)
-#     admin_response = models.TextField(blank=True, null=True)
-
-#     def __str__(self):
-#         return f"Return Request for Order {self.order.id}"
-
-# models.py
-from django.db import models
-
 class ReturnRequest(models.Model):
     ORDER_STATUS_CHOICES = [
         ('PENDING', 'Pending'),
@@ -492,11 +432,6 @@ class ReturnRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-# views.py
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from django.contrib.auth.decorators import login_required
-import json
 
 @login_required
 @require_POST
@@ -527,3 +462,31 @@ def create_return_request(request, order_id):
         return JsonResponse({'success': False, 'message': 'Cannot return this order'})
     except Order.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Order not found'})
+
+class Coupon(models.Model):
+    COUPON_TYPES = (
+        ('percentage', 'Percentage'),
+        ('flat', 'Flat Amount')
+    )
+    
+    code = models.CharField(max_length=50, unique=True)
+    type = models.CharField(max_length=10, choices=COUPON_TYPES)
+    value = models.DecimalField(max_digits=10, decimal_places=2)
+    minimum_purchase = models.DecimalField(max_digits=10, decimal_places=2)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    usage_limit = models.IntegerField()  # Per user usage limit
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return self.code
+
+class CouponUsage(models.Model):
+    coupon = models.ForeignKey(Coupon, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    used_at = models.DateTimeField(auto_now_add=True)
+    order = models.ForeignKey('Order', on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('coupon', 'user', 'order')
