@@ -373,8 +373,7 @@ function initializeRazorpay(orderId, amount) {
         "description": "Order Payment",
         "order_id": orderId,
         "handler": function (response) {
-            // Handle successful payment
-            handlePaymentSuccess(response);
+            verifyPayment(response);
         },
         "prefill": {
             "name": "{{ request.user.username }}",
@@ -388,7 +387,7 @@ function initializeRazorpay(orderId, amount) {
     rzp1.open();
 }
 
-function handlePaymentSuccess(response) {
+function verifyPayment(response) {
     fetch('/payment/success/', {
         method: 'POST',
         headers: {
@@ -406,8 +405,12 @@ function handlePaymentSuccess(response) {
         if (data.status === 'success') {
             window.location.href = data.redirect_url;
         } else {
-            showNotification(data.message, 'error');
+            showNotification(data.message || 'Payment verification failed', 'error');
         }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Payment verification failed', 'error');
     });
 }
 </script>

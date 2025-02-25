@@ -1708,3 +1708,14 @@ def filter_products(request):
     return JsonResponse({
         'products': product_data
     })
+
+@login_required
+def wallet_view(request):
+    wallet, created = Wallet.objects.get_or_create(user=request.user)
+    transactions = WalletTransaction.objects.filter(wallet=wallet).order_by('-created_at')
+    
+    context = {
+        'wallet': wallet,
+        'transactions': transactions
+    }
+    return render(request, 'wallet.html', context)

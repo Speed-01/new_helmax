@@ -114,6 +114,35 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
+    def get_best_offer(self):
+        now = timezone.now()
+        
+        # Check product offers
+        product_offer = self.offers.filter(
+            is_active=True,
+            start_date__lte=now,
+            end_date__gte=now
+        ).order_by('-discount_percentage').first()
+        
+        # Check category offers
+        category_offer = self.category.offers.filter(
+            is_active=True,
+            start_date__lte=now,
+            end_date__gte=now
+        ).order_by('-discount_percentage').first()
+        
+        # Return the better offer
+        if product_offer and category_offer:
+            return product_offer if product_offer.discount_percentage > category_offer.discount_percentage else category_offer
+        return product_offer or category_offer
+
+    def get_offer_price(self, original_price):
+        offer = self.get_best_offer()
+        if offer:
+            discount = (offer.discount_percentage / 100) * original_price
+            return original_price - discount
+        return original_price
+
 
 class Variant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
@@ -131,6 +160,21 @@ class Variant(models.Model):
     def __str__(self):
         return f"{self.product.name} - {self.color}"
     
+    @property
+    def offer_price(self):
+        return self.product.get_offer_price(self.price)
+
+    @property
+    def active_offer(self):
+        return self.product.get_best_offer()
+
+    @property
+    def final_price(self):
+        # Use offer price if available, otherwise use discount_price if set, or fall back to original price
+        if self.active_offer:
+            return self.offer_price
+        return self.discount_price if self.discount_price else self.price
+
 class Size(models.Model):
     SIZE_CHIOCES = (
         ('S', 'Small'),
@@ -404,13 +448,6 @@ class OrderItem(BaseModel):
     cancellation_reason = models.TextField(null=True,blank=True)
     return_reason = models.TextField(null=True,blank=True)
     last_updated = models.DateTimeField(auto_now=True)
-    return_status = models.CharField(max_length=20, choices=[
-        ('NOT_REQUESTED', 'Not Requested'),
-        ('PENDING', 'Return Requested'),
-        ('APPROVED', 'Return Approved'),
-        ('REJECTED', 'Return Rejected')
-    ], default='NOT_REQUESTED')
-    admin_response = models.TextField(null=True, blank=True)
 
     def get_total_price(self):
         return self.price * self.quantity
@@ -507,22 +544,79 @@ class CouponUsage(models.Model):
 class Wallet(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     def __str__(self):
-        return f"{self.user}'s wallet"
+        return f"{self.user.username}'s wallet (₹{self.balance})"
 
 class WalletTransaction(models.Model):
     TRANSACTION_TYPES = [
+        ('CREDIT', 'Credit'),
+        ('DEBIT', 'Debit'),
         ('REFUND', 'Refund'),
-        ('WITHDRAWAL', 'Withdrawal'),
-        ('DEPOSIT', 'Deposit')
     ]
-    
+
     wallet = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name='transactions')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
-    description = models.TextField()
+    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
+    description = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    order = models.ForeignKey('Order', on_delete=models.SET_NULL, null=True, blank=True)
+    status = models.CharField(max_length=20, default='SUCCESS')
+
+    def __str__(self):
+        return f"{self.transaction_type} of ₹{self.amount} for {self.wallet.user.username}"
+
+class BaseOffer(models.Model):
+    name = models.CharField(max_length=100)
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2)
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+    def is_valid(self):
+        now = timezone.now()
+        return (self.is_active and 
+                self.start_date <= now <= self.end_date)
+
+class ProductOffer(BaseOffer):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='offers')
     
     def __str__(self):
-        return f"{self.transaction_type} of {self.amount} for {self.wallet.user}"
+        return f"{self.name} - {self.product.name} ({self.discount_percentage}%)"
+
+    class Meta:
+        unique_together = ('product', 'start_date', 'end_date')
+
+class CategoryOffer(BaseOffer):
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='offers')
+    
+    def __str__(self):
+        return f"{self.name} - {self.category.name} ({self.discount_percentage}%)"
+
+    class Meta:
+        unique_together = ('category', 'start_date', 'end_date')
+
+class ReferralOffer(BaseOffer):
+    referral_bonus = models.DecimalField(max_digits=10, decimal_places=2)
+    referee_bonus = models.DecimalField(max_digits=10, decimal_places=2)
+    usage_limit = models.IntegerField(default=1)  # How many times a user can refer
+    
+    def __str__(self):
+        return f"{self.name} - Referral Offer"
+
+class ReferralUsage(models.Model):
+    referrer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='referrals_made')
+    referee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='referred_by')
+    offer = models.ForeignKey(ReferralOffer, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_confirmed = models.BooleanField(default=False)  # Set to True after referee makes first purchase
+
+    class Meta:
+        unique_together = ('referrer', 'referee', 'offer')

@@ -27,6 +27,7 @@ class CustomUserAdmin(UserAdmin):
 
     filter_horizontal = ('groups', 'user_permissions')
 
+# Remove these models from the general registration since they have custom admin classes
 models_to_register = [
     User,
     Category,
@@ -44,8 +45,35 @@ models_to_register = [
     OrderItem,
     ReturnRequest,
     Address,
-   
-    
 ]
+
+# Register models without custom admin classes
 for model in models_to_register:
     admin.site.register(model)
+
+# Register models with custom admin classes
+@admin.register(ProductOffer)
+class ProductOfferAdmin(admin.ModelAdmin):
+    list_display = ('name', 'product', 'discount_percentage', 'start_date', 'end_date', 'is_active')
+    list_filter = ('is_active', 'start_date', 'end_date')
+    search_fields = ('name', 'product__name')
+    date_hierarchy = 'start_date'
+
+@admin.register(CategoryOffer)
+class CategoryOfferAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'discount_percentage', 'start_date', 'end_date', 'is_active')
+    list_filter = ('is_active', 'start_date', 'end_date')
+    search_fields = ('name', 'category__name')
+    date_hierarchy = 'start_date'
+
+@admin.register(ReferralOffer)
+class ReferralOfferAdmin(admin.ModelAdmin):
+    list_display = ('name', 'referral_bonus', 'referee_bonus', 'usage_limit', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('name',)
+
+@admin.register(ReferralUsage)
+class ReferralUsageAdmin(admin.ModelAdmin):
+    list_display = ('referrer', 'referee', 'offer', 'created_at', 'is_confirmed')
+    list_filter = ('is_confirmed', 'created_at')
+    search_fields = ('referrer__username', 'referee__username')

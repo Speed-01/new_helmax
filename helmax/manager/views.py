@@ -656,20 +656,22 @@ def update_order_status(request, order_id):
     try:
         data = json.loads(request.body)
         order = get_object_or_404(Order, id=order_id)
-        new_status = data.get('status')
-
-        with transaction.atomic():
-            # Only update status for items that are not cancelled or returned
-            order.order_items.filter(
-                ~Q(status__in=['Cancelled', 'Returned'])
-            ).update(status=new_status)
+        
+        # Enhanced check for cancelled orders
+        if order.order_status == 'CANCELLED':
+            return JsonResponse({
+                'success': False, 
+                'error': 'This order has been cancelled and cannot be modified'
+            }, status=400)
             
-            order.order_status = new_status
+        with transaction.atomic():
+            order.order_status = data['status']
             order.save()
-
+            order.order_items.all().update(status=data['status'].capitalize())
+                
         return JsonResponse({'success': True})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
 @login_required
 @require_POST
@@ -902,19 +904,16 @@ def handle_return_request(request, request_id):
             return_request.admin_response = data.get('response', '')
             return_request.save()
             
-            order_item = return_request.order_item
-            
             if data['action'] == 'APPROVED':
+                order_item = return_request.order_item
+                
                 # Update item status
                 order_item.status = 'Returned'
-                order_item.return_status = 'APPROVED'
-                order_item.admin_response = data.get('response', '')
                 order_item.save()
                 
                 # Restore stock
-                if order_item.size:
-                    order_item.size.stock += order_item.quantity
-                    order_item.size.save()
+                order_item.size.stock += order_item.quantity
+                order_item.size.save()
                 
                 # Add refund to wallet
                 wallet, created = Wallet.objects.get_or_create(user=return_request.user)
@@ -930,10 +929,6 @@ def handle_return_request(request, request_id):
                     transaction_type='REFUND',
                     description=f'Refund for returned item #{order_item.id}'
                 )
-            else:  # REJECTED
-                order_item.return_status = 'REJECTED'
-                order_item.admin_response = data.get('response', '')
-                order_item.save()
         
         return JsonResponse({'success': True})
         

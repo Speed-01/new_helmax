@@ -30,7 +30,6 @@ urlpatterns = [
     ######## CART ########  
     path('cart/', views.view_cart, name='view_cart'),
     path('cart/add/', views.add_to_cart, name='add_to_cart'),
-    # path('move-to-wishlist/<int:item_id>/', views.move_to_wishlist, name='move_to_wishlist'),
     path('cart/update/<int:item_id>/', views.update_quantity, name='update_quantity'),
     path('remove-from-cart/<int:item_id>/', views.remove_from_cart, name='remove_from_cart'),
     path('validate-cart/', views.validate_cart, name='validate_cart'),
@@ -52,10 +51,8 @@ urlpatterns = [
 
         ########### Wishlist ########
     path('wishlist/', views.wishlist_view, name='view_wishlist'),
-    #path('wishlist/items/', views.get_wishlist_items, name='get_wishlist_items'),
-    path('move-to-wishlist/<int:item_id>/', views.move_to_wishlist, name='move_to_wishlist'),
-    path('remove-from-wishlist/<int:item_id>/', views.remove_from_wishlist, name='remove_from_wishlist'),
-    path('add-to-wishlist/<int:variant_id>/', views.move_to_wishlist, name='move_to_wishlist'),
+    path('move-to-wishlist/<int:variant_id>/', views.move_to_wishlist, name='move_to_wishlist'),
+    path('remove-from-wishlist/<int:variant_id>/', views.remove_from_wishlist, name='remove_from_wishlist'),
     # urls.py
     path('api/orders/<int:order_id>/cancel/', views.cancel_order, name='cancel_order'),
     path('coupons/', views.available_coupons, name='available_coupons'),
@@ -64,4 +61,6 @@ urlpatterns = [
     # path('payment/callback/', views.payment_callback, name='payment_callback'),
     # path('payment/webhook/', views.payment_webhook, name='payment_webhook'),
     path('api/filter-products/', views.filter_products, name='filter_products'),
+    path('payment/success/', views.payment_success, name='payment_success'),
+    path('wallet/', views.wallet_view, name='wallet'),
 ]
