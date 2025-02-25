@@ -44,7 +44,7 @@ urlpatterns = [
 
     ######### cheout ########
     path('checkout/', views.user_checkout, name='user_checkout'),
-    
+
 
     path('place-order/', views.place_order, name='place_order'),
     path('my-orders/', views.my_orders, name='my_orders'),
@@ -59,4 +59,9 @@ urlpatterns = [
     # urls.py
     path('api/orders/<int:order_id>/cancel/', views.cancel_order, name='cancel_order'),
     path('coupons/', views.available_coupons, name='available_coupons'),
+    
+
+    # path('payment/callback/', views.payment_callback, name='payment_callback'),
+    # path('payment/webhook/', views.payment_webhook, name='payment_webhook'),
+    path('api/filter-products/', views.filter_products, name='filter_products'),
 ]

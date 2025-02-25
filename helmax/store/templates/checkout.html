@@ -149,18 +149,25 @@
                 <div class="bg-zinc-900 p-6 rounded mb-6">
                     <h2 class="text-xl mb-4">Select payment method</h2>
                     <div class="space-y-4">
-                        {% for method in payment_methods %}
                         <label class="flex items-center space-x-3 cursor-pointer">
                             <input 
                                 type="radio" 
                                 name="payment_method" 
-                                value="{{ method.id }}"
+                                value="razorpay"
                                 class="form-radio text-[#ff6b00]"
-                                {% if forloop.first %}checked{% endif %}
+                                checked
                             >
-                            <span>{{ method.name }}</span>
+                            <span>Razorpay (Cards/UPI/Netbanking)</span>
                         </label>
-                        {% endfor %}
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input 
+                                type="radio" 
+                                name="payment_method" 
+                                value="cod"
+                                class="form-radio text-[#ff6b00]"
+                            >
+                            <span>Cash on Delivery</span>
+                        </label>
                     </div>
                 </div>
 
@@ -177,6 +184,7 @@
     </div>
 </div>
 
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize variables
@@ -203,45 +211,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
     window.placeOrder = async function() {
         try {
+            if (!selectedAddressId) {
+                showNotification('Please select a delivery address', 'error');
+                return;
+            }
+
             const formData = new FormData();
             formData.append('address_id', selectedAddressId);
             formData.append('payment_method', selectedPaymentMethod);
             formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-    
-            // Log what we're sending
-            console.log('Sending request with:', {
-                addressId: selectedAddressId,
-                paymentMethod: selectedPaymentMethod,
-                url: "{% url 'place_order' %}"
-            });
-    
+
             const response = await fetch("{% url 'place_order' %}", {
                 method: 'POST',
-                credentials: 'same-origin',
+                body: formData,
                 headers: {
-                    "X-Requested-With": "XMLHttpRequest",
                     "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
-                },
-                body: formData
+                }
             });
-    
-            console.log('Response status:', response.status);
+
             const data = await response.json();
             console.log('Response data:', data);
-    
+
             if (data.success) {
-                showNotification('Order placed successfully', 'success');
-                window.location.href = data.redirect_url;
+                if (selectedPaymentMethod === 'razorpay') {
+                    // Initialize Razorpay
+                    initializeRazorpay(data.razorpay_order_id, data.amount);
+                } else {
+                    // COD or other payment methods
+                    window.location.href = data.redirect_url;
+                }
             } else {
-                // More detailed error handling
-                const errorMessage = data.errors ? 
-                    data.errors.join('\n') : 
-                    data.message || 'Error placing order';
-                showNotification(errorMessage, 'error');
-                console.error('Order placement failed:', data);
+                showNotification(data.message || 'Error placing order', 'error');
             }
         } catch (error) {
-            console.error('Error placing order:', error);
+            console.error('Error:', error);
             showNotification('Error placing order. Please try again.', 'error');
         }
     };
@@ -359,6 +362,53 @@ function getCookie(name) {
         }
     }
     return cookieValue;
+}
+
+function initializeRazorpay(orderId, amount) {
+    var options = {
+        "key": "{{ razorpay_key_id }}", 
+        "amount": amount,
+        "currency": "INR",
+        "name": "Helmax",
+        "description": "Order Payment",
+        "order_id": orderId,
+        "handler": function (response) {
+            // Handle successful payment
+            handlePaymentSuccess(response);
+        },
+        "prefill": {
+            "name": "{{ request.user.username }}",
+            "email": "{{ request.user.email }}",
+        },
+        "theme": {
+            "color": "#ff6b00"
+        }
+    };
+    var rzp1 = new Razorpay(options);
+    rzp1.open();
+}
+
+function handlePaymentSuccess(response) {
+    fetch('/payment/success/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_signature: response.razorpay_signature
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            window.location.href = data.redirect_url;
+        } else {
+            showNotification(data.message, 'error');
+        }
+    });
 }
 </script>
 {% endblock %}

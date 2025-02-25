@@ -54,11 +54,13 @@
                     </svg>
                 </button> {% endcomment %}
                 <button class="p-2 hover:text-primary">
-                    <a href={% url 'view_cart'%} class="relative">
-                        <i class="fas fa-shopping-bag text-2xl"></i>
-                        <span class="cart-count absolute -top-2 -right-2 bg-yellow-500 text-black text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                            {{ request.user.cart.total_items }}
+                    <a href="{% url 'view_cart' %}" class="relative">
+                        <i class="fas fa-shopping-cart"></i>
+                        {% if cart_count %}
+                        <span class="absolute -top-2 -right-2 bg-[#ff6b00] text-black rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                            {{ cart_count }}
                         </span>
+                        {% endif %}
                     </a>
                 </button>
                 <!-- Update the div containing cart and orders buttons in the header -->

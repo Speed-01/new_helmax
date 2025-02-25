@@ -404,6 +404,13 @@ class OrderItem(BaseModel):
     cancellation_reason = models.TextField(null=True,blank=True)
     return_reason = models.TextField(null=True,blank=True)
     last_updated = models.DateTimeField(auto_now=True)
+    return_status = models.CharField(max_length=20, choices=[
+        ('NOT_REQUESTED', 'Not Requested'),
+        ('PENDING', 'Return Requested'),
+        ('APPROVED', 'Return Approved'),
+        ('REJECTED', 'Return Rejected')
+    ], default='NOT_REQUESTED')
+    admin_response = models.TextField(null=True, blank=True)
 
     def get_total_price(self):
         return self.price * self.quantity
@@ -412,25 +419,31 @@ class OrderItem(BaseModel):
 
 
 class ReturnRequest(models.Model):
-    ORDER_STATUS_CHOICES = [
+    STATUS_CHOICES = [
         ('PENDING', 'Pending'),
         ('APPROVED', 'Approved'),
         ('REJECTED', 'Rejected')
     ]
     
-    RETURN_REASON_CHOICES = [
-        ('size_issue', 'Size Issue'),
-        ('product_defect', 'Product Defect'),
+    REASON_CHOICES = [
+        ('defective', 'Product Defective'),
         ('wrong_item', 'Wrong Item Received'),
+        ('not_as_described', 'Item Not As Described'),
+        ('size_issue', 'Size/Fit Issue'),
         ('other', 'Other')
     ]
     
-    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='return_requests')
-    reason = models.CharField(max_length=50, choices=RETURN_REASON_CHOICES)
-    description = models.TextField(blank=True, null=True)
-    status = models.CharField(max_length=20, choices=ORDER_STATUS_CHOICES, default='PENDING')
+    # Make order_item nullable initially
+    order_item = models.ForeignKey('OrderItem', on_delete=models.CASCADE, related_name='return_requests')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    reason = models.CharField(max_length=50, choices=REASON_CHOICES)
+    description = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    admin_response = models.TextField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"Return request for {self.order_item}"
 
 
 @login_required
@@ -454,7 +467,7 @@ def create_return_request(request, order_id):
         if order.order_status == 'DELIVERED':
             data = json.loads(request.body)
             return_request = ReturnRequest.objects.create(
-                order=order,
+                order_item=data.get('order_item'),
                 reason=data.get('reason'),
                 description=data.get('description')
             )
@@ -490,3 +503,26 @@ class CouponUsage(models.Model):
 
     class Meta:
         unique_together = ('coupon', 'user', 'order')
+
+class Wallet(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    def __str__(self):
+        return f"{self.user}'s wallet"
+
+class WalletTransaction(models.Model):
+    TRANSACTION_TYPES = [
+        ('REFUND', 'Refund'),
+        ('WITHDRAWAL', 'Withdrawal'),
+        ('DEPOSIT', 'Deposit')
+    ]
+    
+    wallet = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name='transactions')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
+    description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.transaction_type} of {self.amount} for {self.wallet.user}"

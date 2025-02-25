@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.utils.timezone import now
 from manager.forms import SignupForm, OTPVerificationForm, PasswordResetRequestForm,SetPasswordForm
 from .forms import AddressForm
-from manager.models import OTP,User,Category, Brand, Size, Product, Variant, ProductImage, Review, Address, Cart, CartItem,PaymentMethod, Coupon, CouponUsage, Wishlist
+from manager.models import OTP,User,Category, Brand, Size, Product, Variant, ProductImage, Review, Address, Cart, CartItem,PaymentMethod, Coupon, CouponUsage, Wishlist, ReturnRequest, Wallet, WalletTransaction
 from datetime import timezone
 from django.views.decorators.cache import never_cache
 from django.http import  JsonResponse
@@ -12,8 +12,8 @@ import json
 from django.conf import settings
 from django.apps import apps
 from .utils import send_otp_email
-from django.views.decorators.http import require_POST
-from django.core.paginator import Paginator
+from django.views.decorators.http import require_POST, require_GET
+from django.core.paginator import Paginator, EmptyPage, InvalidPage
 from django.views.decorators.csrf import csrf_exempt
 from google.oauth2 import id_token
 from google.auth.transport import requests
@@ -38,6 +38,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.shortcuts import render, redirect
 from django.contrib import messages
 import logging
+import razorpay
 
 def prepare_product_data(products):
     product_data = []
@@ -856,21 +857,28 @@ def wishlist_view(request):
         return redirect('home')
 
 @login_required
-def move_to_wishlist(request, product_id):
-    product = get_object_or_404(Product, id=product_id)
-    wishlist, created = Wishlist.objects.get_or_create(user=request.user)
-    
-    if product in wishlist.products.all():
-        wishlist.products.remove(product)
-        is_added = False
-    else:
-        wishlist.products.add(product)
-        is_added = True
-    
-    return JsonResponse({
-        'is_added': is_added,
-        'wishlist_count': wishlist.count
-    })
+def move_to_wishlist(request, variant_id):
+    try:
+        variant = Variant.objects.get(id=variant_id)
+        wishlist, created = Wishlist.objects.get_or_create(user=request.user)
+        
+        if variant in wishlist.variants.all():
+            wishlist.variants.remove(variant)
+            message = 'Removed from wishlist'
+        else:
+            wishlist.variants.add(variant)
+            message = 'Added to wishlist'
+            
+        return JsonResponse({
+            'success': True,
+            'message': message,
+            'wishlist_count': wishlist.variants.count()
+        })
+    except Variant.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Product not found'
+        })
 
 # @login_required
 # def get_wishlist_items(request):
@@ -1081,7 +1089,7 @@ from django.http import JsonResponse
 from django.urls import reverse
 import logging
 
-from manager.models import Cart, CartItem, Address, PaymentMethod, Order, OrderItem
+from manager.models import Cart, CartItem, Address, Order, OrderItem
 
 
 
@@ -1188,124 +1196,128 @@ def user_checkout(request):
     
 logger = logging.getLogger(__name__)
 
-@login_required(login_url='userlogin')
-@require_POST
-@transaction.atomic
+@login_required
 def place_order(request):
-    try:
-        # Get address and payment method from POST data
-        address_id = request.POST.get('address_id')
-        payment_method = request.POST.get('payment_method')
-
-        # Validate address exists and belongs to user
+    if request.method == 'POST':
         try:
-            selected_address = Address.objects.get(id=address_id, user=request.user)
-        except Address.DoesNotExist:
-            return JsonResponse({'success': False, 'message': 'Invalid address'}, status=400)
+            address_id = request.POST.get('address_id')
+            payment_method = request.POST.get('payment_method')
+            
+            if not address_id:
+                return JsonResponse({'success': False, 'message': 'Please select a delivery address'})
 
-        # Get user's cart
-        cart = Cart.objects.filter(
-            user=request.user, 
-            is_ordered=False
-        ).prefetch_related(
-            'items', 
-            'items__variant', 
-            'items__size'
-        ).first()
+            # Get the address
+            try:
+                address = Address.objects.get(id=address_id, user=request.user)
+            except Address.DoesNotExist:
+                return JsonResponse({'success': False, 'message': 'Invalid address'})
 
-        if not cart or not cart.items.exists():
-            return JsonResponse({'success': False, 'message': 'Your cart is empty.'}, status=400)
+            # Get the cart
+            cart = Cart.objects.get(user=request.user, is_ordered=False)
+            if not cart.items.exists():
+                return JsonResponse({'success': False, 'message': 'Your cart is empty'})
 
-        # Final validation before creating order
-        invalid_items = []
-        valid_items = []
+            # Get payment method ID based on the selected method
+            if payment_method == 'razorpay':
+                payment_method_id = 2  # Assuming 2 is the ID for Razorpay in PaymentMethod table
+            else:
+                payment_method_id = 1  # Assuming 1 is the ID for COD in PaymentMethod table
 
-        for cart_item in cart.items.all():
-            # Check if product/variant/category/brand is active
-            if not cart_item.is_active:  # Uses CartItem's is_active property
-                invalid_items.append(cart_item)
-                continue
-
-            # Check stock availability
-            if cart_item.quantity > cart_item.size.stock:
-                invalid_items.append(cart_item)
-                continue
-
-            valid_items.append(cart_item)
-
-        # Remove invalid items from the cart
-        for item in invalid_items:
-            item.delete()
-
-        if invalid_items:
-            return JsonResponse({
-                'success': False,
-                'message': 'Some items are no longer available. Please review your cart.',
-                'errors': [f"{item.variant.product.name} is unavailable" for item in invalid_items]
-            }, status=400)
-
-        if not valid_items:
-            return JsonResponse({'success': False, 'message': 'No valid items in cart'}, status=400)
-
-        # Create order
-        order = Order.objects.create(
-            user=request.user,
-            total_amount=cart.total_price,
-            paymentmethod_id=payment_method,
-            payment_status='PENDING',
-            order_status='PROCESSING',
-            # Populate address fields
-            full_name=selected_address.full_name,
-            email=selected_address.email,
-            phone=selected_address.phone,
-            address_line1=selected_address.address_line1,
-            address_line2=selected_address.address_line2,
-            city=selected_address.city,
-            state=selected_address.state,
-            pincode=selected_address.pincode
-        )
-
-        # Create order items
-        for cart_item in valid_items:
-            OrderItem.objects.create(
-                order=order,
-                product=cart_item.variant.product,
-                variant=cart_item.variant,
-                size=cart_item.size,
-                quantity=cart_item.quantity,
-                price=cart_item.variant.discount_price or cart_item.variant.price,
-                status='Processing'
+            # Create the order
+            order = Order.objects.create(
+                user=request.user,
+                total_amount=cart.total_price,
+                paymentmethod_id=payment_method_id,  # Use the correct payment method ID
+                full_name=address.full_name,
+                email=address.email,
+                phone=address.phone,
+                address_line1=address.address_line1,
+                address_line2=address.address_line2,
+                city=address.city,
+                state=address.state,
+                pincode=address.pincode
             )
 
-            # Update stock
-            cart_item.size.stock = F('stock') - cart_item.quantity
-            cart_item.size.save()
-
-        # Refresh size objects
-        for cart_item in valid_items:
-            cart_item.size.refresh_from_db()
-            if cart_item.size.stock < 0:
-                raise ValidationError(
-                    f"Insufficient stock for {cart_item.variant.product.name}"
+            # Create order items
+            for cart_item in cart.items.all():
+                OrderItem.objects.create(
+                    order=order,
+                    product=cart_item.variant.product,
+                    variant=cart_item.variant,
+                    size=cart_item.size,
+                    quantity=cart_item.quantity,
+                    price=cart_item.variant.discount_price or cart_item.variant.price
                 )
 
-        # Update cart
-        cart.is_ordered = True
-        cart.is_active = False
-        cart.save()
+            # If Razorpay payment
+            if payment_method == 'razorpay':
+                client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+                amount_in_paise = int(order.total_amount * 100)
+                razorpay_order = client.order.create({
+                    "amount": amount_in_paise,
+                    "currency": "INR",
+                    "payment_capture": "1"
+                })
+                order.razorpay_order_id = razorpay_order['id']
+                order.save()
+                
+                return JsonResponse({
+                    'success': True,
+                    'razorpay_order_id': razorpay_order['id'],
+                    'amount': amount_in_paise,
+                })
+            else:
+                # For COD
+                return JsonResponse({
+                    'success': True,
+                    'redirect_url': reverse('order_confirmation', args=[order.id])
+                })
 
-        return JsonResponse({
-            'success': True,
-            'redirect_url': reverse('order_confirmation', args=[order.id])
-        })
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
 
-    except Exception as e:
-        logger.error(f"Error in place_order: {str(e)}", exc_info=True)
-        return JsonResponse({
-            'success': False,
-            'message': str(e),
-            'error_type': 'system'
-        }, status=500)
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+
+@csrf_exempt
+def payment_success(request):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        razorpay_payment_id = data.get('razorpay_payment_id')
+        razorpay_order_id = data.get('razorpay_order_id')
+        razorpay_signature = data.get('razorpay_signature')
+
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+        try:
+            # Verify payment signature
+            client.utility.verify_payment_signature({
+                'razorpay_order_id': razorpay_order_id,
+                'razorpay_payment_id': razorpay_payment_id,
+                'razorpay_signature': razorpay_signature
+            })
+
+            order = Order.objects.get(razorpay_order_id=razorpay_order_id)
+            order.payment_status = 'PAID'
+            order.razorpay_payment_id = razorpay_payment_id
+            order.save()
+
+            # Clear cart
+            cart = Cart.objects.get(user=order.user, is_ordered=False)
+            cart.is_ordered = True
+            cart.save()
+
+            return JsonResponse({
+                'status': 'success',
+                'redirect_url': reverse('order_confirmation', args=[order.id])
+            })
+
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=400)
+
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
 
 
 
@@ -1543,3 +1555,156 @@ def apply_coupon(request):
             })
             
     return JsonResponse({'success': False, 'message': 'Invalid request method'})
+
+@login_required
+@require_POST
+def cancel_order_item(request, item_id):
+    try:
+        order_item = get_object_or_404(OrderItem, id=item_id)
+        order = order_item.order
+        
+        # Verify ownership and status
+        if order.user != request.user:
+            return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=403)
+            
+        if order_item.status not in ['Processing', 'Shipped']:
+            return JsonResponse({'success': False, 'message': 'Item cannot be cancelled'})
+        
+        with transaction.atomic():
+            # Update item status
+            order_item.status = 'Cancelled'
+            order_item.save()
+            
+            # Restore stock if size exists
+            if order_item.size:
+                order_item.size.stock += order_item.quantity
+                order_item.size.save()
+            
+            # Recalculate order total
+            active_items = order.order_items.exclude(status__in=['Cancelled', 'Returned'])
+            new_total = sum(item.price * item.quantity for item in active_items)
+            order.total_amount = new_total
+            order.save()
+            
+            # If payment was made, add to wallet
+            if order.payment_status == 'PAID':
+                wallet, created = Wallet.objects.get_or_create(user=request.user)
+                refund_amount = order_item.price * order_item.quantity
+                
+                wallet.balance += refund_amount
+                wallet.save()
+                
+                # Record transaction
+                WalletTransaction.objects.create(
+                    wallet=wallet,
+                    amount=refund_amount,
+                    transaction_type='REFUND',
+                    description=f'Refund for cancelled item #{order_item.id}'
+                )
+            
+            # Check if all items are cancelled
+            if not active_items.exists():
+                order.order_status = 'CANCELLED'
+                order.save()
+        
+        return JsonResponse({
+            'success': True,
+            'new_total': float(new_total),
+            'refund_amount': float(refund_amount) if order.payment_status == 'PAID' else 0
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+@login_required
+@require_POST
+def create_return_request(request, item_id):
+    try:
+        data = json.loads(request.body)
+        order_item = get_object_or_404(OrderItem, id=item_id)
+        
+        # Verify ownership and status
+        if order_item.order.user != request.user:
+            return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=403)
+            
+        if order_item.status != 'Delivered':
+            return JsonResponse({'success': False, 'message': 'Item cannot be returned'})
+            
+        if order_item.return_requests.exists():
+            return JsonResponse({'success': False, 'message': 'Return request already exists'})
+        
+        # Create return request
+        ReturnRequest.objects.create(
+            order_item=order_item,
+            user=request.user,
+            reason=data['reason'],
+            description=data['description']
+        )
+        
+        return JsonResponse({'success': True})
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+@require_GET
+def filter_products(request):
+    products = Product.objects.all().distinct()
+    
+    # Category filter
+    categories = request.GET.get('categories', '').split(',')
+    if categories and categories[0]:
+        products = products.filter(category_id__in=categories)
+    
+    # Brand filter
+    brands = request.GET.get('brands', '').split(',')
+    if brands and brands[0]:
+        products = products.filter(brand_id__in=brands)
+    
+    # Price filter
+    min_price = request.GET.get('min_price')
+    max_price = request.GET.get('max_price')
+    if min_price and max_price:
+        products = products.filter(
+            variants__price__gte=min_price,
+            variants__price__lte=max_price
+        )
+    
+    # Search filter
+    search = request.GET.get('search', '')
+    if search:
+        products = products.filter(
+            Q(name__icontains=search) |
+            Q(description__icontains=search)
+        )
+    
+    # Sorting
+    sort = request.GET.get('sort', 'new_arrivals')
+    if sort == 'price_low_high':
+        products = products.order_by('variants__price')
+    elif sort == 'price_high_low':
+        products = products.order_by('-variants__price')
+    elif sort == 'name_asc':
+        products = products.order_by('name')
+    elif sort == 'name_desc':
+        products = products.order_by('-name')
+    
+    # Prepare product data
+    product_data = []
+    for product in products:
+        variant = product.variants.first()
+        if variant and variant.images.exists():
+            product_data.append({
+                'id': product.id,
+                'name': product.name,
+                'category': product.category.name if product.category else '',
+                'brand': product.brand.name if product.brand else '',
+                'price': float(variant.price),
+                'discount_price': float(variant.discount_price) if variant.discount_price else float(variant.price),
+                'image_url': variant.images.first().image.url if variant.images.exists() else '',
+                'total_stock': sum(size.stock for size in variant.sizes.all()),
+                'discount_percentage': int(((variant.price - variant.discount_price) / variant.price) * 100) if variant.discount_price and variant.discount_price < variant.price else 0
+            })
+    
+    return JsonResponse({
+        'products': product_data
+    })

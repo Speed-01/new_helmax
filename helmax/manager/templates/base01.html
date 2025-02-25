@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Helmax{% endblock %}</title>
+    <title>Helmax Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Custom scrollbar */
@@ -38,125 +38,138 @@
         }
     </style>
 </head>
-<body class="bg-[#0A0A0A] text-gray-200">
-    
-    <div class="flex min-h-screen">
-        <!-- Sidebar -->
-        <aside id="sidebar" class="fixed h-screen w-64 bg-[#111111] border-r border-[#2A2A2A] shadow-2xl z-50">
-            <div class="flex flex-col h-full">
-                <!-- Logo Section -->
-                <div class="p-6 border-b border-[#2A2A2A]">
-                    <h1 class="text-2xl font-bold bg-gradient-to-r from-red-500 to-purple-600 bg-clip-text text-transparent">
-                        Helmax
-                    </h1>
-                </div>
-
-                <!-- Navigation -->
-                <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
-                    <a href="#" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
-                        <span class="w-2 h-2 rounded-full bg-red-500 mr-3 group-hover:scale-125 transition-transform"></span>
-                        <span class="flex-1">Dashboard</span>
-                    </a>
-                    <a href="{% url 'adminProducts'%}" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
-                        <span class="w-2 h-2 rounded-full bg-blue-500 mr-3 group-hover:scale-125 transition-transform"></span>
-                        <span class="flex-1">Products</span>
-                    </a>
+<body class="bg-[#0A0A0A] min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-[#1A1A1A] border-b border-[#2A2A2A]">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <!-- Logo and Primary Nav -->
+                <div class="flex">
+                    <div class="flex-shrink-0 flex items-center">
+                        <!-- Replace with your logo -->
+                        <a href="{% url 'customers' %}" class="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
+                            HELMAX
+                        </a>
+                    </div>
                     
-                    <a href="{% url 'customers'  %}" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
-                        <span class="w-2 h-2 rounded-full bg-green-500 mr-3 group-hover:scale-125 transition-transform"></span>
-                        <span class="flex-1">Customers</span>
-                    </a>
-                    
-                    <a href="{% url 'admin_orders' %}" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
-                        <span class="w-2 h-2 rounded-full bg-yellow-500 mr-3 group-hover:scale-125 transition-transform"></span>
-                        <span class="flex-1">Orders</span>
-                    </a>
-                    <a href="{% url 'admin_brand'%}" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
-                        <span class="w-2 h-2 rounded-full bg-purple-500 mr-3 group-hover:scale-125 transition-transform"></span>
-                        <span class="flex-1">Brand</span>
-                    </a>
-                    <a href="#" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
-                        <span class="w-2 h-2 rounded-full bg-pink-500 mr-3 group-hover:scale-125 transition-transform"></span>
-                        <span class="flex-1">Coupons</span>
-                    </a>
-                    <a href="{% url 'admin_category'%}" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
-                        <span class="w-2 h-2 rounded-full bg-indigo-500 mr-3 group-hover:scale-125 transition-transform"></span>
-                        <span class="flex-1">Category</span>
-                    </a>
-                    <a href="#" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
-                        <span class="w-2 h-2 rounded-full bg-cyan-500 mr-3 group-hover:scale-125 transition-transform"></span>
-                        <span class="flex-1">Offers</span>
-                    </a>
-                    <a href="#" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
-                        <span class="w-2 h-2 rounded-full bg-orange-500 mr-3 group-hover:scale-125 transition-transform"></span>
-                        <span class="flex-1">Banner</span>
-                    </a>
-                    <a href="#" class="flex items-center px-4 py-3 text-gray-300 rounded-lg hover:bg-[#1A1A1A] hover:text-white transition-all duration-200 group">
-                        <span class="w-2 h-2 rounded-full bg-teal-500 mr-3 group-hover:scale-125 transition-transform"></span>
-                        <span class="flex-1">Sales Report</span>
-                    </a>
-                </nav>
-
-                <!-- Logout Section -->
-                <div class="p-4 border-t border-[#2A2A2A]">
-                    <a href="{% url 'admin_logout'%}" 
-                       class="flex items-center px-4 py-3 text-red-400 rounded-lg hover:bg-red-500/10 transition-all duration-200">
-                        <span class="mr-3">→</span>
-                        <span>Logout</span>
-                    </a>
+                    <!-- Primary Navigation -->
+                    <div class="hidden md:ml-6 md:flex md:space-x-4">
+                        <a href="{% url 'customers' %}" 
+                           class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                            Customers
+                        </a>
+                        <a href="{% url 'admin_category' %}" 
+                           class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                            Categories
+                        </a>
+                        <a href="{% url 'admin_brand' %}" 
+                           class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                            Brands
+                        </a>
+                        <a href="{% url 'adminProducts' %}" 
+                           class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                            Products
+                        </a>
+                        <a href="{% url 'admin_orders' %}" 
+                           class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                            Orders
+                        </a>
+                        <a href="{% url 'admin_return_requests' %}" 
+                           class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A] relative">
+                            Return Requests
+                            {% if pending_returns_count %}
+                            <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                                {{ pending_returns_count }}
+                            </span>
+                            {% endif %}
+                        </a>
+                        <a href="{% url 'admin_coupons' %}" 
+                           class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                            Coupons
+                        </a>
+                    </div>
                 </div>
-            </div>
-        </aside>
 
-        <!-- Main Content -->
-        <div class="flex-1 ml-64">
-            <!-- Messages Section -->
-            {% if messages %}
-            <div class="fixed top-4 right-4 z-50 w-96">
-                {% for message in messages %}
-                <div class="{% if message.tags == 'success' %}bg-[#1A1A1A]/80 border border-green-500/20 text-green-400{% else %}bg-[#1A1A1A]/80 border border-red-500/20 text-red-400{% endif %} px-4 py-3 rounded-lg mb-4 flex justify-between items-center backdrop-blur-sm shadow-xl" role="alert">
-                    <span class="block sm:inline">{{ message }}</span>
-                    <button type="button" class="text-gray-400 hover:text-gray-300 transition-colors" onclick="this.parentElement.style.display='none'">
-                        <span class="text-2xl">×</span>
-                    </button>
+                <!-- Right side navigation -->
+                <div class="flex items-center">
+                    <!-- Admin Profile/Logout -->
+                    <div class="ml-3 relative">
+                        <div class="flex items-center space-x-4">
+                            <span class="text-gray-300 text-sm">
+                                Welcome, Admin
+                            </span>
+                            <a href="{% url 'admin_logout' %}" 
+                               class="px-3 py-2 rounded-md text-sm font-medium text-red-400 hover:text-red-300 hover:bg-[#2A2A2A]">
+                                Logout
+                            </a>
+                        </div>
+                    </div>
                 </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-
-            <!-- Page Content -->
-            <main class="p-6">
-                {% block content %}{% endblock %}
-            </main>
-
-            
-        </div>
-        
-    </div>
-    <!-- Footer -->
-    <footer class="bg-[#111111] text-gray-400 py-4 px-6 border-t border-[#2A2A2A] ml-12">
-        <div class="max-w-7xl mx-auto flex justify-between items-center px-24">
-            <p>&copy; 2024 Helmax. All Rights Reserved.</p>
-            <div class="flex items-center space-x-4">
-                <a href="#" class="hover:text-white transition-colors">Privacy</a>
-                <a href="#" class="hover:text-white transition-colors">Terms</a>
-                <a href="#" class="hover:text-white transition-colors">Contact</a>
             </div>
         </div>
-    </footer>
+
+        <!-- Mobile menu button -->
+        <div class="md:hidden">
+            <button type="button" 
+                    onclick="toggleMobileMenu()"
+                    class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-[#2A2A2A] focus:outline-none">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Mobile menu -->
+        <div class="hidden md:hidden" id="mobileMenu">
+            <div class="px-2 pt-2 pb-3 space-y-1">
+                <a href="{% url 'customers' %}" 
+                   class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                    Customers
+                </a>
+                <a href="{% url 'admin_category' %}" 
+                   class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                    Categories
+                </a>
+                <a href="{% url 'admin_brand' %}" 
+                   class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                    Brands
+                </a>
+                <a href="{% url 'adminProducts' %}" 
+                   class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                    Products
+                </a>
+                <a href="{% url 'admin_orders' %}" 
+                   class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                    Orders
+                </a>
+                <a href="{% url 'admin_return_requests' %}" 
+                   class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                    Return Requests
+                    {% if pending_returns_count %}
+                    <span class="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                        {{ pending_returns_count }}
+                    </span>
+                    {% endif %}
+                </a>
+                <a href="{% url 'admin_coupons' %}" 
+                   class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-[#2A2A2A]">
+                    Coupons
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+        {% block content %}
+        {% endblock %}
+    </main>
 
     <script>
-        // Auto-hide messages after 5 seconds
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                const messages = document.querySelectorAll('[role="alert"]');
-                messages.forEach(function(message) {
-                    message.style.opacity = '0';
-                    message.style.transition = 'opacity 0.5s ease-in-out';
-                    setTimeout(() => message.style.display = 'none', 500);
-                });
-            }, 5000);
-        });
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobileMenu');
+            menu.classList.toggle('hidden');
+        }
     </script>
 </body>
 </html>
