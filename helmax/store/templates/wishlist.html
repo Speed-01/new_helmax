@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="min-h-screen bg-black text-white py-8">
+    <div class="max-w-7xl mx-auto px-4">
+        <h1 class="text-3xl font-bold mb-8">My Wishlist</h1>
+
+        {% if wishlist_items %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {% for item in wishlist_items %}
+            <div class="bg-zinc-900 rounded-lg overflow-hidden">
+                <div class="relative aspect-square overflow-hidden">
+                    <img src="{{ item.image_url }}" 
+                         alt="{{ item.name }}"
+                         class="w-full h-full object-cover">
+                    {% if item.discount_price %}
+                        <div class="absolute top-2 right-2 bg-[#ff6b00] text-black px-2 py-1 rounded text-sm font-bold">
+                            {{ item.discount_percentage }}% OFF
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="p-4">
+                    <h3 class="font-medium text-lg mb-2">{{ item.name }}</h3>
+                    <p class="text-sm text-gray-400 mb-2">{{ item.color }}</p>
+                    
+                    <div class="flex items-baseline gap-2 mb-4">
+                        <span class="text-lg font-bold">₹{{ item.discount_price|default:item.price }}</span>
+                        {% if item.discount_price %}
+                            <span class="text-sm text-gray-400 line-through">₹{{ item.price }}</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="space-y-2">
+                        {% if item.stock > 0 %}
+                            <button onclick="addToCart('{{ item.id }}')"
+                                    class="w-full bg-[#ff6b00] text-black py-2 rounded hover:bg-[#ff7d1a] transition-colors">
+                                Add to Cart
+                            </button>
+                        {% else %}
+                            <p class="text-red-500 text-sm">Out of Stock</p>
+                        {% endif %}
+                        
+                        <button onclick="moveToWishlist('{{ item.id }}')"
+                                class="w-full border border-red-500 text-red-500 py-2 rounded hover:bg-red-500 hover:text-white transition-colors">
+                            Remove
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-12">
+            <p class="text-gray-400 mb-4">Your wishlist is empty</p>
+            <a href="{% url 'product_list' %}" 
+               class="inline-block bg-[#ff6b00] text-black px-6 py-2 rounded hover:bg-[#ff7d1a] transition-colors">
+                Continue Shopping
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

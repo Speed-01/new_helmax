@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}User Profile{% endblock %}
+
+{% block content %}
+<div class="flex min-h-screen bg-black">
+   
+    <!-- Sidebar -->
+    <aside class="w-64 bg-zinc-900 text-white p-6 space-y-6 ">
+        <div class="space-y-2">
+            <h2 class="text-lg font-semibold">Account</h2>
+            <nav class="space-y-1">
+                <a href="{% url 'user_profile' user.id %}" class="block px-4 py-2 rounded-lg py-2 text-[#ff6b00] bg-opacity-50 bg-[#222222]">My Profile</a>
+                <a href="{%  url 'my_orders' %}" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Orders</a>
+                <a href="{% url 'userManageAddress' %}" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Address</a>
+                <a href="#" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Wallet</a>
+                <a href="#" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Coupons</a>
+                <a href="#" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Change Password</a>
+                <a href="#" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Transaction History</a>
+                <a href="{% url 'logout' %}" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Logout</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-8">
+        {% if messages %}
+            <div id="message-container" class="max-w-3xl mx-auto mb-4">
+                {% for message in messages %}
+                    <div class="
+                        {% if message.tags == 'success' %}bg-green-500
+                        {% elif message.tags == 'error' %}bg-red-500
+                        {% else %}bg-blue-500
+                        {% endif %} 
+                        text-white px-4 py-2 rounded-lg mb-2 fade-out">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+
+            <script>
+                // Wait for 2 seconds, then fade out the messages
+                setTimeout(function () {
+                    var messageContainer = document.getElementById("message-container");
+                    if (messageContainer) {
+                        messageContainer.style.transition = "opacity 0.5s";
+                        messageContainer.style.opacity = "0";
+                        setTimeout(() => messageContainer.remove(), 500);  // Remove after fade out
+                    }
+                }, 2000);
+            </script>
+        {% endif %}
+
+
+        <div class="max-w-3xl mx-auto bg-zinc-900 rounded-lg p-8">
+            <form method="POST" id="profileForm">
+                {% csrf_token %}
+                <div class="flex justify-between items-start mb-8">
+                    <h1 class="text-2xl font-bold text-white">My Profile</h1>
+                    <div>
+                        <button type="button" onclick="toggleEdit()" id="editButton" 
+                                class="bg-[#ff6b00] text-white px-6 py-2 rounded-lg hover:bg-[#ff6b00]/90 transition-colors">
+                            <i class="fas fa-edit mr-2"></i>EDIT
+                        </button>
+                        <button type="submit" id="saveButton" 
+                                class="hidden bg-[#ff6b00] text-white px-6 py-2 rounded-lg hover:bg-[#ff6b00]/90 transition-colors">
+                            <i class="fas fa-save mr-2"></i>SAVE
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="grid grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <p class="text-gray-400">Full Name:</p>
+                            <input type="text" name="full_name" id="fullName" 
+                                   value="{{ full_name }}" 
+                                   class="w-full text-white px-3 py-2 rounded-lg bg-zinc-800 border-none" 
+                                   readonly>
+                        </div>
+                        <div class="space-y-2">
+                            <p class="text-gray-400">Email:</p>
+                            <p id="email" class="text-white px-3 py-2 rounded-lg bg-zinc-800">{{ email }}</p>
+                        </div>
+                        <div class="space-y-2">
+                            <p class="text-gray-400">Phone:</p>
+                            <input type="tel" name="phone" id="phone" 
+                                   value="{{ phone }}" 
+                                   class="w-full text-white px-3 py-2 rounded-lg bg-zinc-800 border-none" 
+                                   readonly>
+                        </div>
+                    </div>
+
+                    <!-- Referral Section (keep as is) -->
+                    <div class="mt-12 p-6 bg-zinc-800/50 rounded-lg">
+                        <h3 class="text-xl font-semibold text-white mb-4">Refer friends, get rewarded</h3>
+                        <p class="text-gray-400">Your referral code: 
+                            <span class="text-white bg-zinc-800 px-3 py-1 rounded ml-2">{{ referral_code }}</span>
+                        </p>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleEdit() {
+        const fullName = document.getElementById('fullName');
+        const phone = document.getElementById('phone');
+        const editButton = document.getElementById('editButton');
+        const saveButton = document.getElementById('saveButton');
+
+        // Toggle edit mode
+        if (fullName.readOnly) {
+            // Enable editing
+            fullName.readOnly = false;
+            phone.readOnly = false;
+            
+            // Add styling for editable fields
+            [fullName, phone].forEach(element => {
+                element.classList.add('border', 'border-[#ff6b00]', 'bg-[#1a1a1a]');
+            });
+            
+            // Show save button, hide edit button
+            editButton.classList.add('hidden');
+            saveButton.classList.remove('hidden');
+        } else {
+            // Disable editing
+            fullName.readOnly = true;
+            phone.readOnly = true;
+            
+            // Remove styling from fields
+            [fullName, phone].forEach(element => {
+                element.classList.remove('border', 'border-[#ff6b00]', 'bg-[#1a1a1a]');
+            });
+            
+            // Show edit button, hide save button
+            editButton.classList.remove('hidden');
+            saveButton.classList.add('hidden');
+        }
+    }
+</script>   
+{% endblock %}

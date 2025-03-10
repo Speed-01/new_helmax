@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Variant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#0A0A0A] text-gray-200">
+    <div class="p-6 space-y-6">
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
+            Edit Variant
+        </h1>
+
+        {% if messages %}
+            <div class="mb-4">
+                {% for message in messages %}
+                    <div class="p-4 {% if message.tags == 'success' %}bg-green-500{% else %}bg-red-500{% endif %} text-white rounded-md">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <form id="editVariantForm" class="space-y-6" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="space-y-2">
+                <label for="color" class="text-sm font-medium text-gray-300">Color</label>
+                <input
+                    id="color"
+                    name="color"
+                    type="text"
+                    value="{{ variant.color }}"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    required
+                >
+            </div>
+
+            <div class="space-y-2">
+                <label for="price" class="text-sm font-medium text-gray-300">Price</label>
+                <input
+                    id="price"
+                    name="price"
+                    type="number"
+                    step="0.01"
+                    value="{{ variant.price }}"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    required
+                >
+            </div>
+
+            <div class="space-y-2">
+                <label for="discount_price" class="text-sm font-medium text-gray-300">Discount Price</label>
+                <input
+                    id="discount_price"
+                    name="discount_price"
+                    type="number"
+                    step="0.01"
+                    value="{{ variant.discount_price }}"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                >
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-sm font-medium text-gray-300">Sizes and Stock</label>
+                <div class="space-y-3">
+                    {% for size in size_data %}
+                        <div class="flex items-center space-x-4">
+                            <label class="inline-flex items-center min-w-[120px]">
+                                <input type="checkbox" 
+                                       name="sizes" 
+                                       value="{{ size.code }}" 
+                                       {% if size.checked %}checked{% endif %}
+                                       class="form-checkbox text-yellow-500">
+                                <span class="ml-2">{{ size.name }}</span>
+                            </label>
+                            <div class="flex-1">
+                                <input 
+                                    type="number" 
+                                    name="stock_{{ size.code }}" 
+                                    value="{{ size.stock }}"
+                                    placeholder="Stock for {{ size.name }}"
+                                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                                    min="0"
+                                >
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-sm font-medium text-gray-300">Current Images</label>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {% for image in existing_images %}
+                        <div class="relative">
+                            <img src="{{ image.image.url }}" alt="Product variant image" 
+                                 class="w-full h-32 object-cover rounded-md">
+                            {% if image.is_primary %}
+                                <span class="absolute top-0 right-0 bg-yellow-500 text-black px-2 py-1 text-xs rounded-bl-md">Primary</span>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label for="images" class="text-sm font-medium text-gray-300">Upload New Images</label>
+                <input
+                    id="images"
+                    name="images"
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                >
+                <p class="text-sm text-gray-400">Upload at least 4 images to replace the existing ones</p>
+            </div>
+
+            <div class="flex justify-between items-center">
+                <button type="submit" 
+                        form="toggleForm"
+                        class="px-4 py-2 {% if variant.is_active %}bg-red-600 hover:bg-red-700{% else %}bg-green-600 hover:bg-green-700{% endif %} text-white rounded-md transition-colors duration-200">
+                    {% if variant.is_active %}Block{% else %}Unblock{% endif %} Variant
+                </button>
+                <div class="flex space-x-4">
+                    <a href="{% url 'adminProducts' %}" class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+                        Cancel
+                    </a>
+                    <button
+                        type="submit"
+                        class="px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-600 text-white font-semibold rounded-md hover:from-yellow-600 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-all duration-200 transform hover:scale-105"
+                    >
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <form id="toggleForm" action="{% url 'toggleVariant' variant.id %}" method="POST" class="hidden">
+            {% csrf_token %}
+        </form>
+    </div>
+</body>
+</html>

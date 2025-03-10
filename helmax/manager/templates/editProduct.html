@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Product</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for dropdown */
+        .custom-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+        }
+    </style>
+</head>
+<body class="bg-[#0A0A0A] text-gray-200">
+    <div class="p-6 space-y-6">
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
+            Edit Product
+        </h1>
+
+        <form id="editProductForm" class="space-y-6" method="POST">
+            {% csrf_token %}
+            <div class="space-y-2">
+                <label for="name" class="text-sm font-medium text-gray-300">Name</label>
+                <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    value="{{product.name}}"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                >
+            </div>
+
+            <div class="space-y-2">
+                <label for="brand" class="text-sm font-medium text-gray-300">Brand</label>
+                <select
+                    id="brand"
+                    name="brand"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent custom-select"
+                >
+                    {% for brand in brands %}
+                    <option value="{{brand.id}}" {% if brand.id == product.brand.id %}selected{% endif %}>
+                        {{brand.name}}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="space-y-2">
+                <label for="category" class="text-sm font-medium text-gray-300">Category</label>
+                <select
+                    id="category"
+                    name="category"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent custom-select"
+                >
+                    {% for category in categories %}
+                    <option value="{{category.id}}" {% if category.id == product.category.id %}selected{% endif %}>
+                        {{category.name}}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="space-y-2">
+                <label for="description" class="text-sm font-medium text-gray-300">Description</label>
+                <textarea
+                    id="description"
+                    name="description"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent min-h-[100px]"
+                >{{ product.description }}</textarea>
+            </div>
+
+            <div class="space-y-2">
+                <label for="variantSelect" class="text-sm font-medium text-gray-300">Edit Variant</label>
+                <select
+                    id="variantSelect"
+                    class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent custom-select"
+                >
+                    <option value="">Select a variant to edit</option>
+                    {% for variant in product.variants.all %}
+                    <option value="{{variant.id}}">
+                        {{variant.color}}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="flex justify-end space-x-4">
+                <a href="{% url 'adminProducts' %}" class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+                    Cancel
+                </a>
+                <button
+                    type="submit"
+                    class="px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-600 text-white font-semibold rounded-md hover:from-yellow-600 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-all duration-200 transform hover:scale-105"
+                >
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const variantSelect = document.getElementById('variantSelect');
+            variantSelect.addEventListener('change', function() {
+                const selectedVariantId = this.value;
+                if (selectedVariantId) {
+                    window.location.href = `/manager/edit-variant/${selectedVariantId}/`;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

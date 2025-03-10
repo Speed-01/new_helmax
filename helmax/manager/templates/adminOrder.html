@@ -1,0 +1,174 @@
+{% extends 'base01.html' %}
+
+{% block content %}
+
+<div class="min-h-screen bg-[#0A0A0A] py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
+                Order Management
+            </h1>
+            <p class="mt-2 text-sm text-gray-400">Manage and track all customer orders</p>
+        </div>
+
+        <!-- Search and Filter Section -->
+        <div class="mb-6 flex justify-between items-center">
+            <div class="flex-1 max-w-lg">
+                <div class="relative">
+                    <input type="text" 
+                           id="searchInput"
+                           class="w-full pl-10 pr-4 py-2 rounded-md bg-[#1A1A1A] border border-[#2A2A2A] text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                           placeholder="Search by username...">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Orders Table -->
+        <div class="bg-[#1A1A1A] shadow overflow-hidden sm:rounded-lg border border-[#2A2A2A]">
+            <table class="min-w-full divide-y divide-[#2A2A2A]">
+                <thead class="bg-[#242424]">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Order ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Username</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Payment Method</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Total Price</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="ordersTableBody" class="bg-[#1A1A1A] divide-y divide-[#2A2A2A]">
+                    <!-- Table content will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="mt-4 flex justify-between items-center text-gray-200">
+            <div class="text-sm">
+                Showing page <span id="currentPage">1</span> of <span id="totalPages">1</span>
+            </div>
+            <div class="flex space-x-2">
+                <button id="prevPage" class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-sm font-medium text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+                    Previous
+                </button>
+                <button id="nextPage" class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-sm font-medium text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+                    Next
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for handling dynamic content -->
+<script>
+let currentPage = 1;
+let totalPages = 1;
+
+function fetchOrders(page = 1, search = '') {
+    fetch(`/manager/admin_orders/api/?page=${page}&search=${encodeURIComponent(search)}`)
+        .then(response => response.json())
+        .then(data => {
+            totalPages = data.total_pages;
+            updateTable(data.orders);
+            updatePagination();
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+function updateTable(orders) {
+    const tbody = document.getElementById('ordersTableBody');
+    tbody.innerHTML = '';
+    
+    orders.forEach(order => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-[#242424] cursor-pointer transition-colors duration-150';
+        tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">#${order.id}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.username}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.payment_method}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                    ${getStatusColor(order.status)}">
+                    ${order.status}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">$${order.total_price.toFixed(2)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.created_at}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <a href="/manager/order-detail/${order.id}/" 
+                   class="text-yellow-500 hover:text-yellow-400 transition-colors duration-150">
+                    View Details
+                </a>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function getStatusColor(status) {
+    const colors = {
+        'PROCESSING': 'bg-yellow-900/50 text-yellow-300',
+        'SHIPPED': 'bg-blue-900/50 text-blue-300',
+        'DELIVERED': 'bg-green-900/50 text-green-300',
+        'CANCELLED': 'bg-red-900/50 text-red-300',
+        'RETURNED': 'bg-gray-800 text-gray-300',
+        'Pending': 'bg-yellow-900/50 text-yellow-300',
+        'Delivered': 'bg-green-900/50 text-green-300',
+        'Cancelled': 'bg-red-900/50 text-red-300',
+        'Returned': 'bg-gray-800 text-gray-300',
+        'Shipped': 'bg-blue-900/50 text-blue-300'
+    };
+    return colors[status] || 'bg-gray-800 text-gray-300';
+}
+
+function updatePagination() {
+    document.getElementById('currentPage').textContent = currentPage;
+    document.getElementById('totalPages').textContent = totalPages;
+    document.getElementById('prevPage').disabled = currentPage === 1;
+    document.getElementById('nextPage').disabled = currentPage === totalPages;
+}
+
+// Event Listeners
+document.getElementById('prevPage').addEventListener('click', () => {
+    if (currentPage > 1) {
+        currentPage--;
+        fetchOrders(currentPage, document.getElementById('searchInput').value);
+    }
+});
+
+document.getElementById('nextPage').addEventListener('click', () => {
+    if (currentPage < totalPages) {
+        currentPage++;
+        fetchOrders(currentPage, document.getElementById('searchInput').value);
+    }
+});
+
+document.getElementById('searchInput').addEventListener('input', debounce((e) => {
+    currentPage = 1;
+    fetchOrders(1, e.target.value);
+}, 300));
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Initial load
+fetchOrders();
+</script>
+
+{% endblock %}

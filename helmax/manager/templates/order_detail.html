@@ -1,0 +1,117 @@
+{% extends 'base01.html' %}
+{% block content %}
+
+<div class="min-h-screen bg-[#0A0A0A] py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
+                Edit Orders #{{ order.id }}
+            </h1>
+        </div>
+
+        <!-- Order Products Section -->
+        <div class="bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] p-6 mb-6">
+            <h2 class="text-xl font-semibold text-gray-200 mb-4">Products</h2>
+            <div class="grid grid-cols-4 gap-4 mb-4 text-gray-400 text-sm">
+                <div>Product</div>
+                <div>Quantity</div>
+                <div>Price</div>
+            </div>
+            <div class="space-y-4">
+                {% for item in order.order_items.all %}
+                <div class="grid grid-cols-4 gap-4 items-center">
+                    <div class="text-gray-200">
+                        {{ item.product.name }}
+                        {% if item.variant %}
+                        <span class="text-gray-400 text-sm">({{ item.variant.color }})</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-gray-200">{{ item.quantity }}</div>
+                    <div class="text-gray-200">₹{{ item.price }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Customer Details -->
+        <div class="bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] p-6 mb-6">
+            <h2 class="text-xl font-semibold text-gray-200 mb-4">Customer Details</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-gray-400">Customer Name</p>
+                    <p class="text-gray-200">{{ order.user.username }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-400">Address</p>
+                    <p class="text-gray-200">{{ order.address_line2 }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-400">Payment Method</p>
+                    <p class="text-gray-200">{{ order.paymentmethod.name }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-400">Payment Status</p>
+                    <p class="text-gray-200">{{ order.get_payment_status_display }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order Update Section -->
+        <div class="bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] p-6">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-gray-400">Ordered On</p>
+                    <p class="text-gray-200">{{ order.created_at|date:"d / m / Y" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-400">Total Amount</p>
+                    <p class="text-gray-200">₹{{ order.total_amount }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-400">Order Status</p>
+                    <select 
+                        id="orderStatus" 
+                        class="bg-[#242424] text-gray-200 border border-[#2A2A2A] rounded px-3 py-2 transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                        onchange="updateOrderStatus(this.value)"
+                    >
+                        <option value="PROCESSING" class="bg-yellow-900/50 text-yellow-300" {% if order.order_status == 'PROCESSING' %}selected{% endif %}>Processing</option>
+                        <option value="SHIPPED" class="bg-blue-900/50 text-blue-300" {% if order.order_status == 'SHIPPED' %}selected{% endif %}>Shipped</option>
+                        <option value="DELIVERED" class="bg-green-900/50 text-green-300" {% if order.order_status == 'DELIVERED' %}selected{% endif %}>Delivered</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateOrderStatus(status) {
+    fetch('/manager/update-order-status/{{ order.id }}/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            status: status
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.error || 'Failed to update order status');
+            // Reset the select to the current status
+            document.getElementById('orderStatus').value = '{{ order.order_status }}';
+        }
+    })
+    .catch(error => {
+        alert('An error occurred while updating the order status');
+        // Reset the select to the current status
+        document.getElementById('orderStatus').value = '{{ order.order_status }}';
+    });
+}
+</script>
+
+{% endblock %}
