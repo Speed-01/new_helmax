@@ -63,4 +63,5 @@ urlpatterns = [
     path('api/filter-products/', views.filter_products, name='filter_products'),
     path('payment/success/', views.payment_success, name='payment_success'),
     path('wallet/', views.wallet_view, name='wallet'),
+    path('api/order-items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),
 ]

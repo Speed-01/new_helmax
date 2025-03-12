@@ -128,24 +128,37 @@
                         </div>
                         {% endif %}
 
-                        {% if item.status == 'Processing' or item.status == 'Shipped' %}
-                        <button onclick="cancelItem('{{ item.id }}')" 
-                                class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
-                            Cancel Item
-                        </button>
-                        {% endif %}
+                        <!-- Individual item actions -->
+                        <div class="mt-3 space-y-2">
+                            {% if item.status == 'Processing' or item.status == 'Shipped' %}
+                            <button onclick="cancelItem('{{ item.id }}')" 
+                                    class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 w-full">
+                                Cancel Item
+                            </button>
+                            {% endif %}
 
-                        {% if item.status == 'Delivered' and item.return_status == 'NOT_REQUESTED' %}
-                        <button onclick="openReturnModal('{{ item.id }}')" 
-                                class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                            Return Item
-                        </button>
-                        {% elif item.return_status == 'PENDING' %}
-                        <span class="text-yellow-500">Return Request Pending</span>
-                        {% elif item.return_status == 'REJECTED' %}
-                        <span class="text-red-500">Return Request Rejected</span>
-                        <p class="text-sm text-gray-400">{{ item.admin_response }}</p>
-                        {% endif %}
+                            {% if item.status == 'Delivered' and item.return_status == 'NOT_REQUESTED' %}
+                            <button onclick="openReturnModal('{{ item.id }}')" 
+                                    class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full">
+                                Return Item
+                            </button>
+                            {% elif item.return_status == 'PENDING' %}
+                            <div class="text-yellow-500 text-center py-2 bg-yellow-100 rounded">
+                                Return Request Pending
+                            </div>
+                            {% elif item.return_status == 'APPROVED' %}
+                            <div class="text-green-500 text-center py-2 bg-green-100 rounded">
+                                Return Approved
+                            </div>
+                            {% elif item.return_status == 'REJECTED' %}
+                            <div class="text-red-500 text-center py-2 bg-red-100 rounded">
+                                Return Rejected
+                                {% if item.admin_response %}
+                                <p class="text-sm text-gray-700 mt-1">{{ item.admin_response }}</p>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
                 {% endfor %}

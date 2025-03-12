@@ -114,6 +114,7 @@ urlpatterns = [
 
     path('get-coupon/<int:coupon_id>/', views.get_coupon_details, name='get_coupon_details'),
 
-
+    path('return-requests/', views.admin_return_requests, name='admin_return_requests'),
+    path('return-requests/<int:request_id>/handle/', views.handle_return_request, name='handle_return_request'),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

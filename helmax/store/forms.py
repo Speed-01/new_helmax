@@ -4,15 +4,26 @@ from manager.models import Address
 class AddressForm(forms.ModelForm):
     class Meta:
         model = Address
-        fields = ['address_type', 'full_name', 'phone', 'pincode', 'address_line1', 'address_line2', 'landmark', 'city', 'state', 'is_default']
+        fields = [
+            'address_type',
+            'full_name',
+            'email',
+            'phone',
+            'address_line1',
+            'address_line2',
+            'city',
+            'state',
+            'pincode',
+            'is_default'
+        ]
         widgets = {
             'address_type': forms.Select(attrs={'class': 'w-full bg-zinc-800 rounded px-4 py-2 text-white'}),
             'full_name': forms.TextInput(attrs={'class': 'w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400', 'placeholder': 'Name'}),
+            'email': forms.TextInput(attrs={'class': 'w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400', 'placeholder': 'Email'}),
             'phone': forms.TextInput(attrs={'class': 'w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400', 'placeholder': 'Mobile'}),
             'pincode': forms.TextInput(attrs={'class': 'w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400', 'placeholder': 'Pincode'}),
             'address_line1': forms.TextInput(attrs={'class': 'w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400', 'placeholder': 'Address Line 1'}),
             'address_line2': forms.TextInput(attrs={'class': 'w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400', 'placeholder': 'Address Line 2'}),
-            'landmark': forms.TextInput(attrs={'class': 'w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400', 'placeholder': 'Landmark'}),
             'city': forms.TextInput(attrs={'class': 'w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400', 'placeholder': 'City'}),
             'state': forms.TextInput(attrs={'class': 'w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400', 'placeholder': 'State'}),
             'is_default': forms.CheckboxInput(attrs={'class': 'rounded bg-zinc-800 text-orange-500 focus:ring-orange-500'}),

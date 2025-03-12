@@ -9,6 +9,24 @@ from manager.models import (
     Review, Address, Cart, CartItem, PaymentMethod, Coupon, CouponUsage, 
     Wishlist, ReturnRequest, Wallet, WalletTransaction
 )
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.cache import never_cache
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.http import JsonResponse
+from django.urls import reverse
+import logging
+
+from manager.models import Cart, CartItem, Address, Order, OrderItem
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+import json
+from manager.models import Variant, CartItem, Cart
 from datetime import timezone
 from django.views.decorators.cache import never_cache
 from django.http import  JsonResponse, HttpResponse
@@ -32,7 +50,11 @@ from django.utils import timezone
 from django.db.models import Subquery, OuterRef, Prefetch
 from django.urls import reverse   
 from django.db.models import Q
-
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+from django.db import transaction
+import logging
 import re
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -207,7 +229,7 @@ def filter_products(request):
             'total_stock': sum(size.stock for size in first_variant.sizes.all()) if first_variant.sizes.exists() else 0,
             'discount_percentage': int(((first_variant.price - first_variant.discount_price) / first_variant.price) * 100) if first_variant.discount_price and first_variant.price and first_variant.discount_price < first_variant.price else 0
         })
-    
+
     return JsonResponse({
         'products': product_data
     })
@@ -681,16 +703,7 @@ def product_detail(request, product_id):
     return render(request, 'product_details.html', context)
 ######### CART ########
 
-from django.contrib.auth.decorators import login_required
-from django.db import transaction
 
-
-# In your app's views.py file
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
-import json
-from manager.models import Variant, CartItem, Cart
 
 
 def view_cart(request):
@@ -736,11 +749,7 @@ def view_cart(request):
 
     return render(request, 'cart.html', context)
 
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
-from django.db import transaction
-import logging
+
 
 logger = logging.getLogger(__name__)
 def cleanup_carts(user):
@@ -1085,18 +1094,31 @@ def userManageAddress(request):
     if request.method == 'POST':
         form = AddressForm(request.POST)
         if form.is_valid():
-            address = form.save(commit=False)
-            address.user = request.user
-            
-            # Handle default address setting
-            if address.is_default:
-                with transaction.atomic():
-                    Address.objects.filter(user=request.user).update(is_default=False)
-            
-            address.save()
-            return JsonResponse({'success': True, 'message': 'Address added successfully'})
+            try:
+                address = form.save(commit=False)
+                address.user = request.user
+                
+                # Handle default address setting
+                if address.is_default:
+                    with transaction.atomic():
+                        Address.objects.filter(user=request.user).update(is_default=False)
+                
+                address.save()
+                return JsonResponse({
+                    'success': True, 
+                    'message': 'Address added successfully'
+                })
+            except Exception as e:
+                return JsonResponse({
+                    'success': False,
+                    'message': str(e)
+                })
         else:
-            return JsonResponse({'success': False, 'message': 'Error in adding address', 'errors': form.errors})
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid form data',
+                'errors': form.errors
+            })
 
     context = {
         'addresses': user_addresses,
@@ -1159,19 +1181,6 @@ def set_primary_address(request):
 
 
 ################ checout #####################
-
-from django.contrib.auth.decorators import login_required
-from django.views.decorators.cache import never_cache
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.core.exceptions import ValidationError
-from django.db import transaction
-from django.http import JsonResponse
-from django.urls import reverse
-import logging
-
-from manager.models import Cart, CartItem, Address, Order, OrderItem
-
 
 
 
@@ -1279,44 +1288,44 @@ logger = logging.getLogger(__name__)
 
 @login_required
 def place_order(request):
-    if request.method == 'POST':
-        try:
-            address_id = request.POST.get('address_id')
-            payment_method = request.POST.get('payment_method')
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'})
+        
+    try:
+        # Get form data
+        address_id = request.POST.get('address_id')
+        payment_method = request.POST.get('payment_method')
+        
+        # Validate address
+        if not address_id:
+            return JsonResponse({'success': False, 'message': 'Please select a delivery address'})
             
-            if not address_id:
-                return JsonResponse({'success': False, 'message': 'Please select a delivery address'})
-
-            # Get the address
-            try:
-                address = Address.objects.get(id=address_id, user=request.user)
-            except Address.DoesNotExist:
-                return JsonResponse({'success': False, 'message': 'Invalid address'})
-
-            # Get the cart
+        try:
+            address = Address.objects.get(id=address_id, user=request.user)
+        except Address.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Invalid address'})
+            
+        # Get cart
+        try:
             cart = Cart.objects.get(user=request.user, is_ordered=False)
             if not cart.items.exists():
                 return JsonResponse({'success': False, 'message': 'Your cart is empty'})
-
-            # Get or create payment methods if they don't exist
-            cod_method, _ = PaymentMethod.objects.get_or_create(
-                name='COD'
-            )
-            razorpay_method, _ = PaymentMethod.objects.get_or_create(
-                name='Razorpay'
-            )
-
-            # Set payment method based on selection
-            if payment_method == 'razorpay':
-                payment_method_id = razorpay_method.id
-            else:
-                payment_method_id = cod_method.id
-
-            # Create the order
+        except Cart.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'No active cart found'})
+            
+        # Get or create payment methods
+        cod_method, _ = PaymentMethod.objects.get_or_create(name='COD')
+        razorpay_method, _ = PaymentMethod.objects.get_or_create(name='Razorpay')
+        
+        # Set payment method
+        payment_method_obj = razorpay_method if payment_method == 'razorpay' else cod_method
+        
+        with transaction.atomic():
+            # Create order
             order = Order.objects.create(
                 user=request.user,
                 total_amount=cart.total_price,
-                paymentmethod_id=payment_method_id,
+                paymentmethod=payment_method_obj,
                 full_name=address.full_name,
                 email=address.email,
                 phone=address.phone,
@@ -1326,9 +1335,10 @@ def place_order(request):
                 state=address.state,
                 pincode=address.pincode
             )
-
-            # Create order items
+            
+            # Create order items and update stock
             for cart_item in cart.items.all():
+                # Create order item
                 OrderItem.objects.create(
                     order=order,
                     product=cart_item.variant.product,
@@ -1337,36 +1347,58 @@ def place_order(request):
                     quantity=cart_item.quantity,
                     price=cart_item.variant.discount_price or cart_item.variant.price
                 )
-
-            # If Razorpay payment
-            if payment_method == 'razorpay':
-                client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-                amount_in_paise = int(order.total_amount * 100)
-                razorpay_order = client.order.create({
-                    "amount": amount_in_paise,
-                    "currency": "INR",
-                    "payment_capture": "1"
-                })
-                order.razorpay_order_id = razorpay_order['id']
-                order.save()
                 
-                return JsonResponse({
-                    'success': True,
-                    'razorpay_order_id': razorpay_order['id'],
-                    'amount': amount_in_paise,
-                })
+                # Update stock
+                size = cart_item.size
+                if size.stock < cart_item.quantity:
+                    raise ValueError(f'Insufficient stock for {cart_item.variant.product.name}')
+                size.stock -= cart_item.quantity
+                size.save()
+            
+            # IMPORTANT: Clear cart items - this is the key fix
+            CartItem.objects.filter(cart=cart).delete()
+            
+            # Mark cart as ordered
+            cart.is_ordered = True
+            cart.save()
+            
+            # Handle payment method specific logic
+            if payment_method == 'razorpay':
+                try:
+                    import razorpay
+                    
+                    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+                    amount_in_paise = int(float(order.total_amount) * 100)
+                    razorpay_order = client.order.create({
+                        "amount": amount_in_paise,
+                        "currency": "INR",
+                        "receipt": f"order_{order.id}",
+                        "payment_capture": "1"
+                    })
+                    order.razorpay_order_id = razorpay_order['id']
+                    order.save()
+                    
+                    return JsonResponse({
+                        'success': True,
+                        'razorpay_order_id': razorpay_order['id'],
+                        'amount': amount_in_paise,
+                        'key_id': settings.RAZORPAY_KEY_ID
+                    })
+                except Exception as e:
+                    logger.error(f"Razorpay error: {str(e)}")
+                    raise ValueError(f'Failed to create Razorpay order: {str(e)}')
             else:
-                # For COD
+                # For COD orders, just redirect to confirmation
                 return JsonResponse({
                     'success': True,
                     'redirect_url': reverse('order_confirmation', args=[order.id])
                 })
-
-        except Exception as e:
-            logger.error(f"Error in place_order: {str(e)}")
-            return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'})
-
-    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+                
+    except ValueError as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+    except Exception as e:
+        logger.error(f"Error in place_order: {str(e)}")
+        return JsonResponse({'success': False, 'message': f'An unexpected error occurred: {str(e)}'})
 
 @csrf_exempt
 def payment_success(request):
@@ -1409,11 +1441,6 @@ def payment_success(request):
 
     return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
 
-
-
-
-
-from django.db.models import F
 
 
 ################# Order ####################
@@ -1710,31 +1737,61 @@ def cancel_order_item(request, item_id):
 @require_POST
 def create_return_request(request, item_id):
     try:
-        data = json.loads(request.body)
-        order_item = get_object_or_404(OrderItem, id=item_id)
-        
-        # Verify ownership and status
-        if order_item.order.user != request.user:
-            return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=403)
+        with transaction.atomic():
+            data = json.loads(request.body)
+            order_item = get_object_or_404(OrderItem, id=item_id)
             
-        if order_item.status != 'Delivered':
-            return JsonResponse({'success': False, 'message': 'Item cannot be returned'})
+            # Verify ownership and status
+            if order_item.order.user != request.user:
+                return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=403)
+                
+            # Check if the item is delivered and within return window (e.g., 7 days)
+            if order_item.status != 'Delivered':
+                return JsonResponse({'success': False, 'message': 'Only delivered items can be returned'})
+                
+            # Check if return window is still open (e.g., 7 days from delivery)
+            # Assuming there's a delivered_at field or you can use updated_at
+            delivery_date = order_item.delivered_at if hasattr(order_item, 'delivered_at') else order_item.updated_at
+            return_window_days = 7  # Configurable
+            if timezone.now() > delivery_date + timezone.timedelta(days=return_window_days):
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'Return window of {return_window_days} days has expired'
+                })
+                
+            # Check if a return request already exists
+            if ReturnRequest.objects.filter(order_item=order_item).exists():
+                return JsonResponse({'success': False, 'message': 'Return request already exists for this item'})
             
-        if order_item.return_requests.exists():
-            return JsonResponse({'success': False, 'message': 'Return request already exists'})
-        
-        # Create return request
-        ReturnRequest.objects.create(
-            order_item=order_item,
-            user=request.user,
-            reason=data['reason'],
-            description=data['description']
-        )
-        
-        return JsonResponse({'success': True})
-        
+            # Create return request
+            return_request = ReturnRequest.objects.create(
+                order_item=order_item,
+                user=request.user,
+                reason=data.get('reason'),
+                description=data.get('description'),
+                status='PENDING'  # Default status
+            )
+            
+            # Update order item status
+            order_item.return_status = 'PENDING'
+            order_item.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Return request created successfully. You will be notified once it is processed.'
+            })
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid request data'
+        })
     except Exception as e:
-        return JsonResponse({'success': False, 'message': str(e)})
+        logger.error(f"Error creating return request: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
+        })
 
 @require_GET
 def filter_products(request):

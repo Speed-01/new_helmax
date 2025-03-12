@@ -655,23 +655,47 @@ def order_detail(request, order_id):
 def update_order_status(request, order_id):
     try:
         data = json.loads(request.body)
+        new_status = data.get('status')
+        
+        if not new_status:
+            return JsonResponse({'success': False, 'error': 'Status is required'})
+            
         order = get_object_or_404(Order, id=order_id)
         
-        # Enhanced check for cancelled orders
-        if order.order_status == 'CANCELLED':
+        # Validate status transition
+        valid_transitions = {
+            'PENDING': ['PROCESSING', 'CANCELLED'],
+            'PROCESSING': ['SHIPPED', 'CANCELLED'],
+            'SHIPPED': ['DELIVERED', 'CANCELLED'],
+            'DELIVERED': [],  # Can't change status once delivered
+            'CANCELLED': []   # Can't change status once cancelled
+        }
+        
+        if new_status not in valid_transitions.get(order.order_status, []):
             return JsonResponse({
                 'success': False, 
-                'error': 'This order has been cancelled and cannot be modified'
-            }, status=400)
+                'error': f'Cannot change status from {order.order_status} to {new_status}'
+            })
+        
+        # Update order status
+        order.order_status = new_status
+        
+        # If status is changing to DELIVERED, set delivered_at timestamp
+        if new_status == 'DELIVERED':
+            order.delivered_at = timezone.now()
             
-        with transaction.atomic():
-            order.order_status = data['status']
-            order.save()
-            order.order_items.all().update(status=data['status'].capitalize())
-                
+            # Update all order items to DELIVERED status
+            for item in order.order_items.all():
+                item.status = 'Delivered'
+                item.save()
+        
+        order.save()
+        
         return JsonResponse({'success': True})
+        
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+        logger.error(f"Error updating order status: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
 @require_POST
@@ -884,53 +908,81 @@ def edit_coupon(request, coupon_id):
 
 @login_required
 def admin_return_requests(request):
-    return_requests = ReturnRequest.objects.select_related(
-        'order_item', 'user'
-    ).filter(status='PENDING')
+    return_requests = ReturnRequest.objects.all().order_by('-created_at')
     
-    return render(request, 'admin_return_requests.html', {
+    context = {
         'return_requests': return_requests
-    })
+    }
+    
+    return render(request, 'manager/return_requests.html', context)
 
 @login_required
 @require_POST
 def handle_return_request(request, request_id):
     try:
         data = json.loads(request.body)
+        action = data.get('action')  # 'approve' or 'reject'
+        admin_response = data.get('response', '')
+        
+        if action not in ['approve', 'reject']:
+            return JsonResponse({'success': False, 'message': 'Invalid action'})
+            
         return_request = get_object_or_404(ReturnRequest, id=request_id)
         
         with transaction.atomic():
-            return_request.status = data['action']
-            return_request.admin_response = data.get('response', '')
-            return_request.save()
-            
-            if data['action'] == 'APPROVED':
-                order_item = return_request.order_item
+            if action == 'approve':
+                # Update return request
+                return_request.status = 'APPROVED'
+                return_request.admin_response = admin_response
+                return_request.save()
                 
-                # Update item status
+                # Update order item
+                order_item = return_request.order_item
                 order_item.status = 'Returned'
+                order_item.return_status = 'APPROVED'
+                order_item.admin_response = admin_response
                 order_item.save()
                 
                 # Restore stock
-                order_item.size.stock += order_item.quantity
-                order_item.size.save()
+                if order_item.size:
+                    order_item.size.stock += order_item.quantity
+                    order_item.size.save()
+                    
+                # Process refund if payment was made
+                if order_item.order.payment_status == 'PAID':
+                    wallet, created = Wallet.objects.get_or_create(user=order_item.order.user)
+                    refund_amount = order_item.price * order_item.quantity
+                    
+                    wallet.balance += refund_amount
+                    wallet.save()
+                    
+                    # Record transaction
+                    WalletTransaction.objects.create(
+                        wallet=wallet,
+                        amount=refund_amount,
+                        transaction_type='RETURN_REFUND',
+                        description=f'Refund for returned item #{order_item.id}'
+                    )
+            else:  # reject
+                # Update return request
+                return_request.status = 'REJECTED'
+                return_request.admin_response = admin_response
+                return_request.save()
                 
-                # Add refund to wallet
-                wallet, created = Wallet.objects.get_or_create(user=return_request.user)
-                refund_amount = order_item.price * order_item.quantity
-                
-                wallet.balance += refund_amount
-                wallet.save()
-                
-                # Record transaction
-                WalletTransaction.objects.create(
-                    wallet=wallet,
-                    amount=refund_amount,
-                    transaction_type='REFUND',
-                    description=f'Refund for returned item #{order_item.id}'
-                )
-        
-        return JsonResponse({'success': True})
-        
+                # Update order item
+                order_item = return_request.order_item
+                order_item.return_status = 'REJECTED'
+                order_item.admin_response = admin_response
+                order_item.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Return request {action}ed successfully'
+            })
+            
     except Exception as e:
-        return JsonResponse({'success': False, 'message': str(e)})
+        logger.error(f"Error handling return request: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
+        })

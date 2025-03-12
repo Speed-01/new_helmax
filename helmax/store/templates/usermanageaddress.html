@@ -196,6 +196,9 @@ document.getElementById('addressForm').addEventListener('submit', async function
     try {
         const response = await fetch('{% url "userManageAddress" %}', {
             method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
             body: formData,
         });
         
@@ -205,7 +208,14 @@ document.getElementById('addressForm').addEventListener('submit', async function
             toggleAddressForm();
             window.location.reload();
         } else {
-            alert(data.message);
+            if (data.errors) {
+                // Display form validation errors
+                Object.entries(data.errors).forEach(([field, errors]) => {
+                    alert(`${field}: ${errors.join(', ')}`);
+                });
+            } else {
+                alert(data.message);
+            }
         }
     } catch (error) {
         console.error('Error:', error);

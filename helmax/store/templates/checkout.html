@@ -11,15 +11,9 @@
             </div>
         {% endfor %}
     </div>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            {% for message in messages %}
-                showNotification("{{ message }}", "{{ message.tags }}");
-            {% endfor %}
-        });
-    </script>
     {% endif %}
 </div>
+
 <div class="min-h-screen bg-black text-white px-4 py-8 md:px-6 lg:px-8">
     {% csrf_token %}
     <div class="max-w-7xl mx-auto">
@@ -33,14 +27,14 @@
                 
                 <!-- Add Address Button -->
                 <button 
-                    onclick="window.location.href='{% url 'userManageAddress' %}'"
+                    id="add-address-btn"
                     class="w-full bg-zinc-900 hover:bg-zinc-800 text-[#ff6b00] py-4 px-6 rounded mb-6 text-left"
                 >
                     <span class="inline-block mr-2">+</span> Add address
                 </button>
 
                 <!-- Address List -->
-                <div class="space-y-4">
+                <div class="space-y-4" id="address-list">
                     {% for address in user_addresses %}
                     <div class="bg-zinc-900 p-6 rounded relative group">
                         <input 
@@ -110,12 +104,13 @@
                             class="flex-1 bg-black border border-zinc-700 rounded px-4 py-2 focus:outline-none focus:border-[#ff6b00]"
                         >
                         <button 
-                            onclick="applyCoupon()"
+                            id="apply-coupon-btn"
                             class="bg-[#ff6b00] hover:bg-[#ff7d1a] px-6 py-2 rounded transition-colors"
                         >
                             Apply
                         </button>
                     </div>
+                    <div id="coupon-message" class="mt-2 text-sm"></div>
                 </div> 
 
                 <!-- Order Summary -->
@@ -174,7 +169,7 @@
                 <!-- Place Order Button -->
                 <button 
                     type="button" 
-                    onclick="placeOrder()"
+                    id="place-order-btn"
                     class="w-full bg-[#ff6b00] hover:bg-[#ff7d1a] text-black font-bold py-3 px-6 rounded transition-colors"
                 >
                     Place Order <i class="fa-solid fa-arrow-right ml-2"></i>
@@ -184,13 +179,65 @@
     </div>
 </div>
 
+<!-- Hidden data for JavaScript -->
+<div id="django-data" 
+     data-razorpay-key="{{ razorpay_key_id|default:'rzp_test_your_key_here' }}"
+     data-user-name="{{ request.user.username }}"
+     data-user-email="{{ request.user.email }}"
+     data-user-phone="{{ request.user.phone|default:'' }}"
+     data-place-order-url="{% url 'place_order' %}"
+     data-validate-cart-url="{% url 'validate_cart' %}"
+     data-view-cart-url="{% url 'view_cart' %}"
+     data-manage-address-url="{% url 'userManageAddress' %}"
+     style="display: none;">
+</div>
+
+<!-- Messages data -->
+{% if messages %}
+<div id="messages-data" style="display: none;">
+    <script type="application/json">
+    [
+        {% for message in messages %}
+            {
+                "text": "{{ message|escapejs }}",
+                "tags": "{{ message.tags|escapejs }}"
+            }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]
+    </script>
+</div>
+{% endif %}
+
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
+// Get data from Django
+const djangoData = document.getElementById('django-data');
+const razorpayKey = djangoData.dataset.razorpayKey;
+const userName = djangoData.dataset.userName;
+const userEmail = djangoData.dataset.userEmail;
+const userPhone = djangoData.dataset.userPhone;
+const placeOrderUrl = djangoData.dataset.placeOrderUrl;
+const validateCartUrl = djangoData.dataset.validateCartUrl;
+const viewCartUrl = djangoData.dataset.viewCartUrl;
+const manageAddressUrl = djangoData.dataset.manageAddressUrl;
+
+// Initialize variables
+let selectedAddressId = document.querySelector('input[name="selected_address"]:checked')?.value;
+let selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value;
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize variables
-    let selectedAddressId = document.querySelector('input[name="selected_address"]:checked')?.value;
-    let selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value;
-    let appliedCoupon = null;
+    // Process messages if any
+    const messagesData = document.getElementById('messages-data');
+    if (messagesData) {
+        try {
+            const messages = JSON.parse(messagesData.querySelector('script').textContent);
+            messages.forEach(msg => {
+                showNotification(msg.text, msg.tags);
+            });
+        } catch (e) {
+            console.error('Error parsing messages:', e);
+        }
+    }
 
     // Handle address selection
     document.querySelectorAll('input[name="selected_address"]').forEach(radio => {
@@ -206,121 +253,63 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Make these functions available globally
+    // Add address button
+    document.getElementById('add-address-btn').addEventListener('click', function() {
+        window.location.href = manageAddressUrl;
+    });
 
+    // Apply coupon button
+    document.getElementById('apply-coupon-btn').addEventListener('click', applyCoupon);
 
-    window.placeOrder = async function() {
-        try {
-            if (!selectedAddressId) {
-                showNotification('Please select a delivery address', 'error');
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('address_id', selectedAddressId);
-            formData.append('payment_method', selectedPaymentMethod);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-
-            const response = await fetch("{% url 'place_order' %}", {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
-                }
-            });
-
-            const data = await response.json();
-            console.log('Response data:', data);
-
-            if (data.success) {
-                if (selectedPaymentMethod === 'razorpay') {
-                    // Initialize Razorpay
-                    initializeRazorpay(data.razorpay_order_id, data.amount);
-                } else {
-                    // COD or other payment methods
-                    window.location.href = data.redirect_url;
-                }
-            } else {
-                showNotification(data.message || 'Error placing order', 'error');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            showNotification('Error placing order. Please try again.', 'error');
-        }
-    };
-
-    function showNotification(message, type = 'success') {
-        // Create notification container if it doesn't exist
-        let notificationContainer = document.getElementById('notification-container');
-        if (!notificationContainer) {
-            notificationContainer = document.createElement('div');
-            notificationContainer.id = 'notification-container';
-            notificationContainer.className = 'fixed top-4 right-4 z-50 space-y-2';
-            document.body.appendChild(notificationContainer);
-        }
-    
-        // Create new notification
-        const notification = document.createElement('div');
-        notification.className = `transform transition-all duration-300 ease-in-out
-            ${type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-yellow-500'}
-            text-white px-6 py-3 rounded-lg shadow-lg flex items-center`;
-        
-        // Add icon based on type
-        const icon = document.createElement('span');
-        icon.className = 'mr-2';
-        icon.innerHTML = type === 'success' ? '✓' : type === 'error' ? '✕' : '⚠';
-        notification.appendChild(icon);
-    
-        // Add message
-        const text = document.createElement('span');
-        text.textContent = message;
-        notification.appendChild(text);
-    
-        // Add to container
-        notificationContainer.appendChild(notification);
-    
-        // Animate in
-        notification.style.transform = 'translateX(100%)';
-        setTimeout(() => {
-            notification.style.transform = 'translateX(0)';
-        }, 100);
-    
-        // Remove after delay
-        setTimeout(() => {
-            notification.style.transform = 'translateX(100%)';
-            notification.style.opacity = '0';
-            setTimeout(() => {
-                notification.remove();
-            }, 300);
-        }, 5000);
-    }
-    // Real-time validation (polling example)
-    let lastValidation = Date.now();
-
-    function validateCart() {
-        fetch("{% url 'validate_cart' %}", {
-            method: 'GET',
-            headers: {
-                "X-Requested-With": "XMLHttpRequest",
-                "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.is_valid) {
-                // Redirect to cart with warnings
-                window.location.href = "{% url 'view_cart' %}";
-            }
-        });
-    }
+    // Place order button
+    document.getElementById('place-order-btn').addEventListener('click', placeOrder);
 
     // Validate cart every 10 seconds
     setInterval(validateCart, 10000);
 
     // Initial validation
     validateCart();
-
 });
+
+function placeOrder() {
+    if (!selectedAddressId) {
+        showNotification('Please select a delivery address', 'error');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('address_id', selectedAddressId);
+    formData.append('payment_method', selectedPaymentMethod);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+    fetch(placeOrderUrl, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Response data:', data);
+
+        if (data.success) {
+            if (selectedPaymentMethod === 'razorpay') {
+                // Initialize Razorpay
+                initializeRazorpay(data.razorpay_order_id, data.amount);
+            } else {
+                // COD or other payment methods
+                window.location.href = data.redirect_url;
+            }
+        } else {
+            showNotification(data.message || 'Error placing order', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error placing order. Please try again.', 'error');
+    });
+}
 
 function applyCoupon() {
     const code = document.getElementById('coupon-code').value;
@@ -338,35 +327,39 @@ function applyCoupon() {
     .then(data => {
         if (data.success) {
             messageDiv.innerHTML = `Coupon applied! Discount: ₹${data.discount}`;
+            messageDiv.className = "mt-2 text-sm text-green-500";
             document.getElementById('final-amount').innerHTML = `₹${data.final_amount}`;
         } else {
             messageDiv.innerHTML = data.message;
+            messageDiv.className = "mt-2 text-sm text-red-500";
         }
     })
     .catch(error => {
         messageDiv.innerHTML = 'Error applying coupon';
+        messageDiv.className = "mt-2 text-sm text-red-500";
     });
 }
 
-// Helper function to get CSRF token
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
+function validateCart() {
+    fetch(validateCartUrl, {
+        method: 'GET',
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
         }
-    }
-    return cookieValue;
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.is_valid) {
+            // Redirect to cart with warnings
+            window.location.href = viewCartUrl;
+        }
+    });
 }
 
 function initializeRazorpay(orderId, amount) {
-    var options = {
-        "key": "{{ razorpay_key_id }}", 
+    const options = {
+        "key": razorpayKey, 
         "amount": amount,
         "currency": "INR",
         "name": "Helmax",
@@ -376,14 +369,15 @@ function initializeRazorpay(orderId, amount) {
             verifyPayment(response);
         },
         "prefill": {
-            "name": "{{ request.user.username }}",
-            "email": "{{ request.user.email }}",
+            "name": userName,
+            "email": userEmail,
+            "contact": userPhone
         },
         "theme": {
             "color": "#ff6b00"
         }
     };
-    var rzp1 = new Razorpay(options);
+    const rzp1 = new Razorpay(options);
     rzp1.open();
 }
 
@@ -412,6 +406,68 @@ function verifyPayment(response) {
         console.error('Error:', error);
         showNotification('Payment verification failed', 'error');
     });
+}
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function showNotification(message, type = 'success') {
+    // Create notification container if it doesn't exist
+    let notificationContainer = document.getElementById('notification-container');
+    if (!notificationContainer) {
+        notificationContainer = document.createElement('div');
+        notificationContainer.id = 'notification-container';
+        notificationContainer.className = 'fixed top-4 right-4 z-50 space-y-2';
+        document.body.appendChild(notificationContainer);
+    }
+
+    // Create new notification
+    const notification = document.createElement('div');
+    notification.className = `transform transition-all duration-300 ease-in-out
+        ${type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-yellow-500'}
+        text-white px-6 py-3 rounded-lg shadow-lg flex items-center`;
+    
+    // Add icon based on type
+    const icon = document.createElement('span');
+    icon.className = 'mr-2';
+    icon.innerHTML = type === 'success' ? '✓' : type === 'error' ? '✕' : '⚠';
+    notification.appendChild(icon);
+
+    // Add message
+    const text = document.createElement('span');
+    text.textContent = message;
+    notification.appendChild(text);
+
+    // Add to container
+    notificationContainer.appendChild(notification);
+
+    // Animate in
+    notification.style.transform = 'translateX(100%)';
+    setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+    }, 100);
+
+    // Remove after delay
+    setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        notification.style.opacity = '0';
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, 5000);
 }
 </script>
 {% endblock %}
