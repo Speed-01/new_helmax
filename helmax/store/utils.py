@@ -1,6 +1,9 @@
 from django.core.mail import send_mail
 from django.conf import settings
+<<<<<<< HEAD
 from django.utils import timezone
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
 
 def send_otp_email(email, otp, purpose="signup"):
     """
@@ -19,6 +22,7 @@ def send_otp_email(email, otp, purpose="signup"):
         from_email=settings.EMAIL_HOST_USER,
         recipient_list=[email],
         fail_silently=False,
+<<<<<<< HEAD
     )
 
 def update_order_status(order, new_status):
@@ -58,4 +62,6 @@ def send_order_status_notification(order):
         settings.DEFAULT_FROM_EMAIL,
         [order.email],
         fail_silently=True
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
     )

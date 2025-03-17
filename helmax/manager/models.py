@@ -117,6 +117,7 @@ class Product(models.Model):
     def get_best_offer(self):
         now = timezone.now()
         
+<<<<<<< HEAD
         # Get all active product offers
         product_offers = self.offers.filter(
             is_active=True,
@@ -138,6 +139,26 @@ class Product(models.Model):
             
         # Return the offer with highest discount percentage
         return max(all_offers, key=lambda x: x.discount_percentage)
+=======
+        # Check product offers
+        product_offer = self.offers.filter(
+            is_active=True,
+            start_date__lte=now,
+            end_date__gte=now
+        ).order_by('-discount_percentage').first()
+        
+        # Check category offers
+        category_offer = self.category.offers.filter(
+            is_active=True,
+            start_date__lte=now,
+            end_date__gte=now
+        ).order_by('-discount_percentage').first()
+        
+        # Return the better offer
+        if product_offer and category_offer:
+            return product_offer if product_offer.discount_percentage > category_offer.discount_percentage else category_offer
+        return product_offer or category_offer
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
 
     def get_offer_price(self, original_price):
         offer = self.get_best_offer()
@@ -390,15 +411,27 @@ class Address(BaseModel):
         verbose_name_plural = "Addresses"
 
 
+<<<<<<< HEAD
 class Order(models.Model):
     ORDER_STATUSES = [
         ('PENDING', 'Pending'),
         ('CONFIRMED', 'Confirmed'),
+=======
+class Order(BaseModel):
+    PAYMENT_STATUS_CHOICES = (
+        ('PENDING', 'Pending'),
+        ('PAID', 'Paid'),
+        ('FAILED', 'Failed')
+    )
+    
+    ORDER_STATUS_CHOICES = (
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
         ('PROCESSING', 'Processing'),
         ('SHIPPED', 'Shipped'),
         ('DELIVERED', 'Delivered'),
         ('CANCELLED', 'Cancelled'),
         ('RETURNED', 'Returned')
+<<<<<<< HEAD
     ]
     
     PAYMENT_STATUSES = [
@@ -494,6 +527,62 @@ class OrderItem(models.Model):
             return False
         return_window = timezone.now() - timezone.timedelta(days=7)
         return self.delivered_at >= return_window
+=======
+    )
+    
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+    paymentmethod = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, default=1)
+    total_discount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='PENDING')
+    order_status = models.CharField(max_length=20, choices=ORDER_STATUS_CHOICES, default='PROCESSING')
+   
+    
+    full_name = models.CharField(max_length=100, null=True, blank=True)
+    email = models.EmailField(null=True, blank=True)
+    phone = models.CharField(max_length=15, null=True, blank=True)
+    address_line1 = models.CharField(max_length=255, null=True, blank=True)
+    address_line2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100 , null=True, blank=True)
+    state = models.CharField(max_length=100, null=True, blank=True)
+    pincode = models.CharField(max_length=6, null=True, blank=True)
+
+    def __str__(self):
+        return f"Order {self.id} - {self.user.username}"
+ 
+
+class OrderItem(BaseModel):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="order_items")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE , null=True, blank=True)
+    variant = models.ForeignKey(Variant, on_delete=models.CASCADE, null=True, blank=True)
+    quantity = models.PositiveIntegerField()
+    size = models.ForeignKey(Size, on_delete=models.SET_NULL, null=True, blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=50, choices=[
+        ("Pending", "Pending"), 
+        ("Delivered", "Delivered"),
+        ("Cancelled", "Cancelled"),
+        ("Returned", "Returned"),
+        ("Refunded", "Refunded"),
+        ("Failed", "Failed"),
+        ('Shipped','Shipped'),
+        ('Out of Delivery','Out of Delivery'),
+        ('Processing',"Processing"),
+        ('Approved','Approved'),
+        ('Rejected','Rejected'),
+        
+    ], default="Shipped")
+    cancellation_reason = models.TextField(null=True,blank=True)
+    return_reason = models.TextField(null=True,blank=True)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def get_total_price(self):
+        return self.price * self.quantity
+    def __str__(self):
+        return f"{self.quantity} x {self.product.name} (Order: {self.order.id})"
+
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
 
 class ReturnRequest(models.Model):
     STATUS_CHOICES = [
@@ -620,6 +709,7 @@ class BaseOffer(models.Model):
     class Meta:
         abstract = True
 
+<<<<<<< HEAD
     def save(self, *args, **kwargs):
         # Ensure datetime fields are timezone-aware
         if self.start_date and timezone.is_naive(self.start_date):
@@ -628,6 +718,8 @@ class BaseOffer(models.Model):
             self.end_date = timezone.make_aware(self.end_date)
         super().save(*args, **kwargs)
 
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
     def is_valid(self):
         now = timezone.now()
         return (self.is_active and 

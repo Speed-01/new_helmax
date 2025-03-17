@@ -181,7 +181,11 @@
 
 <!-- Hidden data for JavaScript -->
 <div id="django-data" 
+<<<<<<< HEAD
      data-razorpay-key="{{ razorpay_key_id }}"
+=======
+     data-razorpay-key="{{ razorpay_key_id|default:'rzp_test_your_key_here' }}"
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
      data-user-name="{{ request.user.username }}"
      data-user-email="{{ request.user.email }}"
      data-user-phone="{{ request.user.phone|default:'' }}"
@@ -212,7 +216,11 @@
 <script>
 // Get data from Django
 const djangoData = document.getElementById('django-data');
+<<<<<<< HEAD
 const razorpayKey = djangoData.dataset.razorpayKey || djangoData.getAttribute('data-razorpay-key');
+=======
+const razorpayKey = djangoData.dataset.razorpayKey;
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
 const userName = djangoData.dataset.userName;
 const userEmail = djangoData.dataset.userEmail;
 const userPhone = djangoData.dataset.userPhone;

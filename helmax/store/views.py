@@ -365,7 +365,10 @@ def resend_otp(request):
             send_otp_email(signup_data['email'], otp_instance.otp)
             return JsonResponse({'success': True, 'message': 'A new OTP has been sent to your email.'})
         except Exception as e:
+<<<<<<< HEAD
             print(f"Payment verification failed with error: {str(e)}")
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
             return JsonResponse({'success': False, 'message': 'Failed to send OTP. Please try again.'})
     
     except OTP.DoesNotExist:
@@ -847,7 +850,10 @@ def remove_from_cart(request, item_id):
             cart_item.delete()
             return JsonResponse({'success': True, 'message': 'Item removed from cart successfully!'})
         except Exception as e:
+<<<<<<< HEAD
             print(f"Payment verification failed with error: {str(e)}")
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
             return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'})
     return JsonResponse({'success': False, 'message': 'Invalid request method.'})
 
@@ -1177,7 +1183,10 @@ def set_primary_address(request):
         except Address.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Address not found'}, status=404)
         except Exception as e:
+<<<<<<< HEAD
             print(f"Payment verification failed with error: {str(e)}")
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
     return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
 
@@ -1291,7 +1300,10 @@ logger = logging.getLogger(__name__)
 
 @login_required
 def place_order(request):
+<<<<<<< HEAD
     print("hiii")
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Invalid request method'})
         
@@ -1329,7 +1341,11 @@ def place_order(request):
             order = Order.objects.create(
                 user=request.user,
                 total_amount=cart.total_price,
+<<<<<<< HEAD
                 payment_method=payment_method_obj,
+=======
+                paymentmethod=payment_method_obj,
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
                 full_name=address.full_name,
                 email=address.email,
                 phone=address.phone,
@@ -1370,6 +1386,7 @@ def place_order(request):
             if payment_method == 'razorpay':
                 try:
                     import razorpay
+<<<<<<< HEAD
                     print("Starting Razorpay payment process...")
                     
                     if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
@@ -1386,13 +1403,21 @@ def place_order(request):
                     # Create Razorpay order
                     amount_in_paise = int(float(order.total_amount) * 100)
                     print(f"Creating Razorpay order for amount: {amount_in_paise} paise")
+=======
+                    
+                    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+                    amount_in_paise = int(float(order.total_amount) * 100)
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
                     razorpay_order = client.order.create({
                         "amount": amount_in_paise,
                         "currency": "INR",
                         "receipt": f"order_{order.id}",
                         "payment_capture": "1"
                     })
+<<<<<<< HEAD
                     print(f"Razorpay order created successfully with ID: {razorpay_order['id']}")
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
                     order.razorpay_order_id = razorpay_order['id']
                     order.save()
                     
@@ -1430,12 +1455,16 @@ def payment_success(request):
 
         try:
             # Verify payment signature
+<<<<<<< HEAD
             print("Verifying Razorpay payment signature...")
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
             client.utility.verify_payment_signature({
                 'razorpay_order_id': razorpay_order_id,
                 'razorpay_payment_id': razorpay_payment_id,
                 'razorpay_signature': razorpay_signature
             })
+<<<<<<< HEAD
             print("Payment signature verified successfully")
 
             order = Order.objects.get(razorpay_order_id=razorpay_order_id)
@@ -1444,6 +1473,13 @@ def payment_success(request):
             order.razorpay_payment_id = razorpay_payment_id
             order.save()
             print("Order status updated to PAID")
+=======
+
+            order = Order.objects.get(razorpay_order_id=razorpay_order_id)
+            order.payment_status = 'PAID'
+            order.razorpay_payment_id = razorpay_payment_id
+            order.save()
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
 
             # Clear cart
             cart = Cart.objects.get(user=order.user, is_ordered=False)
@@ -1456,7 +1492,10 @@ def payment_success(request):
             })
 
         except Exception as e:
+<<<<<<< HEAD
             print(f"Payment verification failed with error: {str(e)}")
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
             return JsonResponse({
                 'status': 'error',
                 'message': str(e)
@@ -1483,7 +1522,11 @@ def my_orders(request):
             'order_items__variant__images',
             'order_items__size'  # Add size to prefetch
         )\
+<<<<<<< HEAD
         .select_related('payment_method')\
+=======
+        .select_related('paymentmethod')\
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
         .order_by('-created_at')
         
     logger.debug(f"Fetched {orders.count()} orders for user {request.user.id}")
@@ -1689,7 +1732,10 @@ def apply_coupon(request):
                 })
                 
         except Exception as e:
+<<<<<<< HEAD
             print(f"Payment verification failed with error: {str(e)}")
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
             return JsonResponse({
                 'success': False,
                 'message': str(e)
@@ -1765,6 +1811,7 @@ def create_return_request(request, item_id):
             data = json.loads(request.body)
             order_item = get_object_or_404(OrderItem, id=item_id)
             
+<<<<<<< HEAD
             # Verify ownership and eligibility
             if order_item.order.user != request.user:
                 return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=403)
@@ -1781,6 +1828,29 @@ def create_return_request(request, item_id):
                     'success': False, 
                     'message': 'Return already requested for this item'
                 })
+=======
+            # Verify ownership and status
+            if order_item.order.user != request.user:
+                return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=403)
+                
+            # Check if the item is delivered and within return window (e.g., 7 days)
+            if order_item.status != 'Delivered':
+                return JsonResponse({'success': False, 'message': 'Only delivered items can be returned'})
+                
+            # Check if return window is still open (e.g., 7 days from delivery)
+            # Assuming there's a delivered_at field or you can use updated_at
+            delivery_date = order_item.delivered_at if hasattr(order_item, 'delivered_at') else order_item.updated_at
+            return_window_days = 7  # Configurable
+            if timezone.now() > delivery_date + timezone.timedelta(days=return_window_days):
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'Return window of {return_window_days} days has expired'
+                })
+                
+            # Check if a return request already exists
+            if ReturnRequest.objects.filter(order_item=order_item).exists():
+                return JsonResponse({'success': False, 'message': 'Return request already exists for this item'})
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
             
             # Create return request
             return_request = ReturnRequest.objects.create(
@@ -1788,6 +1858,7 @@ def create_return_request(request, item_id):
                 user=request.user,
                 reason=data.get('reason'),
                 description=data.get('description'),
+<<<<<<< HEAD
                 status='PENDING'
             )
             
@@ -1941,3 +2012,102 @@ def wallet_view(request):
         logger.error(f"Error in wallet view: {str(e)}")
         messages.error(request, "An error occurred while loading your wallet.")
         return redirect('home')
+=======
+                status='PENDING'  # Default status
+            )
+            
+            # Update order item status
+            order_item.return_status = 'PENDING'
+            order_item.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Return request created successfully. You will be notified once it is processed.'
+            })
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid request data'
+        })
+    except Exception as e:
+        logger.error(f"Error creating return request: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
+        })
+
+@require_GET
+def filter_products(request):
+    products = Product.objects.all().distinct()
+    
+    # Category filter
+    categories = request.GET.get('categories', '').split(',')
+    if categories and categories[0]:
+        products = products.filter(category_id__in=categories)
+    
+    # Brand filter
+    brands = request.GET.get('brands', '').split(',')
+    if brands and brands[0]:
+        products = products.filter(brand_id__in=brands)
+    
+    # Price filter
+    min_price = request.GET.get('min_price')
+    max_price = request.GET.get('max_price')
+    if min_price and max_price:
+        products = products.filter(
+            variants__price__gte=min_price,
+            variants__price__lte=max_price
+        )
+    
+    # Search filter
+    search = request.GET.get('search', '')
+    if search:
+        products = products.filter(
+            Q(name__icontains=search) |
+            Q(description__icontains=search)
+        )
+    
+    # Sorting
+    sort = request.GET.get('sort', 'new_arrivals')
+    if sort == 'price_low_high':
+        products = products.order_by('variants__price')
+    elif sort == 'price_high_low':
+        products = products.order_by('-variants__price')
+    elif sort == 'name_asc':
+        products = products.order_by('name')
+    elif sort == 'name_desc':
+        products = products.order_by('-name')
+    
+    # Prepare product data
+    product_data = []
+    for product in products:
+        variant = product.variants.first()
+        if variant and variant.images.exists():
+            product_data.append({
+                'id': product.id,
+                'name': product.name,
+                'category': product.category.name if product.category else '',
+                'brand': product.brand.name if product.brand else '',
+                'price': float(variant.price),
+                'discount_price': float(variant.discount_price) if variant.discount_price else float(variant.price),
+                'image_url': variant.images.first().image.url if variant.images.exists() else '',
+                'total_stock': sum(size.stock for size in variant.sizes.all()),
+                'discount_percentage': int(((variant.price - variant.discount_price) / variant.price) * 100) if variant.discount_price and variant.discount_price < variant.price else 0
+            })
+    
+    return JsonResponse({
+        'products': product_data
+    })
+
+@login_required
+def wallet_view(request):
+    wallet, created = Wallet.objects.get_or_create(user=request.user)
+    transactions = WalletTransaction.objects.filter(wallet=wallet).order_by('-created_at')
+    
+    context = {
+        'wallet': wallet,
+        'transactions': transactions
+    }
+    return render(request, 'wallet.html', context)
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a

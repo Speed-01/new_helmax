@@ -16,7 +16,10 @@
                 <div>Product</div>
                 <div>Quantity</div>
                 <div>Price</div>
+<<<<<<< HEAD
                 <div>Status</div>
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
             </div>
             <div class="space-y-4">
                 {% for item in order.order_items.all %}
@@ -29,6 +32,7 @@
                     </div>
                     <div class="text-gray-200">{{ item.quantity }}</div>
                     <div class="text-gray-200">₹{{ item.price }}</div>
+<<<<<<< HEAD
                     <div>
                         <span class="px-2 py-1 rounded-full text-xs
                             {% if item.status == 'PROCESSING' %}
@@ -47,6 +51,8 @@
                             {{ item.get_status_display }}()
                         </span>
                     </div>
+=======
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
                 </div>
                 {% endfor %}
             </div>
@@ -66,7 +72,11 @@
                 </div>
                 <div>
                     <p class="text-gray-400">Payment Method</p>
+<<<<<<< HEAD
                     <p class="text-gray-200">{{ order.payment_method.name }}</p>
+=======
+                    <p class="text-gray-200">{{ order.paymentmethod.name }}</p>
+>>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
                 </div>
                 <div>
                     <p class="text-gray-400">Payment Status</p>
