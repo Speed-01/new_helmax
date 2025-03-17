@@ -1,0 +1,137 @@
+{% extends 'base01.html' %}
+
+{% block content %}
+<div class="bg-[#0A0A0A] min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-3xl font-bold text-white mb-8">Return Requests</h1>
+
+        {% if return_requests %}
+        <div class="bg-[#1A1A1A] rounded-lg shadow-lg overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-[#2A2A2A] text-gray-300">
+                    <tr>
+                        <th class="px-6 py-4">Order ID</th>
+                        <th class="px-6 py-4">Customer</th>
+                        <th class="px-6 py-4">Product</th>
+                        <th class="px-6 py-4">Reason</th>
+                        <th class="px-6 py-4">Status</th>
+                        <th class="px-6 py-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#2A2A2A]">
+                    {% for request in return_requests %}
+                    <tr class="text-gray-300 hover:bg-[#2A2A2A] transition-colors">
+                        <td class="px-6 py-4">{{ request.order.id }}</td>
+                        <td class="px-6 py-4">{{ request.order.user.username }}</td>
+                        <td class="px-6 py-4">{{ request.order_item.variant.product.name }}</td>
+                        <td class="px-6 py-4">{{ request.reason }}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-3 py-1 rounded-full text-sm
+                                {% if request.status == 'pending' %} bg-yellow-500/20 text-yellow-500
+                                {% elif request.status == 'approved' %} bg-green-500/20 text-green-500
+                                {% else %} bg-red-500/20 text-red-500
+                                {% endif %}">
+                                {{ request.status|title }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if request.status == 'pending' %}
+                            <div class="flex space-x-2">
+                                <button onclick="handleReturn('{{ request.id }}', 'approve')" 
+                                        class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-white text-sm">
+                                    Approve
+                                </button>
+                                <button onclick="handleReturn('{{ request.id }}', 'reject')"
+                                        class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-white text-sm">
+                                    Reject
+                                </button>
+                            </div>
+                            {% else %}
+                            <span class="text-gray-500">{{ request.admin_response }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-12 text-gray-500">
+            <p>No return requests found.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Response Modal -->
+<div id="responseModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-[#1A1A1A] rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-xl font-semibold text-white mb-4" id="modalTitle">Enter Response</h3>
+        <textarea id="adminResponse" rows="4" 
+                  class="w-full bg-[#2A2A2A] text-white rounded p-3 mb-4 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                  placeholder="Enter your response..."></textarea>
+        <div class="flex justify-end space-x-3">
+            <button onclick="closeModal()" 
+                    class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded text-white">
+                Cancel
+            </button>
+            <button onclick="submitResponse()" 
+                    class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded text-white">
+                Submit
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentRequestId = null;
+let currentAction = null;
+
+function handleReturn(requestId, action) {
+    currentRequestId = requestId;
+    currentAction = action;
+    document.getElementById('modalTitle').textContent = 
+        action === 'approve' ? 'Approve Return Request' : 'Reject Return Request';
+    document.getElementById('responseModal').classList.remove('hidden');
+    document.getElementById('responseModal').classList.add('flex');
+}
+
+function closeModal() {
+    document.getElementById('responseModal').classList.add('hidden');
+    document.getElementById('responseModal').classList.remove('flex');
+    document.getElementById('adminResponse').value = '';
+}
+
+function submitResponse() {
+    const response = document.getElementById('adminResponse').value;
+    if (!response.trim()) {
+        alert('Please enter a response');
+        return;
+    }
+
+    fetch(`/manager/handle-return-request/${currentRequestId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            action: currentAction,
+            response: response
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.message || 'An error occurred');
+        }
+    })
+    .catch(err => {
+        alert('An error occurred');
+        console.error(err);
+    });
+}
+</script>
+{% endblock %}

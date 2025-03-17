@@ -1,0 +1,262 @@
+/* Main Container */
+.main-container {
+    padding-top: 70px; 
+    min-height: 100vh;
+    background-image: url('../images/login.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    display: flex;
+    flex-direction: column;
+}
+
+
+/* Login Container */
+.login-container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+}
+
+.login-box {
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 2rem;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.login-box h2 {
+    color: white;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 0.8rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.login-btn {
+    width: 100%;
+    padding: 0.8rem;
+    background-color: #ffc107;
+    border: none;
+    border-radius: 5px;
+    color: black;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 1rem;
+}
+
+.form-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    color: white;
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.forgot-link {
+    color: #ffc107;
+    text-decoration: none;
+}
+
+/* Footer */
+.footer {
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 2rem;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+}
+
+.footer-section h3 {
+    color: white;
+    margin-bottom: 1rem;
+}
+
+.footer-section ul {
+    list-style: none;
+    padding: 0;
+}
+
+.footer-section ul li {
+    margin-bottom: 0.5rem;
+}
+
+.footer-section ul li a {
+    color: #888;
+    text-decoration: none;
+}
+
+.social-icons {
+    display: flex;
+    gap: 1rem;
+}
+
+.social-icons img {
+    width: 24px;
+    height: 24px;
+}
+
+/* Hover Effects */
+.login-btn:hover {
+    background-color: #ffca2c;
+}
+
+.nav-right a:hover {
+    color: #ffc107;
+}
+
+.footer-section ul li a:hover {
+    color: white;
+}
+
+/* Divider line */
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 1.5rem 0;
+    color: #888;
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.divider span {
+    padding: 0 1rem;
+}
+
+Google button
+.google-btn {
+    width: 100%;
+    padding: 0.8rem;
+    background-color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background-color 0.3s;
+}
+
+.google-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.google-icon {
+    width: 20px;
+    height: 20px;
+}
+
+/* Add these styles for error messages */
+.alert {
+    padding: 12px;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.alert-error {
+    background-color: rgba(220, 53, 69, 0.2);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    color: #ff6b6b;
+}
+
+.alert-success {
+    background-color: rgba(40, 167, 69, 0.2);
+    border: 1px solid rgba(40, 167, 69, 0.3);
+    color: #75b798;
+}
+
+.alert-warning {
+    background-color: rgba(255, 193, 7, 0.2);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    color: #ffc107;
+}
+
+.alert-info {
+    background-color: rgba(13, 202, 240, 0.2);
+    border: 1px solid rgba(13, 202, 240, 0.3);
+    color: #6edff6;
+}
+
+Add these styles for the signup prompt
+.signup-prompt {
+    text-align: center;
+    margin-top: 1.5rem;
+    color: #888;
+}
+
+.signup-link {
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: 500;
+    margin-left: 0.5rem;
+    transition: color 0.3s ease;
+}
+
+.signup-link:hover {
+    color: #3700ff;
+}
+
+/* Google Sign In Button Styles */
+.g_id_signin {
+    margin: 1rem auto;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.g_id_signin > div {
+    width: 100% !important;
+    max-width: 300px !important;
+}
+
+/* Style for the Google Sign In container */
+#g_id_onload {
+    margin-bottom: 1rem;
+}
+
+/* Ensure the button is visible */
+.google-button-container {
+    margin: 1rem 0;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+/* Custom styles for Google button frame */
+iframe.google-button {
+    width: 100% !important;
+    height: 40px !important;
+}
+
+
+ 

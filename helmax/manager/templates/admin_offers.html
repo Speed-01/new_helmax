@@ -1,0 +1,811 @@
+{% extends 'base01.html' %}
+
+{% block content %}
+<div class="bg-[#0A0A0A] min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-white">Offers Management</h1>
+            <button onclick="openAddModal()" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded text-white flex items-center gap-2">
+                <i class="fas fa-plus"></i>
+                <span>Add Offer</span>
+            </button>
+        </div>
+
+        <div class="bg-[#1A1A1A] rounded-lg shadow-lg overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-[#2A2A2A] text-gray-300">
+                    <tr>
+                        <th class="px-6 py-4">Name</th>
+                        <th class="px-6 py-4">Type</th>
+                        <th class="px-6 py-4">Target</th>
+                        <th class="px-6 py-4">Discount</th>
+                        <th class="px-6 py-4">Start Date</th>
+                        <th class="px-6 py-4">End Date</th>
+                        <th class="px-6 py-4">Status</th>
+                        <th class="px-6 py-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#2A2A2A]">
+                    {% for offer in offers %}
+                    <tr class="text-gray-300 hover:bg-[#2A2A2A] transition-colors">
+                        <td class="px-6 py-4">{{ offer.name }}</td>
+                        <td class="px-6 py-4">{% if offer.product %}Product{% else %}Category{% endif %}</td>
+                        <td class="px-6 py-4">
+                            {% if offer.product %}
+                                {{ offer.product.name }}
+                            {% else %}
+                                {{ offer.category.name }}
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">{{ offer.discount_percentage }}%</td>
+                        <td class="px-6 py-4">{{ offer.start_date|date:"Y-m-d" }}</td>
+                        <td class="px-6 py-4">{{ offer.end_date|date:"Y-m-d" }}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-3 py-1 rounded-full text-sm
+                                {% if offer.is_active and offer.start_date <= today and offer.end_date >= today %}
+                                    bg-green-500/20 text-green-500
+                                {% else %}
+                                    bg-red-500/20 text-red-500
+                                {% endif %}">
+                                {% if not offer.is_active %}
+                                    Inactive
+                                {% elif offer.start_date > today %}
+                                    Scheduled
+                                {% elif offer.end_date < today %}
+                                    Expired
+                                {% else %}
+                                    Active
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex space-x-2">
+                                <button onclick="editOffer('{{ offer.id }}', '{% if offer.product %}product{% else %}category{% endif %}')" class="text-blue-400 hover:text-blue-300">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="deleteOffer('{{ offer.id }}', '{% if offer.product %}product{% else %}category{% endif %}')" class="text-red-400 hover:text-red-300">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-12 text-gray-500">
+                            <p>No offers found.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="offerModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4 overflow-y-auto">
+    <div class="bg-[#1A1A1A] rounded-lg p-6 max-w-md w-full mx-auto my-8 relative max-h-[90vh] overflow-y-auto">
+        <h3 class="text-xl font-semibold text-white mb-4" id="modalTitle">Add Offer</h3>
+        <form id="offerForm" method="post" class="space-y-4" novalidate>
+            {% csrf_token %}
+            <div>
+                <label class="block text-gray-300 mb-2">Offer Type</label>
+                <select name="type" required onchange="updateTargetField()"
+                        class="w-full bg-[#2A2A2A] text-white rounded p-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                    <option value="">Select offer type</option>
+                    <option value="product">Product Offer</option>
+                    <option value="category">Category Offer</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-gray-300 mb-2">Name</label>
+                <input type="text" name="name" required
+                       class="w-full bg-[#2A2A2A] text-white rounded p-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+            </div>
+            <div id="targetField" class="space-y-4">
+                <!-- This will be dynamically updated based on offer type -->
+            </div>
+            <div>
+                <label class="block text-gray-300 mb-2">Discount Percentage</label>
+                <input type="number" name="discount_percentage" required min="0" max="100" step="0.01"
+                       class="w-full bg-[#2A2A2A] text-white rounded p-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+            </div>
+            <div>
+                <label class="block text-gray-300 mb-2">Start Date</label>
+                <input type="date" name="start_date" required
+                       class="w-full bg-[#2A2A2A] text-white rounded p-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+            </div>
+            <div>
+                <label class="block text-gray-300 mb-2">End Date</label>
+                <input type="date" name="end_date" required
+                       class="w-full bg-[#2A2A2A] text-white rounded p-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" name="is_active" id="is_active" class="mr-2">
+                <label for="is_active" class="text-gray-300">Active</label>
+            </div>
+            <div class="flex justify-end space-x-3 mt-6">
+                <button type="button" onclick="closeModal()" 
+                        class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded text-white">
+                    Cancel
+                </button>
+                <button type="submit" id="submitBtn"
+                        class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded text-white flex items-center gap-2">
+                    <span>Save</span>
+                    <span id="submitSpinner" class="hidden">
+                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Product dropdown functionality has been simplified to use native select element
+
+function updateTargetField() {
+    const type = document.querySelector('select[name="type"]').value;
+    const targetField = document.getElementById('targetField');
+    
+    if (type === 'product') {
+        targetField.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yellow-500 mx-auto"></div></div>';
+        
+        fetch('/manager/get-active-products/')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load products');
+                }
+                return response.json();
+            })
+            .then(products => {
+                if (!Array.isArray(products) || products.length === 0) {
+                    targetField.innerHTML = '<p class="text-red-500">No products available</p>';
+                    return;
+                }
+                
+                targetField.innerHTML = `
+                    <label class="block text-gray-300 mb-2">Select Product</label>
+                    <div class="relative">
+                        <select name="product" required id="productSelect"
+                                class="w-full bg-[#2A2A2A] text-white rounded p-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                            <option value="">Select a product</option>
+                            ${products.map(product => `
+                                <option value="${product.id}">${product.name}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                `;
+            })
+            .catch(error => {
+                console.error('Error loading products:', error);
+                showToast('Error loading products', 'error');
+            });
+    } else if (type === 'category') {
+        targetField.innerHTML = `
+            <label class="block text-gray-300 mb-2">Category</label>
+            <select name="category" required
+                    class="w-full bg-[#2A2A2A] text-white rounded p-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                <option value="">Select a category</option>
+                {% for category in categories %}
+                <option value="{{ category.id }}">{{ category.name }}</option>
+                {% endfor %}
+            </select>
+        `;
+    } else {
+        targetField.innerHTML = '';
+    }
+}
+
+// Toast notification function
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded shadow-lg transform transition-all duration-500 translate-y-full
+        ${type === 'success' ? 'bg-green-600' : 'bg-red-600'} text-white`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    // Animate in
+    setTimeout(() => toast.style.transform = 'translateY(0)', 10);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        toast.style.transform = 'translateY(full)';
+        setTimeout(() => toast.remove(), 500);
+    }, 3000);
+}
+
+function validateForm() {
+    const form = document.getElementById('offerForm');
+    let isValid = true;
+
+    // Clear previous error messages and styling
+    clearErrors();
+
+    // Get all form elements including dynamically added ones
+    const formElements = form.elements;
+    for (let i = 0; i < formElements.length; i++) {
+        const field = formElements[i];
+        if (field.hasAttribute('required') && !field.value.trim()) {
+            isValid = false;
+            addFieldError(field, `${field.getAttribute('name').replace('_', ' ')} is required`);
+        }
+    }
+
+    if (!isValid) {
+        showToast('Please fill in all required fields', 'error');
+        return false;
+    }
+
+    // Additional validation for specific fields
+    const type = form.querySelector('select[name="type"]').value;
+    if (!type) {
+        addFieldError(form.querySelector('select[name="type"]'), 'Please select an offer type');
+        return false;
+    }
+
+    if (type === 'product' && !form.querySelector('select[name="product"]')?.value) {
+        addFieldError(form.querySelector('select[name="product"]'), 'Please select a product');
+        return false;
+    }
+
+    if (type === 'category' && !form.querySelector('select[name="category"]')?.value) {
+        addFieldError(form.querySelector('select[name="category"]'), 'Please select a category');
+        return false;
+    }
+
+    // Validate dates
+    const startDate = new Date(form.querySelector('[name="start_date"]').value);
+    const endDate = new Date(form.querySelector('[name="end_date"]').value);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (startDate < today) {
+        addFieldError(form.querySelector('[name="start_date"]'), 'Start date cannot be in the past');
+        isValid = false;
+    }
+
+    if (endDate <= startDate) {
+        addFieldError(form.querySelector('[name="end_date"]'), 'End date must be after start date');
+        isValid = false;
+    }
+
+    // Validate discount percentage
+    const discountPercentage = parseFloat(form.querySelector('[name="discount_percentage"]').value);
+    if (isNaN(discountPercentage) || discountPercentage <= 0 || discountPercentage > 100) {
+        addFieldError(form.querySelector('[name="discount_percentage"]'), 'Discount must be between 0 and 100');
+        isValid = false;
+    }
+
+    if (!isValid) {
+        showToast('Please correct the errors in the form', 'error');
+    }
+
+    return isValid;
+}
+
+function addFieldError(field, message) {
+    field.classList.add('ring-2', 'ring-red-500');
+    const error = document.createElement('div');
+    error.className = 'text-red-500 text-sm mt-1 error-message';
+    error.textContent = message;
+    field.parentNode.insertBefore(error, field.nextSibling);
+}
+
+function openAddModal() {
+    document.getElementById('modalTitle').textContent = 'Add Offer';
+    const form = document.getElementById('offerForm');
+    form.reset();
+    form.removeEventListener('submit', handleFormSubmit);
+    form.addEventListener('submit', handleFormSubmit);
+    document.getElementById('targetField').innerHTML = '';
+    document.getElementById('offerModal').classList.remove('hidden');
+    document.getElementById('offerModal').classList.add('flex');
+
+    // Set form action based on offer type
+    const typeSelect = document.querySelector('select[name="type"]');
+    typeSelect.value = ''; // Reset type selection
+    updateFormAction.call(typeSelect); // Set initial form action
+    typeSelect.removeEventListener('change', updateFormAction);
+    typeSelect.addEventListener('change', updateFormAction);
+}
+
+function updateFormAction() {
+    const type = this.value;
+    const form = document.getElementById('offerForm');
+    if (type === 'product') {
+        form.action = "{% url 'add_product_offer' %}";
+    } else if (type === 'category') {
+        form.action = "{% url 'add_category_offer' %}";
+    } else {
+        form.action = ''; // Clear form action if no type selected
+    }
+}
+
+function clearErrors() {
+    // Remove all error messages
+    const errorMessages = document.querySelectorAll('.error-message');
+    errorMessages.forEach(error => error.remove());
+    
+    // Remove error styling from fields
+    const formElements = document.getElementById('offerForm').elements;
+    Array.from(formElements).forEach(element => {
+        element.classList.remove('ring-2', 'ring-red-500');
+    });
+}
+
+function handleFormSubmit(event) {
+    event.preventDefault();
+    
+    // Clear any existing errors
+    clearErrors();
+    
+    if (!validateForm()) return;
+    
+    const submitBtn = document.getElementById('submitBtn');
+    const submitSpinner = document.getElementById('submitSpinner');
+    const submitText = submitBtn.querySelector('span:not(#submitSpinner)');
+    
+    // Disable button and show spinner
+    submitBtn.disabled = true;
+    submitSpinner.classList.remove('hidden');
+    submitText.textContent = 'Saving...';
+    
+    // Submit form
+    const form = event.target;
+    const formData = new FormData(form);
+    
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+    })
+    .then(async response => {
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            if (response.status === 403) {
+                throw new Error('Session expired. Please refresh the page and try again.');
+            }
+            throw new Error('Invalid response from server. Please try again.');
+        }
+        const data = await response.json();
+        if (!response.ok) {
+            if (data.error) {
+                showToast(data.error, 'error');
+                throw new Error(data.error);
+            } else if (data.errors) {
+                // Handle field-specific errors
+                let hasFieldErrors = false;
+                Object.entries(data.errors).forEach(([field, errors]) => {
+                    if (field === 'form') {
+                        // Display form-level error message
+                        const formError = document.createElement('div');
+                        formError.className = 'text-red-500 text-sm mt-2 mb-2 error-message';
+                        formError.textContent = Array.isArray(errors) ? errors[0] : errors;
+                        form.insertBefore(formError, form.firstChild);
+                        showToast(formError.textContent, 'error');
+                    } else {
+                        const fieldElement = form.elements[field];
+                        if (fieldElement) {
+                            hasFieldErrors = true;
+                            fieldElement.classList.add('ring-2', 'ring-red-500');
+                            const errorDiv = document.createElement('div');
+                            errorDiv.className = 'text-red-500 text-sm mt-1 error-message';
+                            errorDiv.textContent = Array.isArray(errors) ? errors[0] : errors;
+                            fieldElement.parentNode.insertBefore(errorDiv, fieldElement.nextSibling);
+                        }
+                    }
+                });
+                if (hasFieldErrors) {
+                    showToast('Please correct the errors in the form', 'error');
+                }
+                return Promise.reject(new Error('Form validation failed'));
+            }
+            throw new Error('Failed to save offer');
+        }
+        return data;
+    })
+    .then(data => {
+        if (!data || typeof data.success === 'undefined') {
+            throw new Error('Invalid response format');
+        }
+        if (data.success) {
+            showToast('Offer saved successfully!');
+            closeModal();
+            // Reload page to show updated offers
+            window.location.reload();
+        } else {
+            throw new Error(data.message || 'Failed to save offer');
+        }
+    })
+    .catch(error => {
+        // Log detailed error information
+        console.error('Update error details:', {
+            message: error.message || 'Unknown error',
+            type: error.constructor.name,
+            stack: error.stack,
+            details: error.errors || error
+        });
+
+        if (error.errors) {
+            let hasFieldErrors = false;
+            Object.entries(error.errors).forEach(([field, message]) => {
+                const element = this.elements[field];
+                if (element) {
+                    hasFieldErrors = true;
+                    element.classList.add('ring-2', 'ring-red-500');
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'text-red-500 text-sm mt-1 error-message';
+                    errorDiv.textContent = Array.isArray(message) ? message[0] : message;
+                    element.parentNode.insertBefore(errorDiv, element.nextSibling);
+                }
+            });
+            if (hasFieldErrors) {
+                showToast('Please correct the highlighted fields', 'error');
+            }
+        }
+
+        // Show user-friendly error message with more context
+        const errorMessage = error.errors 
+            ? 'Please correct the form errors and try again' 
+            : (error.message || 'An unexpected error occurred while updating the offer');
+        showToast(errorMessage, 'error');
+    })
+    .finally(() => {
+        // Re-enable button and hide spinner
+        submitBtn.disabled = false;
+        submitSpinner.classList.add('hidden');
+        submitText.textContent = 'Save';
+    });
+}
+
+function closeModal() {
+    document.getElementById('offerModal').classList.add('hidden');
+    document.getElementById('offerModal').classList.remove('flex');
+}
+
+function editOffer(offerId, offerType) {
+    // Validate input parameters
+    if (!offerId || !offerType || !['product', 'category'].includes(offerType)) {
+        showToast('Invalid offer details: Missing or invalid offer type', 'error');
+        return;
+    }
+
+    const endpoint = offerType === 'product' ? 
+        `/manager/get-product-offer/${offerId}/` : 
+        `/manager/get-category-offer/${offerId}/`;
+    
+    // Show loading state
+    const modal = document.getElementById('offerModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const form = document.getElementById('offerForm');
+    
+    modalTitle.textContent = 'Loading...';
+    form.style.opacity = '0.5';
+    form.style.pointerEvents = 'none';
+    
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    // Clear any existing errors
+    clearErrors();
+
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (!csrfToken) {
+        showToast('CSRF token not found. Please refresh the page.', 'error');
+        closeModal();
+        return;
+    }
+
+    fetch(endpoint, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': csrfToken.value,
+            'Accept': 'application/json'
+        },
+        credentials: 'same-origin'
+    })
+    .then(res => {
+        const contentType = res.headers.get('content-type');
+        if (!res.ok) {
+            if (contentType && contentType.includes('application/json')) {
+                return res.json().then(data => {
+                    const errorMsg = data.message || data.error || 'Failed to load offer details';
+                    throw new Error(errorMsg);
+                });
+            }
+            throw new Error('Server error. Please try again later.');
+        }
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Invalid response format from server');
+        }
+        return res.json();
+    })
+        .then(data => {
+            if (!data || typeof data !== 'object') {
+                throw new Error('Invalid data received from server');
+            }
+
+            modalTitle.textContent = 'Edit Offer';
+            form.action = offerType === 'product' ? 
+                `{% url 'edit_product_offer' offer_id=0 %}`.replace('0', offerId) : 
+                `{% url 'edit_category_offer' offer_id=0 %}`.replace('0', offerId);
+            
+            // Populate form fields
+            form.elements['type'].value = offerType;
+            updateTargetField();
+            
+            // Wait for target field to be populated with timeout
+            const waitForTarget = new Promise((resolve, reject) => {
+                const checkTarget = setInterval(() => {
+                    const targetElement = offerType === 'product' ? 
+                        form.elements['product'] : form.elements['category'];
+                    if (targetElement) {
+                        clearInterval(checkTarget);
+                        resolve(targetElement);
+                    }
+                }, 100);
+
+                // Add timeout to prevent infinite waiting
+                setTimeout(() => {
+                    clearInterval(checkTarget);
+                    reject(new Error('Timeout waiting for form fields to load'));
+                }, 5000);
+            });
+            
+            return waitForTarget.then(targetElement => {
+                if (!targetElement) {
+                    throw new Error('Failed to load form fields - target element not found');
+                }
+
+                // Validate all required data fields
+                const requiredFields = ['name', 'discount_percentage', 'start_date', 'end_date'];
+                const missingFields = requiredFields.filter(field => !data || data[field] === undefined || data[field] === null || data[field] === '');
+                
+                if (missingFields.length > 0) {
+                    throw new Error(`Missing or invalid required fields: ${missingFields.join(', ')}`);
+                }
+                
+                // Validate numeric fields
+                if (isNaN(parseFloat(data.discount_percentage)) || parseFloat(data.discount_percentage) < 0 || parseFloat(data.discount_percentage) > 100) {
+                    throw new Error('Invalid discount percentage: Must be a number between 0 and 100');
+                }
+
+                try {
+                    // Populate all fields
+                    form.elements['name'].value = data.name;
+                    form.elements['discount_percentage'].value = data.discount_percentage;
+                    form.elements['start_date'].value = data.start_date.split('T')[0];
+                    form.elements['end_date'].value = data.end_date.split('T')[0];
+                    form.elements['is_active'].checked = data.is_active || false;
+                    
+                    // Validate and set product/category ID
+                    if (offerType === 'product') {
+                        if (!data.product_id) {
+                            throw new Error('Product ID is required for product offers');
+                        }
+                        targetElement.value = data.product_id;
+                    } else if (offerType === 'category') {
+                        if (!data.category_id) {
+                            throw new Error('Category ID is required for category offers');
+                        }
+                        targetElement.value = data.category_id;
+                    } else {
+                        throw new Error(`Invalid offer type: ${offerType}`);
+                    }
+
+                    // Add form submit handler
+                    form.onsubmit = function(e) {
+                        e.preventDefault();
+                        clearErrors();
+
+                        // Validate form data before submission
+                        const formData = new FormData(this);
+                        const submitBtn = document.getElementById('submitBtn');
+                        const submitSpinner = document.getElementById('submitSpinner');
+
+                        // Basic form validation
+                        const type = formData.get('type');
+                        if (!type || !['product', 'category'].includes(type)) {
+                            showToast('Please select a valid offer type', 'error');
+                            return;
+                        }
+
+                        const targetId = type === 'product' ? formData.get('product') : formData.get('category');
+                        if (!targetId) {
+                            showToast(`Please select a ${type}`, 'error');
+                            return;
+                        }
+
+                        const discountPercentage = parseFloat(formData.get('discount_percentage'));
+                        if (isNaN(discountPercentage) || discountPercentage < 0 || discountPercentage > 100) {
+                            showToast('Discount percentage must be between 0 and 100', 'error');
+                            return;
+                        }
+
+                        const startDate = new Date(formData.get('start_date'));
+                        const endDate = new Date(formData.get('end_date'));
+                        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                            showToast('Please enter valid dates', 'error');
+                            return;
+                        }
+                        if (endDate < startDate) {
+                            showToast('End date must be after start date', 'error');
+                            return;
+                        }
+
+                        submitBtn.disabled = true;
+                        submitSpinner.classList.remove('hidden');
+
+                        fetch(this.action, {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                            },
+                            credentials: 'same-origin'
+                        })
+                        .then(response => {
+                            if (!response.ok) {
+                                return response.json().then(data => Promise.reject(data));
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                showToast('Offer updated successfully');
+                                window.location.reload();
+                            } else {
+                                throw new Error(data.message || 'Failed to update offer');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Update error:', error);
+                            if (error.errors) {
+                                Object.entries(error.errors).forEach(([field, message]) => {
+                                    const element = this.elements[field];
+                                    if (element) {
+                                        element.classList.add('ring-2', 'ring-red-500');
+                                        const errorDiv = document.createElement('div');
+                                        errorDiv.className = 'text-red-500 text-sm mt-1 error-message';
+                                        errorDiv.textContent = message;
+                                        element.parentNode.insertBefore(errorDiv, element.nextSibling);
+                                    }
+                                });
+                            }
+                            showToast(error.message || 'Error updating offer', 'error');
+                        })
+                        .finally(() => {
+                            submitBtn.disabled = false;
+                            submitSpinner.classList.add('hidden');
+                        });
+                    };
+
+                    // Reset form state
+                    form.style.opacity = '1';
+                    form.style.pointerEvents = 'auto';
+                } catch (error) {
+                    throw new Error(`Error populating form: ${error.message}`);
+                }
+            });
+        })
+        .catch(err => {
+            console.error(err);
+            // Reset form state
+            form.style.opacity = '1';
+            form.style.pointerEvents = 'auto';
+            modalTitle.textContent = 'Edit Offer';
+            // Show error message
+            showToast(err.message || err.error || 'Error loading offer details', 'error');
+            // Close modal on error
+            closeModal();
+        });
+}
+
+// Custom confirmation modal HTML at the end of the body
+const confirmationModalHTML = `
+<div id="confirmationModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+    <div class="bg-[#1A1A1A] p-6 rounded-lg max-w-md mx-auto mt-20 transform transition-all duration-300 scale-95 opacity-0">
+        <h2 class="text-xl font-bold text-white mb-4" id="confirmationTitle"></h2>
+        <p class="text-gray-300 mb-6" id="confirmationMessage"></p>
+        <div class="flex justify-end space-x-2">
+            <button onclick="closeConfirmationModal()" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors duration-200">
+                Cancel
+            </button>
+            <button id="confirmButton" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors duration-200">
+                Confirm
+            </button>
+        </div>
+    </div>
+</div>
+`;
+
+// Add confirmation modal to the page
+if (!document.getElementById('confirmationModal')) {
+    document.body.insertAdjacentHTML('beforeend', confirmationModalHTML);
+}
+
+function showConfirmationModal(title, message, confirmCallback) {
+    const modal = document.getElementById('confirmationModal');
+    const modalContent = modal.querySelector('div > div');
+    
+    document.getElementById('confirmationTitle').textContent = title;
+    document.getElementById('confirmationMessage').textContent = message;
+    document.getElementById('confirmButton').onclick = () => {
+        closeConfirmationModal();
+        confirmCallback();
+    };
+    
+    modal.classList.remove('hidden');
+    setTimeout(() => modalContent.classList.remove('scale-95', 'opacity-0'), 10);
+}
+
+function closeConfirmationModal() {
+    const modal = document.getElementById('confirmationModal');
+    const modalContent = modal.querySelector('div > div');
+    
+    modalContent.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => modal.classList.add('hidden'), 300);
+}
+
+function deleteOffer(offerId, offerType) {
+    // Validate input parameters
+    if (!offerId || !offerType || !['product', 'category'].includes(offerType)) {
+        showToast('Invalid offer details: Missing or invalid offer type', 'error');
+        return;
+    }
+
+    showConfirmationModal(
+        'Delete Offer',
+        'Are you sure you want to delete this offer? This action cannot be undone.',
+        () => {
+            const endpoint = offerType === 'product' ? 
+                `/manager/product-offers/delete/${offerId}/` : 
+                `/manager/category-offers/delete/${offerId}/`;
+
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (!csrfToken) {
+                showToast('CSRF token not found. Please refresh the page.', 'error');
+                return;
+            }
+
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken.value,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'same-origin'
+            })
+            .then(res => {
+                const contentType = res.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Invalid response format from server');
+                }
+                if (!res.ok) {
+                    return res.json().then(err => {
+                        throw new Error(err.error || err.message || 'Failed to delete offer');
+                    });
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showToast('Offer deleted successfully', 'success');
+                    window.location.reload();
+                } else {
+                    throw new Error(data.error || data.message || 'Error deleting offer');
+                }
+            })
+            .catch(err => {
+                console.error('Delete offer error:', err);
+                showToast(err.message || 'Error deleting offer. Please try again.', 'error');
+            });
+        }
+    );
+}
+</script>
+{% endblock %}

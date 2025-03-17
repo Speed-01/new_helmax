@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Helmax Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+        .transition-all {
+            transition-property: all;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            transition-duration: 150ms;
+        }
+        .glass-effect {
+            background: rgba(31, 31, 31, 0.8);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body class="bg-[#0A0A0A] min-h-screen flex">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="bg-[#1A1A1A] w-64 min-h-screen fixed left-0 top-0 transition-all duration-300 ease-in-out z-20">
+        <div class="p-4">
+            <a href="{% url 'customers' %}" class="flex items-center space-x-2 mb-8">
+                <span class="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">HELMAX</span>
+            </a>
+            <nav class="space-y-2">
+                <a href="{% url 'customers' %}" class="flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-[#2A2A2A] rounded-lg transition-colors">
+                    <i class="fas fa-users w-5"></i>
+                    <span>Customers</span>
+                </a>
+                <a href="{% url 'admin_category' %}" class="flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-[#2A2A2A] rounded-lg transition-colors">
+                    <i class="fas fa-th-list w-5"></i>
+                    <span>Categories</span>
+                </a>
+                <a href="{% url 'admin_brand' %}" class="flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-[#2A2A2A] rounded-lg transition-colors">
+                    <i class="fas fa-tag w-5"></i>
+                    <span>Brands</span>
+                </a>
+                <a href="{% url 'adminProducts' %}" class="flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-[#2A2A2A] rounded-lg transition-colors">
+                    <i class="fas fa-box w-5"></i>
+                    <span>Products</span>
+                </a>
+                <a href="{% url 'admin_orders' %}" class="flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-[#2A2A2A] rounded-lg transition-colors">
+                    <i class="fas fa-shopping-cart w-5"></i>
+                    <span>Orders</span>
+                </a>
+                <a href="{% url 'admin_return_requests' %}" class="flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-[#2A2A2A] rounded-lg transition-colors relative">
+                    <i class="fas fa-undo w-5"></i>
+                    <span>Return Requests</span>
+                    {% if pending_returns_count %}
+                    <span class="absolute right-4 bg-red-500 text-white text-xs px-2 py-1 rounded-full">{{ pending_returns_count }}</span>
+                    {% endif %}
+                </a>
+                <a href="{% url 'admin_offers' %}" class="flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-[#2A2A2A] rounded-lg transition-colors">
+                    <i class="fas fa-percent w-5"></i>
+                    <span>Offers</span>
+                </a>
+                <a href="{% url 'admin_coupons' %}" class="flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-[#2A2A2A] rounded-lg transition-colors">
+                    <i class="fas fa-ticket-alt w-5"></i>
+                    <span>Coupons</span>
+                </a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 ml-64">
+        <!-- Header -->
+        <header class="bg-[#1A1A1A] border-b border-[#2A2A2A] h-16 fixed top-0 right-0 left-64 z-10">
+            <div class="flex justify-end h-full px-6 items-center">
+                <div class="flex items-center space-x-4">
+                    <button id="sidebarToggle" class="md:hidden text-gray-300 hover:text-white">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <span class="text-gray-300 text-sm">Welcome, Admin</span>
+                    <a href="{% url 'admin_logout' %}" class="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-red-400 hover:text-red-300 hover:bg-[#2A2A2A]">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Logout</span>
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="pt-16 p-6">
+            {% block content %}
+            {% endblock %}
+        </main>
+    </div>
+
+    <script>
+        // Sidebar Toggle Functionality
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.querySelector('.flex-1');
+            
+            if (sidebar.style.left === '0px' || sidebar.style.left === '') {
+                sidebar.style.left = '-256px';
+                mainContent.style.marginLeft = '0';
+            } else {
+                sidebar.style.left = '0';
+                mainContent.style.marginLeft = '256px';
+            }
+        });
+
+        // Responsive Sidebar
+        function handleResize() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.querySelector('.flex-1');
+            
+            if (window.innerWidth < 768) {
+                sidebar.style.left = '-256px';
+                mainContent.style.marginLeft = '0';
+            } else {
+                sidebar.style.left = '0';
+                mainContent.style.marginLeft = '256px';
+            }
+        }
+
+        window.addEventListener('resize', handleResize);
+        handleResize(); // Initial check
+    </script>
+</body>
+</html>

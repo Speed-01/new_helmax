@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Edit Address{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-black text-white p-6">
+    <div class="max-w-4xl mx-auto">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            
+
+            <!-- Main Content -->
+            <div class="md:col-span-3">
+                <div class="bg-zinc-900 rounded-lg p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-semibold">EDIT ADDRESS</h2>
+                        <a href="{% url 'userManageAddress' %}" class="text-gray-400 hover:text-white">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </a>
+                    </div>
+
+                    <form method="POST" class="space-y-4">
+                        {% csrf_token %}
+                        <div class="space-y-4">
+                            <div>
+                                <select name="address_type" required class="w-full bg-zinc-800 rounded px-4 py-2 text-white">
+                                    <option value="">Select Address Type</option>
+                                    <option value="HOME" {% if address.address_type == 'HOME' %}selected{% endif %}>Home</option>
+                                    <option value="WORK" {% if address.address_type == 'WORK' %}selected{% endif %}>Work</option>
+                                    <option value="OTHER" {% if address.address_type == 'OTHER' %}selected{% endif %}>Other</option>
+                                </select>
+                                {% if form.address_type.errors %}
+                                    <p class="text-red-500 text-sm mt-1">{{ form.address_type.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+
+                            <div>
+                                <input type="text" name="full_name" value="{{ address.full_name }}" 
+                                       placeholder="Full Name" required
+                                       class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                                {% if form.full_name.errors %}
+                                    <p class="text-red-500 text-sm mt-1">{{ form.full_name.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+
+                            <div>
+                                <input type="tel" name="phone" value="{{ address.phone }}"
+                                       placeholder="Phone Number" required
+                                       class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                                {% if form.phone.errors %}
+                                    <p class="text-red-500 text-sm mt-1">{{ form.phone.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+
+                            <div>
+                                <input type="text" name="address_line1" value="{{ address.address_line1 }}"
+                                       placeholder="Address Line 1" required
+                                       class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                                {% if form.address_line1.errors %}
+                                    <p class="text-red-500 text-sm mt-1">{{ form.address_line1.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+
+                            <div>
+                                <input type="text" name="address_line2" value="{{ address.address_line2 }}"
+                                       placeholder="Address Line 2"
+                                       class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                                {% if form.address_line2.errors %}
+                                    <p class="text-red-500 text-sm mt-1">{{ form.address_line2.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+
+                            {% comment %} <div>
+                                <input type="text" name="landmark" value="{{ address.landmark }}"
+                                       placeholder="Landmark"
+                                       class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                                {% if form.landmark.errors %}
+                                    <p class="text-red-500 text-sm mt-1">{{ form.landmark.errors.0 }}</p>
+                                {% endif %}
+                            </div> {% endcomment %}
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <input type="text" name="pincode" value="{{ address.pincode }}"
+                                           placeholder="Pincode" required
+                                           class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                                    {% if form.pincode.errors %}
+                                        <p class="text-red-500 text-sm mt-1">{{ form.pincode.errors.0 }}</p>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <input type="text" name="city" value="{{ address.city }}"
+                                           placeholder="City" required
+                                           class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                                    {% if form.city.errors %}
+                                        <p class="text-red-500 text-sm mt-1">{{ form.city.errors.0 }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div>
+                                <input type="text" name="state" value="{{ address.state }}"
+                                       placeholder="State" required
+                                       class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                                {% if form.state.errors %}
+                                    <p class="text-red-500 text-sm mt-1">{{ form.state.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+
+                            <div class="flex items-center space-x-2">
+                                <input type="checkbox" name="is_default" id="is_default"
+                                       {% if address.is_default %}checked{% endif %}
+                                       class="rounded bg-zinc-800 text-orange-500 focus:ring-orange-500">
+                                <label for="is_default">Set as Default Address</label>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-4 mt-6">
+                            <a href="{% url 'userManageAddress' %}" 
+                               class="px-6 py-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 transition-colors">
+                                Cancel
+                            </a>
+                            <button type="submit" 
+                                    class="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors">
+                                Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Message Toast -->
+<div id="successToast" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform transition-transform duration-300 translate-x-full">
+    <span id="successMessage"></span>
+</div>
+
+<script>
+function showSuccessMessage(message) {
+    const toast = document.getElementById('successToast');
+    const messageEl = document.getElementById('successMessage');
+    messageEl.textContent = message;
+    toast.classList.remove('translate-x-full');
+    setTimeout(() => {
+        toast.classList.add('translate-x-full');
+    }, 3000);
+}
+
+{% if messages %}
+    {% for message in messages %}
+        showSuccessMessage("{{ message }}");
+    {% endfor %}
+{% endif %}
+</script>
+{% endblock %}
+

@@ -1,0 +1,132 @@
+{% extends 'base01.html' %}
+
+{% block content %}
+<div class="p-6 bg-[#0A0A0A]">
+  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold bg-gradient-to-r from-green-500 to-blue-500 bg-clip-text text-transparent">
+      Customers
+    </h1>
+    <div class="relative">
+      <form method="GET" action="" class="relative">
+        <input type="text" 
+            name="search"
+            id="searchInput"
+            class="w-full pl-10 pr-4 py-2 rounded-md bg-[#1A1A1A] border border-[#2A2A2A] text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+            placeholder="Search by Name"
+            value="{{ search_query }}">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="overflow-hidden rounded-lg border border-[#2A2A2A] shadow-lg">
+    <table class="min-w-full divide-y divide-[#2A2A2A]">
+      <thead class="bg-[#111111]">
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Name</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Email</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Joined</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Status</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="bg-[#0A0A0A] divide-y divide-[#2A2A2A]">
+        {% for customer in customers %}
+        <tr class="hover:bg-[#111111] transition-colors duration-200" id="customer-row-{{ customer.id }}">
+          <td class="px-6 py-4 text-sm font-medium text-gray-200">{{ customer.username }}</td>
+          <td class="px-6 py-4 text-sm text-gray-300">{{ customer.email }}</td>
+          <td class="px-6 py-4 text-sm text-gray-300">{{ customer.date_joined|date:"M d, Y" }}</td>
+          <td class="px-6 py-4 text-sm text-gray-300" id="status-{{ customer.id }}">
+            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+              {% if customer.is_active %} bg-green-100 text-green-800 
+              {% else %} bg-red-100 text-red-800 {% endif %}">
+              {% if customer.is_active %}Active{% else %}Blocked{% endif %}
+            </span>
+          </td>
+          <td class="px-6 py-4 text-sm font-medium">
+            
+            <button 
+              onclick="toggleCustomerStatus({{ customer.id }})" 
+              class="text-red-600 hover:text-red-900" 
+              id="toggle-btn-{{ customer.id }}">
+              {% if customer.is_active %}Block{% else %}Unblock{% endif %}
+            </button>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" class="px-6 py-4 text-sm text-gray-400 text-center">No customers available</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<!-- Pagination -->
+<div class="mt-4 flex justify-between items-center text-gray-200">
+  <div class="text-sm">
+      Page {{ customers.number }} of {{ customers.paginator.num_pages }}
+  </div>
+  <div class="flex space-x-2">
+      {% if customers.has_previous %}
+      <a href="?page={{ customers.previous_page_number }}&search={{ search_query }}" 
+         class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-sm font-medium text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+          Previous
+      </a>
+      {% endif %}
+      
+      {% if customers.has_next %}
+      <a href="?page={{ customers.next_page_number }}&search={{ search_query }}" 
+         class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-sm font-medium text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+          Next
+      </a>
+      {% endif %}
+  </div>
+</div>
+
+
+<script>
+  function toggleCustomerStatus(customerId) {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    fetch(`/manager/toggle-user-status/${customerId}/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        const statusElement = document.getElementById(`status-${customerId}`);
+        const buttonElement = document.getElementById(`toggle-btn-${customerId}`);
+        const rowElement = document.getElementById(`customer-row-${customerId}`);
+
+        if (data.status === 'active') {
+          statusElement.innerHTML = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>';
+          buttonElement.textContent = 'Block';
+          rowElement.classList.remove('opacity-50');
+
+        
+        } else {
+          statusElement.innerHTML = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Blocked</span>';
+          buttonElement.textContent = 'Unblock';
+          rowElement.classList.add('opacity-50');
+
+        }
+      } else {
+        alert('Failed to toggle status. Please try again.');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+    });
+  }
+</script>
+{% endblock %}

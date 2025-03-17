@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Helmax{% endblock %}</title>
+    {% load static %}
+   
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    {% block extra_css %}{% endblock %}
+    {% block scripts %}{% endblock %}
+    
+
+</head>
+<body class="min-h-screen bg-black text-white flex flex-col ">
+    <!-- Header -->
+    <header class="fixed top-0 w-full z-50 bg-black bg-opacity-80 backdrop-filter backdrop-blur-sm">
+        <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+            <a href="{% url 'home' %}" class="text-2xl font-bold">
+                <img src="{% static 'images/header_logo.png' %}" alt="Logo" class="w-20">
+            </a>
+            <nav class="hidden md:flex items-center space-x-6">
+                <a href="{% url 'product_list' %}" class="nav-link">Explore</a>
+                <a href="#" class="nav-link">About</a>
+                <a href="#" class="nav-link">Contact</a>
+            </nav>
+            
+            <div class="flex items-center space-x-4">
+                <form method="GET" action="{% url 'product_search' %}" class="relative">
+                    <div class="flex items-center">
+                        <input 
+                            type="text" 
+                            name="q" 
+                            placeholder="Search products..." 
+                            class="bg-[#222222] text-white rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                            value="{{ request.GET.q }}"
+                            id="global-search"
+                        >
+                        <button type="submit" class="absolute left-3 top-1/2 transform -translate-y-1/2">
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+                {% comment %} <button class="p-2 hover:text-primary">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </button> {% endcomment %}
+                <button class="p-2 hover:text-primary">
+                    <a href="{% url 'view_cart' %}" class="relative">
+                        <i class="fas fa-shopping-cart"></i>
+                        {% if cart_count %}
+                        <span class="absolute -top-2 -right-2 bg-[#ff6b00] text-black rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                            {{ cart_count }}
+                        </span>
+                        {% endif %}
+                    </a>
+                </button>
+                <!-- Update the div containing cart and orders buttons in the header -->
+             
+                <button class="p-2 hover:text-primary">
+                    <a href="{% url 'view_wishlist' %}" class="relative">
+                        <i class="fas fa-heart text-2xl"></i>
+                        {% if request.user.is_authenticated and request.user.wishlist.count > 0 %}
+                            <span class="wishlist-count absolute -top-2 -right-2 bg-yellow-500 text-black text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                {{ request.user.wishlist.count }}
+                            </span>
+                        {% endif %}
+                    </a>
+                </button>
+                    
+                <button class="p-2 hover:text-primary">
+                    <a href="{% url 'my_orders' %}" class="relative">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        </svg>
+                        {% if request.user.orders.count > 0 %}
+                            <span class="order-count absolute -top-2 -right-2 bg-yellow-500 text-black text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                {{ request.user.orders.count }}
+                            </span>
+                        {% endif %}
+                    </a>
+                </button>
+                {% if user.is_authenticated %}
+                    <a href="{% url 'user_profile' user.id %}" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">My Profile</a>
+                {% else %}
+                    <a href="{% url 'Login' %}" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Login</a>
+                {% endif %}
+    
+                
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-grow mt-16">
+        
+
+        <!-- Main Content -->
+        <main class="flex-grow p-0 ">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-black py-12">
+        <div class="container mx-auto px-4">
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-8">
+                <div>
+                    <h3 class="font-bold mb-4">EXPLORE</h3>
+                    <ul class="space-y-2 text-sm text-neutral-400">
+                        <li>New Arrivals</li>
+                        <li>Best Sellers</li>
+                        <li>Our Story</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-4">SUPPORT</h3>
+                    <ul class="space-y-2 text-sm text-neutral-400">
+                        <li>Contact Us</li>
+                        <li>Shipping Info</li>
+                        <li>Returns</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-4">ACCOUNT</h3>
+                    <ul class="space-y-2 text-sm text-neutral-400">
+                        <li>My Account</li>
+                        <li>Order History</li>
+                        <li>Wishlist</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-bold mb-4">QUICK LINKS</h3>
+                    <ul class="space-y-2 text-sm text-neutral-400">
+                        <li>Size Guide</li>
+                        <li>FAQs</li>
+                        <li>About Us</li>
+                    </ul>
+                </div>
+                <div class="flex flex-col items-center bg-black text-white">
+                    <div class="mb-4">
+                        <img src="{% static 'images/helmax-logo.png' %}" alt="Helmax Logo" class="w-20">
+                    </div>
+                    <p class="text-sm mb-4">Follow us on</p>
+                    <div class="flex space-x-6 text-lg">
+                        <a href="#" class="hover:text-gray-400"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="hover:text-gray-400"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="hover:text-gray-400"><i class="fab fa-instagram"></i></a>
+                        <a href="#" class="hover:text-gray-400"><i class="fab fa-linkedin-in"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-12 pt-3 border-t border-neutral-800 text-center text-sm text-neutral-400">
+                <p>&copy; {% now "Y" %} Helmet Store. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <style>
+        .nav-link {
+            color: #ffffff; 
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .nav-link:hover {
+            color: #ffc107; 
+        }
+        .dropdown-content {
+            width: 300px;
+            max-height: 80vh;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        
+        @media (min-width: 1024px) {
+            .dropdown-content {
+                position: static;
+                width: auto;
+                max-height: none;
+            }
+        }
+    </style>
+    <script>
+        document.getElementById('global-search').addEventListener('input', function () {
+            const query = this.value;
+            fetch(`/product_search/?q=${query}`)
+                .then(response => response.json())
+                .then(data => {
+                    const searchResults = document.getElementById('search-results');
+                    searchResults.innerHTML = ''; // Clear existing results
+    
+                    data.products.forEach(product => {
+                        const resultHTML = `
+                            <div class="p-2 hover:bg-gray-700">
+                                <a href="/product/${product.id}/">${product.name}</a>
+                            </div>
+                        `;
+                        searchResults.insertAdjacentHTML('beforeend', resultHTML);
+                    });
+                });
+        });
+    </script>
+</body>
+</html>

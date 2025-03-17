@@ -1,0 +1,238 @@
+{% extends 'base01.html' %}
+
+{% block content %}
+<div class="p-6 bg-[#0A0A0A]">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold bg-gradient-to-r from-red-500 to-purple-600 bg-clip-text text-transparent">Brands</h1>
+    <div class="flex space-x-4">
+      <form method="GET" action="" class="relative">
+        <input type="text" 
+            name="search"
+            id="searchInput"
+            class="w-full pl-10 pr-4 py-2 rounded-md bg-[#1A1A1A] border border-[#2A2A2A] text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+            placeholder="Search by brand name..."
+            value="{{ search_query }}">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+        </div>
+      </form>
+      <button 
+        onclick="showAddBrandModal()" 
+        class="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50"
+      >
+        Add new Brand
+      </button>
+    </div>
+  </div>
+
+  <div class="overflow-hidden rounded-lg border border-[#2A2A2A] shadow-lg">
+    <table class="min-w-full divide-y divide-[#2A2A2A]">
+      <thead class="bg-[#111111]">
+        <tr>
+          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">ID</th>
+          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
+          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="bg-[#0A0A0A] divide-y divide-[#2A2A2A]">
+        {% for brand in brands %}
+        <tr class="hover:bg-[#111111] transition-colors duration-200" id="brand-row-{{ brand.id }}">
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{{ brand.id }}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">{{ brand.name }}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300" id="status-{{ brand.id }}">
+            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {% if brand.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+              {% if brand.is_active %}Active{% else %}Blocked{% endif %}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            <button 
+              onclick="showEditBrandModal({{ brand.id }}, '{{ brand.name }}')" 
+              class="text-indigo-600 hover:text-indigo-900 mr-2 transition-colors duration-200"
+            >
+              Edit
+            </button>
+            <button 
+              onclick="toggleBrandStatus({{ brand.id }})" 
+              class="text-red-600 hover:text-red-900 transition-colors duration-200"
+              id="toggle-btn-{{ brand.id }}"
+            >
+              {% if brand.is_active %}Block{% else %}Unblock{% endif %}
+            </button>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="4" class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 text-center">No brands found</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <div class="mt-4 flex justify-between items-center text-gray-200">
+    <div class="text-sm">
+        Page {{ brands.number }} of {{ brands.paginator.num_pages }}
+    </div>
+    <div class="flex space-x-2">
+        {% if brands.has_previous %}
+        <a href="?page={{ brands.previous_page_number }}&search={{ search_query }}" 
+           class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-sm font-medium text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+            Previous
+        </a>
+        {% endif %}
+        
+        {% if brands.has_next %}
+        <a href="?page={{ brands.next_page_number }}&search={{ search_query }}" 
+           class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-sm font-medium text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+            Next
+        </a>
+        {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Add Brand Modal -->
+<div id="addBrandModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center hidden z-50">
+  <div class="bg-[#1A1A1A] p-6 rounded-lg w-96 shadow-2xl transform transition-all duration-300 scale-95 opacity-0">
+    <h2 class="text-2xl font-bold text-white mb-4">Add New Brand</h2>
+    <form method="POST" action="{% url 'add_brand' %}">
+      {% csrf_token %}
+      <input 
+        type="text" 
+        name="brand_name" 
+        placeholder="Brand Name" 
+        class="w-full px-4 py-2 mb-4 rounded-lg bg-[#0A0A0A] border border-[#2A2A2A] text-gray-300 focus:ring-2 focus:ring-purple-600 focus:border-transparent focus:outline-none transition-all duration-300"
+      >
+      <div class="flex justify-end space-x-2">
+        <button 
+          type="button" 
+          onclick="hideAddBrandModal()" 
+          class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors duration-200"
+        >
+          Cancel
+        </button>
+        <button 
+          type="submit" 
+          class="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50"
+        >
+          Add
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Brand Modal -->
+<div id="editBrandModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center hidden z-50">
+  <div class="bg-[#1A1A1A] p-6 rounded-lg w-96 shadow-2xl transform transition-all duration-300 scale-95 opacity-0">
+    <h2 class="text-2xl font-bold text-white mb-4">Edit Brand</h2>
+    <form id="editBrandForm" method="POST" action="edit_category">
+      {% csrf_token %}
+      <input 
+        type="text" 
+        name="brand_name" 
+        id="editBrandName" 
+        placeholder="Brand Name" 
+        class="w-full px-4 py-2 mb-4 rounded-lg bg-[#0A0A0A] border border-[#2A2A2A] text-gray-300 focus:ring-2 focus:ring-purple-600 focus:border-transparent focus:outline-none transition-all duration-300"
+      >
+      <div class="flex justify-end space-x-2">
+        <button 
+          type="button" 
+          onclick="hideEditBrandModal()" 
+          class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors duration-200"
+        >
+          Cancel
+        </button>
+        <button 
+          type="submit" 
+          class="px-4 py-2 bg-gradient-to-r from-green-500 to-blue-500 text-white font-semibold rounded-lg hover:from-green-600 hover:to-blue-600 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"
+        >
+          Save
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function showAddBrandModal() {
+    const modal = document.getElementById('addBrandModal');
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+      modal.querySelector('div').classList.remove('scale-95', 'opacity-0');
+    }, 10);
+  }
+
+  function hideAddBrandModal() {
+    const modal = document.getElementById('addBrandModal');
+    modal.querySelector('div').classList.add('scale-95', 'opacity-0');
+    setTimeout(() => {
+      modal.classList.add('hidden');
+    }, 300);
+  }
+
+  function showEditBrandModal(id, name) {
+    const modal = document.getElementById('editBrandModal');
+    document.getElementById('editBrandName').value = name;
+    const form = document.getElementById('editBrandForm');
+    form.action = `/manager/admin_brands/edit/${id}/`;
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+      modal.querySelector('div').classList.remove('scale-95', 'opacity-0');
+    }, 10);
+  }
+
+  function hideEditBrandModal() {
+    const modal = document.getElementById('editBrandModal');
+    modal.querySelector('div').classList.add('scale-95', 'opacity-0');
+    setTimeout(() => {
+      modal.classList.add('hidden');
+    }, 300);
+  }
+
+  function toggleBrandStatus(brandId) {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    fetch(`/manager/admin_brands/toggle/${brandId}/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        const statusElement = document.getElementById(`status-${brandId}`);
+        const buttonElement = document.getElementById(`toggle-btn-${brandId}`);
+        const rowElement = document.getElementById(`brand-row-${brandId}`);
+
+        if (data.status === 'active') {
+          statusElement.innerHTML = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>';
+          buttonElement.textContent = 'Block';
+          rowElement.classList.remove('opacity-50');
+        } else {
+          statusElement.innerHTML = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Blocked</span>';
+          buttonElement.textContent = 'Unblock';
+          rowElement.classList.add('opacity-50');
+        }
+
+        // Add a subtle animation to highlight the change
+        rowElement.classList.add('bg-yellow-100', 'transition-colors', 'duration-1000');
+        setTimeout(() => {
+          rowElement.classList.remove('bg-yellow-100');
+        }, 1000);
+      } else {
+        alert('Failed to toggle status. Please try again.');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+    });
+  }
+  
+</script>
+{% endblock %}
