@@ -79,17 +79,10 @@ urlpatterns = [
     path('admin_brands/edit/<int:brand_id>/', views.edit_brand, name='edit_brand'),
 
     path('admin_brands/toggle/<int:brand_id>/', views.toggle_brand_status, name='toggle_brand_status'),
-
-<<<<<<< HEAD
     # Offer Management URLs
+   
     path('get-product-offer/<int:offer_id>/', views.get_product_offer, name='get_product_offer'),
     path('get-category-offer/<int:offer_id>/', views.get_category_offer, name='get_category_offer'),
-=======
-
-
-
-
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
 
 
     path('admin_orders/', views.admin_orders, name='admin_orders'),
@@ -123,7 +116,6 @@ urlpatterns = [
     path('return-requests/', views.admin_return_requests, name='admin_return_requests'),
     path('return-requests/<int:request_id>/handle/', views.handle_return_request, name='handle_return_request'),
 
-<<<<<<< HEAD
     # Offer Management URLs
     path('offers/', views.admin_offers, name='admin_offers'),
     path('product-offers/', views.admin_product_offers, name='admin_product_offers'),
@@ -139,6 +131,4 @@ urlpatterns = [
     path('category-offers/delete/<int:offer_id>/', views.delete_category_offer, name='delete_category_offer'),
     path('get-active-products/', views.get_active_products, name='get_active_products'),
 
-=======
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -7,11 +7,9 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from PIL import Image
 from django.core.paginator import Paginator
-<<<<<<< HEAD
+
 from .models import Product,Category,ProductImage,User, Brand, Variant, Size, Coupon, CouponUsage, Order, ReturnRequest, Wallet, WalletTransaction, ProductOffer, CategoryOffer
-=======
-from .models import Product,Category,ProductImage,User, Brand, Variant, Size, Coupon, CouponUsage, Order, ReturnRequest, Wallet, WalletTransaction
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
+
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.contrib.auth.decorators import login_required
@@ -19,10 +17,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 from django.db import transaction
-<<<<<<< HEAD
 from datetime import datetime
-=======
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
+
 import json
 
 
@@ -583,11 +579,9 @@ from django.core.paginator import Paginator
 # views.py
 def admin_orders(request):
     # Handle initial page render (HTML)
-<<<<<<< HEAD
+
     orders = Order.objects.select_related('user', 'payment_method').order_by('-created_at')
-=======
-    orders = Order.objects.select_related('user', 'paymentmethod').order_by('-created_at')
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
+
     search_query = request.GET.get('search', '')
     if search_query:
         orders = orders.filter(user__username__icontains=search_query)
@@ -606,11 +600,9 @@ from .models import Order
 def admin_orders_api(request):
     try:
         # Fetch orders with related user, paymentmethod, and order items
-<<<<<<< HEAD
+
         orders = Order.objects.select_related('user', 'payment_method').prefetch_related('order_items').order_by('-created_at')
-=======
-        orders = Order.objects.select_related('user', 'paymentmethod').prefetch_related('order_items').order_by('-created_at')
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
+
         
         # Apply search filter
         search_query = request.GET.get('search', '')
@@ -638,11 +630,9 @@ def admin_orders_api(request):
             orders_data.append({
                 'id': order.id,
                 'username': order.user.username if order.user else 'N/A',
-<<<<<<< HEAD
+
                 'payment_method': order.payment_method.name if order.payment_method else 'N/A',
-=======
-                'payment_method': order.paymentmethod.name if order.paymentmethod else 'N/A',
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
+
                 'status': order.order_status,
                 'total_price': float(order.total_amount) if order.total_amount else 0.0,
                 'created_at': order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
@@ -951,7 +941,7 @@ def handle_return_request(request, request_id):
         
         with transaction.atomic():
             if action == 'approve':
-<<<<<<< HEAD
+
                 return_request.status = 'approved'
                 return_request.admin_response = admin_response
                 return_request.save()
@@ -1068,8 +1058,8 @@ def edit_product_offer(request, offer_id):
                 'errors': {'form': 'All fields are required'}
             }, status=400)
         
-        # Parse and validate dates
         try:
+            # Parse and validate dates
             start_date = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
             end_date = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d'))
         except ValueError:
@@ -1078,51 +1068,55 @@ def edit_product_offer(request, offer_id):
                 'errors': {'form': 'Invalid date format'}
             }, status=400)
             
-        if start_date > end_date:
-            return JsonResponse({
-                'success': False,
-                'errors': {'form': 'Start date must be before end date'}
-            }, status=400)
-            
-        # Validate discount percentage
-        try:
-            discount_percentage = float(discount_percentage)
-            if not (0 <= discount_percentage <= 100):
+            if start_date > end_date:
                 return JsonResponse({
                     'success': False,
-                    'errors': {'discount_percentage': 'Discount percentage must be between 0 and 100'}
+                    'errors': {'form': 'Start date must be before end date'}
                 }, status=400)
-        except ValueError:
-            return JsonResponse({
-                'success': False,
-                'errors': {'discount_percentage': 'Invalid discount percentage'}
-            }, status=400)
+                
+            # Validate discount percentage
+            try:
+                discount_percentage = float(discount_percentage)
+                if not (0 <= discount_percentage <= 100):
+                    return JsonResponse({
+                        'success': False,
+                        'errors': {'discount_percentage': 'Discount percentage must be between 0 and 100'}
+                    }, status=400)
+            except ValueError:
+                return JsonResponse({
+                    'success': False,
+                    'errors': {'discount_percentage': 'Invalid discount percentage'}
+                }, status=400)
+                
+            # Update offer details
+            offer.name = name
+            offer.product_id = product_id
+            offer.discount_percentage = discount_percentage
+            offer.start_date = start_date
+            offer.end_date = end_date
+            offer.is_active = request.POST.get('is_active') == 'on'
+        
+            # Check for overlapping offers
+            if ProductOffer.objects.filter(
+                product_id=offer.product_id,
+                start_date__lte=offer.end_date,
+                end_date__gte=offer.start_date
+            ).exclude(id=offer_id).exists():
+                return JsonResponse({
+                    'success': False,
+                    'errors': {'form': 'An offer already exists for this product during the specified period'}
+                }, status=400)
             
-        # Update offer details
-        offer.name = name
-        offer.product_id = product_id
-        offer.discount_percentage = discount_percentage
-        offer.start_date = start_date
-        offer.end_date = end_date
-        offer.is_active = request.POST.get('is_active') == 'on'
-    
-        # Check for overlapping offers
-        if ProductOffer.objects.filter(
-            product_id=offer.product_id,
-            start_date__lte=offer.end_date,
-            end_date__gte=offer.start_date
-        ).exclude(id=offer_id).exists():
+            offer.save()
+            return JsonResponse({
+                'success': True,
+                'message': 'Product offer updated successfully'
+            })
+        except ProductOffer.DoesNotExist:
             return JsonResponse({
                 'success': False,
-                'errors': {'form': 'An offer already exists for this product during the specified period'}
-            }, status=400)
-        
-        offer.save()
-        return JsonResponse({
-            'success': True,
-            'message': 'Product offer updated successfully'
-        })
-        
+                'error': 'Product offer not found'
+            }, status=404)
     except Exception as e:
         return JsonResponse({
             'success': False,
@@ -1288,8 +1282,7 @@ def handle_return_request(request, return_request_id):
 
         with transaction.atomic():
             if action == 'approve':
-=======
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
+
                 # Update return request
                 return_request.status = 'APPROVED'
                 return_request.admin_response = admin_response
@@ -1344,8 +1337,6 @@ def handle_return_request(request, return_request_id):
         return JsonResponse({
             'success': False,
             'message': f'An error occurred: {str(e)}'
-<<<<<<< HEAD
+
         }, status=400)
-=======
-        })
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
+

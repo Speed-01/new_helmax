@@ -49,13 +49,13 @@
           </td>
           <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
             <button 
-              onclick="showEditBrandModal({{ brand.id }}, '{{ brand.name }}')" 
+              onclick="showEditBrandModal({ brand,id }, '{{ brand.name }}')" 
               class="text-indigo-600 hover:text-indigo-900 mr-2 transition-colors duration-200"
             >
               Edit
             </button>
             <button 
-              onclick="toggleBrandStatus({{ brand.id }})" 
+              onclick="toggleBrandStatus({ brand,id })"
               class="text-red-600 hover:text-red-900 transition-colors duration-200"
               id="toggle-btn-{{ brand.id }}"
             >
@@ -130,7 +130,7 @@
 <div id="editBrandModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center hidden z-50">
   <div class="bg-[#1A1A1A] p-6 rounded-lg w-96 shadow-2xl transform transition-all duration-300 scale-95 opacity-0">
     <h2 class="text-2xl font-bold text-white mb-4">Edit Brand</h2>
-    <form id="editBrandForm" method="POST" action="edit_category">
+    <form id="editBrandForm" method="POST">
       {% csrf_token %}
       <input 
         type="text" 
@@ -180,6 +180,15 @@
     document.getElementById('editBrandName').value = name;
     const form = document.getElementById('editBrandForm');
     form.action = `/manager/admin_brands/edit/${id}/`;
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const brandName = document.getElementById('editBrandName').value.trim();
+      if (!brandName) {
+        alert('Brand name cannot be empty');
+        return;
+      }
+      this.submit();
+    });
     modal.classList.remove('hidden');
     setTimeout(() => {
       modal.querySelector('div').classList.remove('scale-95', 'opacity-0');
@@ -201,9 +210,14 @@
       headers: {
         'Content-Type': 'application/json',
         'X-CSRFToken': csrfToken,
-      },
+      }
     })
-    .then(response => response.json())
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    })
     .then(data => {
       if (data.success) {
         const statusElement = document.getElementById(`status-${brandId}`);
@@ -226,11 +240,12 @@
           rowElement.classList.remove('bg-yellow-100');
         }, 1000);
       } else {
-        alert('Failed to toggle status. Please try again.');
+        throw new Error(data.error || 'Failed to update status');
       }
     })
     .catch(error => {
       console.error('Error:', error);
+      alert('Failed to update brand status: ' + error.message);
     });
   }
   

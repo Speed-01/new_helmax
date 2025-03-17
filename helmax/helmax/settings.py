@@ -94,10 +94,9 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 'manager.context_processors.admin_context',
-<<<<<<< HEAD
+
                 'store.context_processors.payment_context',
-=======
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
+
             ],
         },
     },
@@ -188,3 +187,5 @@ LOGIN_URL = '/'
 # Razorpay settings
 RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID')
 RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET')
+# RAZORPAY_KEY_ID = 'rzp_test_KDYrLJHnu3O9Ip'
+# RAZORPAY_KEY_SECRET = 'bcOjtnHN19lrbqBWdS35Ee7J'
