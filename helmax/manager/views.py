@@ -2,11 +2,17 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, authenticate
 from django.contrib import messages
 from django.views.decorators.cache import never_cache
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from PIL import Image
 from django.core.paginator import Paginator
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
 
 from .models import Product,Category,ProductImage,User, Brand, Variant, Size, Coupon, CouponUsage, Order, ReturnRequest, Wallet, WalletTransaction, ProductOffer, CategoryOffer
 
@@ -17,6 +23,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 from django.db import transaction
+
 from datetime import datetime
 
 import json
@@ -202,6 +209,159 @@ def toggle_category_status(request, category_id):
 #     return redirect('admin_category')
 
 
+
+def sales_report(request):
+    # Get report type and date range from request
+    report_type = request.GET.get('report_type', 'daily')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    download_format = request.GET.get('download')
+
+    # Initialize the date range based on report type
+    today = timezone.now()
+    if report_type == 'daily':
+        start_date = today.date()
+        end_date = start_date
+    elif report_type == 'weekly':
+        start_date = today.date() - timezone.timedelta(days=today.weekday())
+        end_date = start_date + timezone.timedelta(days=6)
+    elif report_type == 'monthly':
+        start_date = today.date().replace(day=1)
+        end_date = (start_date + timezone.timedelta(days=32)).replace(day=1) - timezone.timedelta(days=1)
+    elif report_type == 'custom' and start_date and end_date:
+        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+    else:
+        start_date = today.date()
+        end_date = start_date
+
+    # Filter orders based on date range
+    orders = Order.objects.filter(
+        created_at__date__gte=start_date,
+        created_at__date__lte=end_date
+    ).order_by('-created_at')
+
+    # Calculate summary statistics
+    total_orders = orders.count()
+    total_sales = sum(order.total_amount for order in orders)
+    total_discounts = sum(order.total_discount for order in orders)
+
+    # Handle report downloads
+    if download_format:
+        if download_format == 'pdf':
+            # Generate PDF report
+            response = HttpResponse(content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="sales_report_{start_date}_{end_date}.pdf"'
+            
+            # Create PDF document
+            doc = SimpleDocTemplate(response, pagesize=letter)
+            elements = []
+            
+            # Add title
+            styles = getSampleStyleSheet()
+            elements.append(Paragraph(f'Sales Report ({start_date} to {end_date})', styles['Title']))
+            
+            # Add summary
+            elements.append(Paragraph(f'Total Orders: {total_orders}', styles['Normal']))
+            elements.append(Paragraph(f'Total Sales: ₹{total_sales}', styles['Normal']))
+            elements.append(Paragraph(f'Total Discounts: ₹{total_discounts}', styles['Normal']))
+            
+            # Create table data
+            data = [
+                ['Order ID', 'Date', 'Customer', 'Items', 'Subtotal', 'Discount', 'Total', 'Status']
+            ]
+            for order in orders:
+                data.append([
+                    order.order_number,
+                    order.created_at.strftime('%Y-%m-%d %H:%M'),
+                    order.user.username,
+                    order.order_items.count(),
+                    f'₹{order.total_amount}',
+                    f'₹{order.total_amount - order.final_amount}',
+                    f'₹{order.final_amount}',
+                    order.order_status
+                ])
+            
+            # Create and style the table
+            table = Table(data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 14),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 12),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            elements.append(table)
+            
+            # Build PDF
+            doc.build(elements)
+            return response
+            
+        elif download_format == 'excel':
+            # Generate Excel report
+            response = HttpResponse(content_type='application/vnd.ms-excel')
+            response['Content-Disposition'] = f'attachment; filename="sales_report_{start_date}_{end_date}.xlsx"'
+            
+            workbook = Workbook()
+            worksheet = workbook.active
+            worksheet.title = 'Sales Report'
+            
+            # Add headers
+            headers = ['Order ID', 'Date', 'Customer', 'Items', 'Subtotal', 'Discount', 'Total', 'Status']
+            worksheet.append(headers)
+            
+            # Add data
+            for order in orders:
+                worksheet.append([
+                    order.order_number,
+                    order.created_at.strftime('%Y-%m-%d %H:%M'),
+                    order.user.username,
+                    order.order_items.count(),
+                    float(order.total_amount),
+                    float(order.total_amount - order.final_amount),
+                    float(order.final_amount),
+                    order.order_status
+                ])
+            
+            # Style the worksheet
+            for cell in worksheet[1]:
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill(start_color='808080', end_color='808080', fill_type='solid')
+            
+            # Adjust column widths
+            for column in worksheet.columns:
+                max_length = 0
+                column = list(column)
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2)
+                worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
+            
+            workbook.save(response)
+            return response
+
+    context = {
+        'orders': orders,
+        'total_orders': total_orders,
+        'total_sales': total_sales,
+        'total_discounts': total_discounts,
+        'report_type': report_type,
+        'start_date': start_date,
+        'end_date': end_date
+    }
+    
+    return render(request, 'sales_report.html', context)
 
 def admin_brand(request):
     # Fetch all brands ordered by ID in descending order
@@ -422,9 +582,9 @@ def editVariant(request, variant_id):
         
         try:
             # Update variant details
-            variant.color = color
+            variant.color = color.upper() if color else color  # Convert color to uppercase
             variant.price = price
-            variant.discount_price = discount_price
+            variant.discount_price = discount_price if discount_price else None
             variant.stock = 0  # Will be updated based on size stocks
             variant.save()
             
@@ -670,15 +830,13 @@ def update_order_status(request, order_id):
         if not new_status:
             return JsonResponse({'success': False, 'error': 'Status is required'})
             
-        order = get_object_or_404(Order, id=order_id)
+        order = get_object_or_404(Order, order_number=order_id)
         
         # Validate status transition
         valid_transitions = {
-            'PENDING': ['PROCESSING', 'CANCELLED'],
-            'PROCESSING': ['SHIPPED', 'CANCELLED'],
-            'SHIPPED': ['DELIVERED', 'CANCELLED'],
-            'DELIVERED': [],  # Can't change status once delivered
-            'CANCELLED': []   # Can't change status once cancelled
+            'PROCESSING': ['SHIPPED'],
+            'SHIPPED': ['DELIVERED'],
+            'DELIVERED': []  # Final state
         }
         
         if new_status not in valid_transitions.get(order.order_status, []):

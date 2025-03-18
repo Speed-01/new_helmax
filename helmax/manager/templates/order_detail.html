@@ -5,7 +5,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="mb-8">
             <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
-                Edit Orders #{{ order.id }}
+                Edit Orders #{{ order.order_number }}
             </h1>
         </div>
 
@@ -16,10 +16,8 @@
                 <div>Product</div>
                 <div>Quantity</div>
                 <div>Price</div>
-<<<<<<< HEAD
                 <div>Status</div>
-=======
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
+                <div>Actions</div>
             </div>
             <div class="space-y-4">
                 {% for item in order.order_items.all %}
@@ -32,27 +30,35 @@
                     </div>
                     <div class="text-gray-200">{{ item.quantity }}</div>
                     <div class="text-gray-200">₹{{ item.price }}</div>
-<<<<<<< HEAD
-                    <div>
+                    <div class="flex items-center space-x-4">
                         <span class="px-2 py-1 rounded-full text-xs
-                            {% if item.status == 'PROCESSING' %}
+                            {% if item.order_status == 'PROCESSING' %}
                                 bg-yellow-900/50 text-yellow-300
-                            {% elif item.status == 'SHIPPED' %}
+                            {% elif item.order_status == 'SHIPPED' %}
                                 bg-blue-900/50 text-blue-300
-                            {% elif item.status == 'DELIVERED' %}
+                            {% elif item.order_status == 'DELIVERED' %}
                                 bg-green-900/50 text-green-300
-                            {% elif item.status == 'CANCELLED' %}
+                            {% elif item.order_status == 'CANCELLED' %}
                                 bg-red-900/50 text-red-300
-                            {% elif item.status == 'RETURNED' %}
+                            {% elif item.order_status == 'RETURNED' %}
                                 bg-gray-800 text-gray-300
                             {% else %}
                                 bg-yellow-900/50 text-yellow-300
                             {% endif %}">
-                            {{ item.get_status_display }}()
+                            {{ item.get_status_display }}
                         </span>
+                        {% if item.order_status == 'PROCESSING' or item.order_status == 'SHIPPED' %}
+                        <button onclick="cancelOrder('{{ order.order_number }}')" 
+                                class="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 rounded text-white">
+                            Cancel
+                        </button>
+                        {% elif item.order_status == 'DELIVERED' %}
+                        <button onclick="returnOrder('{{ order.order_number }}')" 
+                                class="px-3 py-1 text-xs bg-yellow-600 hover:bg-yellow-700 rounded text-white">
+                            Return
+                        </button>
+                        {% endif %}
                     </div>
-=======
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
                 </div>
                 {% endfor %}
             </div>
@@ -72,11 +78,7 @@
                 </div>
                 <div>
                     <p class="text-gray-400">Payment Method</p>
-<<<<<<< HEAD
                     <p class="text-gray-200">{{ order.payment_method.name }}</p>
-=======
-                    <p class="text-gray-200">{{ order.paymentmethod.name }}</p>
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
                 </div>
                 <div>
                     <p class="text-gray-400">Payment Status</p>
@@ -115,7 +117,7 @@
 
 <script>
 function updateOrderStatus(status) {
-    fetch('/manager/update-order-status/{{ order.id }}/', {
+    fetch('/manager/update-order-status/{{ order.order_number }}/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -139,6 +141,63 @@ function updateOrderStatus(status) {
         alert('An error occurred while updating the order status');
         // Reset the select to the current status
         document.getElementById('orderStatus').value = '{{ order.order_status }}';
+    });
+}
+
+function cancelOrder(orderId) {
+    const reason = prompt('Please enter reason for cancellation (optional):');
+    if (reason === null) return; // User clicked cancel
+    
+    fetch(`/store/cancel-order/${orderId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.message || 'Failed to cancel order');
+        }
+    })
+    .catch(error => {
+        alert('An error occurred while cancelling the order');
+    });
+}
+
+function returnOrder(orderId) {
+    const reason = prompt('Please enter reason for return (required):');
+    if (!reason) {
+        alert('Return reason is required');
+        return;
+    }
+    
+    fetch(`/store/return-order/${orderId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.message || 'Failed to submit return request');
+        }
+    })
+    .catch(error => {
+        alert('An error occurred while submitting return request');
     });
 }
 </script>

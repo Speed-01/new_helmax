@@ -32,13 +32,9 @@
         <div class="bg-zinc-900 rounded-lg p-6 text-white mb-6">
             <div class="grid grid-cols-2 gap-6">
                 <div>
-                    <p class="text-gray-400">Order ID: <span class="text-white">#{{ order.id }}</span></p>
+                    <p class="text-gray-400">Order ID: <span class="text-white">#{{ order.order_number }}</span></p>
                     <p class="text-gray-400">Order Date: <span class="text-white">{{ order.created_at|date:"F j, Y \a\t g:i A" }}</span></p>
-<<<<<<< HEAD
                     <p class="text-gray-400">Payment Method: <span class="text-white">{{ order.payment_method }}</span></p>
-=======
-                    <p class="text-gray-400">Payment Method: <span class="text-white">{{ order.paymentmethod }}</span></p>
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
                     <p class="text-gray-400">Payment Status: <span class="text-white">{{ order.payment_status }}</span></p>
                 </div>
                 <div>
@@ -110,18 +106,18 @@
                     <div class="text-right">
                         <p class="text-sm text-gray-400 mb-2">Item Status: 
                             <span class="px-3 py-1 rounded-full text-sm 
-                                {% if item.status == 'Processing' %}
-                                    bg-yellow-200 text-yellow-800
-                                {% elif item.status == 'Delivered' %}
-                                    bg-green-200 text-green-800
-                                {% elif item.status == 'Cancelled' %}
-                                    bg-red-200 text-red-800
-                                {% elif item.status == 'Shipped' %}
-                                    bg-blue-200 text-blue-800
-                                {% elif item.status == 'Returned' %}
-                                    bg-gray-200 text-gray-800
+                                {% if item.order_status == 'PROCESSING' %}
+                                    bg-yellow-900/50 text-yellow-300
+                                {% elif item.order_status == 'SHIPPED' %}
+                                    bg-blue-900/50 text-blue-300
+                                {% elif item.order_status == 'DELIVERED' %}
+                                    bg-green-900/50 text-green-300
+                                {% elif item.order_status == 'CANCELLED' %}
+                                    bg-red-900/50 text-red-300
+                                {% elif item.order_status == 'RETURNED' %}
+                                    bg-gray-800 text-gray-300
                                 {% endif %}">
-                                {{ item.status }}
+                                {{ item.order_status }}
                             </span>
                         </p>
 

@@ -72,7 +72,6 @@ let currentPage = 1;
 let totalPages = 1;
 
 function fetchOrders(page = 1, search = '') {
-<<<<<<< HEAD
     currentPage = page;
     fetch(`/manager/admin_orders/api/?page=${page}&search=${encodeURIComponent(search)}`)
         .then(response => {
@@ -94,16 +93,6 @@ function fetchOrders(page = 1, search = '') {
             console.error('Error:', error);
             document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-red-500">Error loading orders. Please try again.</td></tr>';
         });
-=======
-    fetch(`/manager/admin_orders/api/?page=${page}&search=${encodeURIComponent(search)}`)
-        .then(response => response.json())
-        .then(data => {
-            totalPages = data.total_pages;
-            updateTable(data.orders);
-            updatePagination();
-        })
-        .catch(error => console.error('Error:', error));
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
 }
 
 function updateTable(orders) {
@@ -116,19 +105,11 @@ function updateTable(orders) {
         tr.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">#${order.id}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.username}</td>
-<<<<<<< HEAD
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.payment_method.replace('_', ' ').charAt(0).toUpperCase() + order.payment_method.slice(1).toLowerCase()}</td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                     ${getStatusColor(order.status)}">
                     ${order.status.charAt(0).toUpperCase() + order.status.slice(1).toLowerCase()}
-=======
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.payment_method}</td>
-            <td class="px-6 py-4 whitespace-nowrap">
-                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                    ${getStatusColor(order.status)}">
-                    ${order.status}
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
                 </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">$${order.total_price.toFixed(2)}</td>
@@ -145,37 +126,19 @@ function updateTable(orders) {
 }
 
 function getStatusColor(status) {
-<<<<<<< HEAD
     // Normalize status to uppercase for consistent comparison
     const normalizedStatus = status.toUpperCase();
     const colors = {
         'PENDING': 'bg-yellow-900/50 text-yellow-300',
-=======
-    const colors = {
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
         'PROCESSING': 'bg-yellow-900/50 text-yellow-300',
         'SHIPPED': 'bg-blue-900/50 text-blue-300',
         'DELIVERED': 'bg-green-900/50 text-green-300',
         'CANCELLED': 'bg-red-900/50 text-red-300',
-<<<<<<< HEAD
         'RETURNED': 'bg-gray-800 text-gray-300'
     };
     return colors[normalizedStatus] || 'bg-gray-800 text-gray-300';
 }
 
-
-=======
-        'RETURNED': 'bg-gray-800 text-gray-300',
-        'Pending': 'bg-yellow-900/50 text-yellow-300',
-        'Delivered': 'bg-green-900/50 text-green-300',
-        'Cancelled': 'bg-red-900/50 text-red-300',
-        'Returned': 'bg-gray-800 text-gray-300',
-        'Shipped': 'bg-blue-900/50 text-blue-300'
-    };
-    return colors[status] || 'bg-gray-800 text-gray-300';
-}
-
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
 function updatePagination() {
     document.getElementById('currentPage').textContent = currentPage;
     document.getElementById('totalPages').textContent = totalPages;

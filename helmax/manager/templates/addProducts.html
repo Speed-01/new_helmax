@@ -75,10 +75,10 @@
         <!-- Variants Section -->
         <div class="space-y-2">
             <label class="text-sm font-medium text-gray-300">Variants (Colors)</label>
-            <div class="flex space-x-4">
+            <div class="flex flex-wrap gap-4">
                 {% for variant in product.variants.all %}
-                <a href="{% url 'editVariant' variant.id %}" class="flex items-center space-x-2 border border-gray-500 px-4 py-2 rounded-md hover:border-yellow-500">
-                    <div class="w-6 h-6 rounded-full" style="background-color: {{ variant.color_code }}"></div>
+                <a href="{% url 'editVariant' variant.id %}" class="flex items-center space-x-2 border border-gray-500 px-4 py-2 rounded-md hover:border-yellow-500 transition-colors duration-200">
+                    <div class="w-6 h-6 rounded-full border border-gray-600" style="background-color: '{{ variant.color }}'"></div>
                     <span>{{ variant.color }}</span>
                 </a>
                 {% endfor %}

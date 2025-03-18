@@ -390,7 +390,7 @@ class Address(BaseModel):
         verbose_name_plural = "Addresses"
 
 
-class Order(models.Model):
+class Order(BaseModel):
     ORDER_STATUSES = [
         ('PENDING', 'Pending'),
         ('CONFIRMED', 'Confirmed'),
@@ -413,7 +413,7 @@ class Order(models.Model):
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     order_status = models.CharField(max_length=20, choices=ORDER_STATUSES, default='PENDING')
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUSES, default='PENDING')
-    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True)
+    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, related_name='orders')
     
     # Address fields
     full_name = models.CharField(max_length=100, null=True, blank=True)
@@ -448,11 +448,20 @@ class Order(models.Model):
             timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
             self.order_number = f'ORD{timestamp}'
         super().save(*args, **kwargs)
+        
+    @property
+    def total_discount(self):
+        # Calculate total discount from order items
+        # For now, returning 0 as there's no discount field
+        return 0
+        
+    @property
+    def final_amount(self):
+        # Calculate final amount (total amount - total discount)
+        return self.total_amount
 
 class OrderItem(models.Model):
     ITEM_STATUSES = [
-        ('PENDING', 'Pending'),
-        ('CONFIRMED', 'Confirmed'),
         ('PROCESSING', 'Processing'),
         ('SHIPPED', 'Shipped'),
         ('DELIVERED', 'Delivered'),
@@ -468,6 +477,14 @@ class OrderItem(models.Model):
         ('IN_TRANSIT', 'Return in Transit'),
         ('COMPLETED', 'Return Completed')
     ]
+    
+    RETURN_REASONS = [
+        ('DEFECTIVE', 'Product Defective'),
+        ('WRONG_ITEM', 'Wrong Item Received'),
+        ('NOT_AS_DESCRIBED', 'Item Not As Described'),
+        ('SIZE_ISSUE', 'Size/Fit Issue'),
+        ('OTHER', 'Other')
+    ]
 
     order = models.ForeignKey(Order, related_name='order_items', on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
@@ -476,7 +493,7 @@ class OrderItem(models.Model):
     quantity = models.PositiveIntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
     
-    status = models.CharField(max_length=20, choices=ITEM_STATUSES, default='PENDING')
+    status = models.CharField(max_length=20, choices=ITEM_STATUSES, default='PROCESSING')
     return_status = models.CharField(max_length=20, choices=RETURN_STATUSES, default='NOT_REQUESTED')
     
     # Timestamps for item status changes

@@ -27,6 +27,17 @@ class CustomUserAdmin(UserAdmin):
 
     filter_horizontal = ('groups', 'user_permissions')
 
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'total_amount', 'payment_status', 'order_status', 'created_at')
+    list_filter = ('payment_status', 'order_status', 'created_at')
+    search_fields = ('id', 'user__username', 'user__email')
+    readonly_fields = ('created_at',)
+    date_hierarchy = 'created_at'
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('user', 'payment_method')
+
 # Remove these models from the general registration since they have custom admin classes
 models_to_register = [
     User,
@@ -41,7 +52,6 @@ models_to_register = [
     PaymentMethod,
     CartItem,
     Profile,
-    Order,
     OrderItem,
     ReturnRequest,
     Address,

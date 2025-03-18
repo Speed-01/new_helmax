@@ -1549,7 +1549,7 @@ def order_confirmation(request, order_id):
                 'order_items__variant',
                 'order_items__size'  
             ),
-            id=order_id,
+            order_number=order_id,
             user=request.user
         )
         order_items = order.order_items.all()
@@ -1589,12 +1589,14 @@ def cancel_order(request, order_id):
                 })
             
             # Check if order can be cancelled (e.g., not already shipped)
-            if order.order_status not in ['PENDING', 'PROCESSING']:
+            if order.order_status not in ['PENDING', 'PROCESSING', 'SHIPPED']:
                 logger.warning(f"Cannot cancel order {order_id} with status {order.order_status}")
                 return JsonResponse({
                     'success': False, 
                     'message': f'Cannot cancel order with status {order.order_status}'
                 })
+            
+            reason = data.get('reason', '')
             
             # Restore stock for each order item
             for order_item in order.order_items.all():
@@ -1610,14 +1612,21 @@ def cancel_order(request, order_id):
                             f"Restored {order_item.quantity} items to stock for "
                             f"variant {order_item.variant.id}, size {size.name}"
                         )
+                        
+                        # Update order item status
+                        order_item.status = 'CANCELLED'
+                        order_item.save()
+                        
                 except Exception as e:
                     logger.error(
                         f"Error restoring stock for order item {order_item.id}: {str(e)}"
                     )
                     raise  # Re-raise the exception to trigger rollback
             
-            # Update order status
+            # Update order status and save cancellation reason
             order.order_status = 'CANCELLED'
+            order.cancellation_reason = reason
+            order.cancelled_at = timezone.now()
             order.save()
             
             logger.info(f"Successfully cancelled order {order_id}")
@@ -1755,12 +1764,13 @@ def cancel_order_item(request, item_id):
         if order.user != request.user:
             return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=403)
             
-        if order_item.status not in ['Processing', 'Shipped']:
+        if order_item.status not in ['PROCESSING', 'SHIPPED']:
             return JsonResponse({'success': False, 'message': 'Item cannot be cancelled'})
         
         with transaction.atomic():
             # Update item status
-            order_item.status = 'Cancelled'
+            order_item.status = 'CANCELLED'
+            order_item.cancelled_at = timezone.now()
             order_item.save()
             
             # Restore stock if size exists
@@ -1769,7 +1779,7 @@ def cancel_order_item(request, item_id):
                 order_item.size.save()
             
             # Recalculate order total
-            active_items = order.order_items.exclude(status__in=['Cancelled', 'Returned'])
+            active_items = order.order_items.exclude(status__in=['CANCELLED', 'RETURNED'])
             new_total = sum(item.price * item.quantity for item in active_items)
             order.total_amount = new_total
             order.save()
@@ -1790,11 +1800,83 @@ def cancel_order_item(request, item_id):
                     description=f'Refund for cancelled item #{order_item.id}'
                 )
             
-            # Check if all items are cancelled
-            if not active_items.exists():
-                order.order_status = 'CANCELLED'
-                order.save()
+            return JsonResponse({
+                'success': True,
+                'message': 'Item cancelled successfully'
+            })
+            
+    except OrderItem.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Order item not found'
+        })
+    except Exception as e:
+        logger.error(f"Error cancelling order item {item_id}: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'An error occurred while cancelling the item'
+        })
+
+@login_required
+@require_POST
+def return_order_item(request, item_id):
+    try:
+        data = json.loads(request.body)
+        reason = data.get('reason')
+        description = data.get('description')
         
+        if not reason:
+            return JsonResponse({
+                'success': False,
+                'message': 'Return reason is required'
+            })
+            
+        order_item = get_object_or_404(OrderItem, id=item_id)
+        
+        # Verify ownership and status
+        if order_item.order.user != request.user:
+            return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=403)
+            
+        if order_item.status != 'DELIVERED':
+            return JsonResponse({'success': False, 'message': 'Item cannot be returned'})
+            
+        if order_item.return_status != 'NOT_REQUESTED':
+            return JsonResponse({'success': False, 'message': 'Return already requested'})
+        
+        # Create return request
+        ReturnRequest.objects.create(
+            order_item=order_item,
+            user=request.user,
+            reason=reason,
+            description=description
+        )
+        
+        # Update order item status
+        order_item.return_status = 'REQUESTED'
+        order_item.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Return request submitted successfully'
+        })
+        
+    except OrderItem.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Order item not found'
+        })
+    except Exception as e:
+        logger.error(f"Error processing return request for item {item_id}: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'An error occurred while processing your return request'
+        })
+            
+        # Check if all items are cancelled
+        if not active_items.exists():
+            order.order_status = 'CANCELLED'
+            order.save()
+    
         return JsonResponse({
             'success': True,
             'new_total': float(new_total),

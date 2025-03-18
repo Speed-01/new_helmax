@@ -22,6 +22,8 @@ urlpatterns = [
 
     path('logout/', views.admin_logout, name='admin_logout'),
 
+    path('sales-report/', views.sales_report, name='sales_report'),
+
     #path('dashboard/', views.admin_dashboard, name='admin_dashboard'),
 
     
@@ -91,7 +93,7 @@ urlpatterns = [
 
     path('order-detail/<int:order_id>/', views.order_detail, name='orderDetail'),
 
-    path('update-order-status/<int:order_id>/', views.update_order_status, name='updateOrderStatus'),
+    path('update-order-status/<str:order_id>/', views.update_order_status, name='updateOrderStatus'),
 
     path('update-item-status/', views.update_item_status, name='updateItemStatus'),
 

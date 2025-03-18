@@ -34,15 +34,11 @@
                 <div class="bg-zinc-900 rounded-lg p-6 text-white">
                     <div class="flex justify-between items-start mb-4">
                         <div>
-                            <p class="text-gray-400">Order ID: <span class="text-white">#{{ order.id }}</span></p>
+                            <p class="text-gray-400">Order ID: <span class="text-white">#{{ order.order_number }}</span></p>
                             <p class="text-gray-400">Order Date: <span class="text-white">{{ order.created_at|date:"F j, Y \a\t g:i A" }}</span></p>
                         </div>
                         <div class="text-right">
-<<<<<<< HEAD
                             <p class="text-gray-400">Payment: <span class="text-white">{{ order.payment_method.name }}</span></p>
-=======
-                            <p class="text-gray-400">Payment: <span class="text-white">{{ order.paymentmethod.name }}</span></p>
->>>>>>> e9bfa11a3ee794a710d4f72e0897ebafe185349a
                             <p class="text-2xl font-bold text-[#ff6b00]">₹{{ order.total_amount }}</p>
                         </div>
                     </div>
@@ -71,20 +67,34 @@
                             <div class="text-right">
                                 <div class="text-sm text-gray-400">
                                     Status: 
-                                    <span class="px-2 py-1 rounded-full text-xs
-                                        {% if item.status == 'Processing' %}
-                                            bg-yellow-200 text-yellow-800
-                                        {% elif item.status == 'Delivered' %}
-                                            bg-green-200 text-green-800
-                                        {% elif item.status == 'Cancelled' %}
-                                            bg-red-200 text-red-800
-                                        {% elif item.status == 'Shipped' %}
-                                            bg-blue-200 text-blue-800
-                                        {% elif item.status == 'Returned' %}
-                                            bg-gray-200 text-gray-800
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs
+                                        {% if item.status == 'PROCESSING' %}
+                                            bg-yellow-900/50 text-yellow-300
+                                        {% elif item.status == 'SHIPPED' %}
+                                            bg-blue-900/50 text-blue-300
+                                        {% elif item.status == 'DELIVERED' %}
+                                            bg-green-900/50 text-green-300
+                                        {% elif item.status == 'CANCELLED' %}
+                                            bg-red-900/50 text-red-300
+                                        {% elif item.status == 'RETURNED' %}
+                                            bg-gray-800 text-gray-300
                                         {% endif %}">
-                                        {{ item.status }}
+                                        <span class="flex-shrink-0">{{ item.get_status_display }}</span>
                                     </span>
+                                    
+                                    {% if item.status == 'PROCESSING' or item.status == 'SHIPPED' %}
+                                    <button onclick="cancelOrderItem({{ item.id }})" 
+                                            class="ml-2 px-3 py-1 text-xs bg-red-900/50 text-red-300 rounded-full hover:bg-red-800/50 transition-colors duration-200 ease-in-out">
+                                        Cancel
+                                    </button>
+                                    {% endif %}
+                                    
+                                    {% if item.status == 'DELIVERED' and item.return_status == 'NOT_REQUESTED' %}
+                                    <button onclick="returnOrderItem({{ item.id }})" 
+                                            class="ml-2 px-3 py-1 text-xs bg-blue-900/50 text-blue-300 rounded-full hover:bg-blue-800/50 transition-colors duration-200 ease-in-out">
+                                        Return
+                                    </button>
+                                    {% endif %}
                                 </div>
 
                                 {% if item.admin_response %}
@@ -117,7 +127,7 @@
                     </div>
 
                     <div class="mt-4 flex justify-end">
-                        <a href="{% url 'order_confirmation' order.id %}" 
+                        <a href="{% url 'order_confirmation' order.order_number %}" 
                            class="bg-[#ff6b00] text-black px-6 py-2 rounded-lg hover:bg-[#ff8533] transition-colors">
                             View Details
                         </a>
@@ -132,4 +142,94 @@
         </div>
     </div>
   </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function cancelOrderItem(itemId) {
+    if (confirm('Are you sure you want to cancel this item?')) {
+        fetch(`/cancel-order-item/${itemId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while cancelling the item');
+        });
+    }
+}
+
+function returnOrderItem(itemId) {
+    const reason = prompt('Please select a return reason:\n1. Product Defective\n2. Wrong Item Received\n3. Item Not As Described\n4. Size/Fit Issue\n5. Other\n\nEnter the number of your reason:');
+    
+    if (!reason) return;
+    
+    const reasonMap = {
+        '1': 'DEFECTIVE',
+        '2': 'WRONG_ITEM',
+        '3': 'NOT_AS_DESCRIBED',
+        '4': 'SIZE_ISSUE',
+        '5': 'OTHER'
+    };
+    
+    const selectedReason = reasonMap[reason];
+    if (!selectedReason) {
+        alert('Invalid reason selected');
+        return;
+    }
+    
+    const description = prompt('Please provide additional details about your return request:');
+    if (!description) return;
+    
+    fetch(`/return-order-item/${itemId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            reason: selectedReason,
+            description: description
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while processing your return request');
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
 {% endblock %}
