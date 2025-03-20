@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title mb-0">Logout Confirmation</h3>
+                </div>
+                <div class="card-body">
+                    <p>Are you sure you want to log out?</p>
+                    <form method="post" <a href="{% url 'Login' %}"a>submit</a> >
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">Yes, log me out</button>
+                        <a href="{% url 'home' %}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

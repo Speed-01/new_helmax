@@ -167,6 +167,7 @@
                                         {% endif %}
                                     </div>
                                     <div class="p-4">
+
                                         <h3 class="text-lg font-medium mb-1 truncate group-hover:text-[#ff6b00] transition-colors">
                                             {{ product.name }}
                                         </h3>
@@ -176,9 +177,11 @@
                                         </p>
                                         <div class="flex items-center justify-between">
                                             <div class="flex items-center gap-2">
-                                                <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.discount_price }}</span>
-                                                {% if product.discount_percentage > 0 %}
-                                                <span class="text-sm text-gray-400 line-through">₹{{ product.price }}</span>
+                                                {% if product.discount_price and product.discount_price < product.price %}
+                                                    <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.final_price }}</span>
+                                                    <span class="text-sm text-gray-400 line-through">₹{{ product.price }}</span>
+                                                {% else %}
+                                                    <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.price }}</span>
                                                 {% endif %}
                                             </div>
                                         </div>

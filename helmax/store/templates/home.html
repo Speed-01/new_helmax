@@ -58,7 +58,7 @@
         <h2 class="text-3xl font-bold text-center mb-12 ">Featured Collections</h2>
         {% load static %}
 
-        <div id="product-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+        <div id="product-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-12">
             {% for product in products %}
                 {% with product.variants.first as variant %}
                     <a href="{% url 'product_detail' product.id %}" class="group cursor-pointer block">

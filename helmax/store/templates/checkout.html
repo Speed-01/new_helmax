@@ -15,6 +15,57 @@
 </div>
 
 <div class="min-h-screen bg-black text-white px-4 py-8 md:px-6 lg:px-8">
+    <!-- Add Address Form Modal -->
+    <div id="addressFormModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-zinc-900 p-6 rounded-lg w-full max-w-md">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-semibold">ADD NEW ADDRESS</h2>
+                <button onclick="toggleAddressForm()" class="text-gray-400 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <form id="addressForm" class="space-y-4">
+                {% csrf_token %}
+                <div class="space-y-4">
+                    <select name="address_type" required class="w-full bg-zinc-800 rounded px-4 py-2 text-white">
+                        <option value="">Select Address Type</option>
+                        <option value="HOME">Home</option>
+                        <option value="WORK">Work</option>
+                        <option value="OTHER">Other</option>
+                    </select>
+                    <input type="text" name="full_name" placeholder="Name" required
+                           class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                    <input type="email" name="email" placeholder="Email" required
+                           class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                    <input type="tel" name="phone" placeholder="Mobile" required
+                           class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                    <input type="text" name="address_line1" placeholder="Address Line 1" required
+                           class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                    <input type="text" name="address_line2" placeholder="Address Line 2"
+                           class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="text" name="pincode" placeholder="Pincode" required
+                               class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                        <input type="text" name="city" placeholder="City" required
+                               class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                    </div>
+                    <input type="text" name="state" placeholder="State" required
+                           class="w-full bg-zinc-800 rounded px-4 py-2 text-white placeholder-gray-400">
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" name="is_default" id="is_default"
+                               class="rounded bg-zinc-800 text-orange-500 focus:ring-orange-500">
+                        <label for="is_default">Set as Default</label>
+                    </div>
+                </div>
+                <button type="submit" 
+                        class="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition-colors">
+                    SAVE
+                </button>
+            </form>
+        </div>
+    </div>
     {% csrf_token %}
     <div class="max-w-7xl mx-auto">
         <!-- Checkout Header -->
@@ -27,7 +78,7 @@
                 
                 <!-- Add Address Button -->
                 <button 
-                    id="add-address-btn"
+                    onclick="toggleAddressForm()"
                     class="w-full bg-zinc-900 hover:bg-zinc-800 text-[#ff6b00] py-4 px-6 rounded mb-6 text-left"
                 >
                     <span class="inline-block mr-2">+</span> Add address
@@ -80,9 +131,9 @@
                                 </p>
                             </div>
                             <div class="text-right">
-                                <p class="font-medium">
-                                    ₹{{ item.variant.discount_price  }}
-                                </p>
+                                <!-- <p class="font-medium">
+                                    ₹{{ item.variant.price }}
+                                </p> -->
                                 <p class="text-gray-400 text-sm">
                                     Total: ₹{{ total_price }}
                                 </p>
@@ -121,10 +172,10 @@
                             <span>Subtotal:</span>
                             <span>₹{{ subtotal }}</span>
                         </div>
-                        {% if product_discount > 0 %}
+                        {% if offer_discount > 0 %}
                         <div class="flex justify-between text-green-500">
-                            <span>Product Discount:</span>
-                            <span>-₹{{ product_discount }}</span>
+                            <span>Offer Discount:</span>
+                            <span>-₹{{ offer_discount }}</span>
                         </div>
                         {% endif %}
                         {% if cart.coupon %}
@@ -181,6 +232,7 @@
 
 <!-- Hidden data for JavaScript -->
 <div id="django-data" 
+
      data-razorpay-key="{{ razorpay_key_id }}"
 
      data-user-name="{{ request.user.username }}"
@@ -213,6 +265,41 @@
 <script>
 // Get data from Django
 const djangoData = document.getElementById('django-data');
+
+// Modal functions
+function toggleAddressForm() {
+    const modal = document.getElementById('addressFormModal');
+    modal.classList.toggle('hidden');
+    modal.classList.toggle('flex');
+}
+
+// Handle address form submission
+document.getElementById('addressForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    
+    try {
+        const response = await fetch(manageAddressUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: formData
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            showNotification('Address added successfully!', 'success');
+            toggleAddressForm();
+            location.reload();
+        } else {
+            throw new Error('Failed to add address');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('Failed to add address. Please try again.', 'error');
+    }
+});
 
 const razorpayKey = djangoData.dataset.razorpayKey || djangoData.getAttribute('data-razorpay-key');
 

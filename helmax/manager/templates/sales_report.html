@@ -64,14 +64,21 @@
     <div class="bg-black rounded-lg overflow-hidden">
         <div class="p-6 border-b border-zinc-800 flex justify-between items-center">
             <h2 class="text-xl font-semibold">Detailed Report</h2>
-            <div class="space-x-4">
-                <button onclick="downloadReport('pdf')" class="bg-red-900/50 text-red-300 px-4 py-2 rounded-lg hover:bg-red-800/50 transition-colors">
-                    Download PDF
-                </button>
-                <button onclick="downloadReport('excel')" class="bg-green-900/50 text-green-300 px-4 py-2 rounded-lg hover:bg-green-800/50 transition-colors">
-                    Download Excel
-                </button>
+            <div class="p-6 border-b border-zinc-800 flex justify-between items-center">
+                <h2 class="text-xl font-semibold">Detailed Report</h2>
+                <div class="space-x-4">
+                    <!-- Simple links instead of buttons -->
+                    <a href="?download=pdf&report_type={{ report_type }}&start_date={{ start_date|date:'Y-m-d' }}&end_date={{ end_date|date:'Y-m-d' }}" 
+                       class="inline-block bg-red-900/50 text-red-300 px-4 py-2 rounded-lg hover:bg-red-800/50 transition-colors">
+                        Download PDF
+                    </a>
+                    <a href="?download=excel&report_type={{ report_type }}&start_date={{ start_date|date:'Y-m-d' }}&end_date={{ end_date|date:'Y-m-d' }}" 
+                       class="inline-block bg-green-900/50 text-green-300 px-4 py-2 rounded-lg hover:bg-green-800/50 transition-colors">
+                        Download Excel
+                    </a>
+                </div>
             </div>
+            
         </div>
         <div class="overflow-x-auto">
             <table class="w-full">
@@ -121,10 +128,17 @@
     </div>
 </div>
 
-{% endblock %}
 
-{% block extra_scripts %}
+
 <script>
+function downloadReport(format) {
+    const form = document.getElementById('reportForm');
+    const formData = new FormData(form);
+    const params = new URLSearchParams(formData);
+    params.append('download', format);
+    window.location.href = `?${params.toString()}`;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const reportType = document.getElementById('reportType');
     const customDateRange = document.getElementById('customDateRange');
@@ -145,11 +159,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function downloadReport(format) {
-    const currentUrl = new URL(window.location.href);
-    const params = currentUrl.searchParams;
-    params.append('download', format);
-    window.location.href = `?${params.toString()}`;
-}
+
 </script>
 {% endblock %}

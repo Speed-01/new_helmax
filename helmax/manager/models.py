@@ -151,7 +151,7 @@ class Variant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
     color = models.CharField(max_length=50, blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True )
+    discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text='Discount price (if any)')
     is_active = models.BooleanField(default=True)
     
     def get_total_stock(self):
@@ -173,10 +173,10 @@ class Variant(models.Model):
 
     @property
     def final_price(self):
-        # Use offer price if available, otherwise use discount_price if set, or fall back to original price
+        # Use offer price if available, otherwise use special_price if set, or fall back to original price
         if self.active_offer:
             return self.offer_price
-        return self.discount_price if self.discount_price else self.price
+        return self.special_price if self.special_price else self.price
 
 class Size(models.Model):
     SIZE_CHIOCES = (
@@ -234,18 +234,16 @@ class Cart(BaseModel):
         return sum(item.subtotal for item in self.items.all())
     
     @property
-    def total_discount(self):
-        # Product discounts (from variant discount_price)
-        product_discount = sum(
+    def product_discount(self):
+        return sum(
             (item.variant.price - item.variant.discount_price) * item.quantity
             for item in self.items.all()
             if item.variant.discount_price
         )
-        
-        # Coupon discount
-        coupon_discount = self.calculate_coupon_discount()
-        
-        return product_discount + coupon_discount
+    
+    @property
+    def total_discount(self):
+        return self.product_discount + self.calculate_coupon_discount()
     
     def calculate_coupon_discount(self):
         if not self.coupon:
@@ -448,17 +446,6 @@ class Order(BaseModel):
             timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
             self.order_number = f'ORD{timestamp}'
         super().save(*args, **kwargs)
-        
-    @property
-    def total_discount(self):
-        # Calculate total discount from order items
-        # For now, returning 0 as there's no discount field
-        return 0
-        
-    @property
-    def final_amount(self):
-        # Calculate final amount (total amount - total discount)
-        return self.total_amount
 
 class OrderItem(models.Model):
     ITEM_STATUSES = [

@@ -78,6 +78,10 @@
                     <i class="fas fa-ticket-alt w-5"></i>
                     <span>Coupons</span>
                 </a>
+                <a href="{% url 'sales_report' %}" class="flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-[#2A2A2A] rounded-lg transition-colors">
+                    <i class="fas fa-ticket-alt w-5"></i>
+                    <span>Sales Report</span>
+                </a>
             </nav>
         </div>
     </aside>
@@ -92,7 +96,7 @@
                         <i class="fas fa-bars"></i>
                     </button>
                     <span class="text-gray-300 text-sm">Welcome, Admin</span>
-                    <a href="{% url 'admin_logout' %}" class="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-red-400 hover:text-red-300 hover:bg-[#2A2A2A]">
+                    <a href="javascript:void(0);" onclick="openModal()" class="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-red-400 hover:text-red-300 hover:bg-[#2A2A2A]">
                         <i class="fas fa-sign-out-alt"></i>
                         <span>Logout</span>
                     </a>
@@ -105,6 +109,24 @@
             {% block content %}
             {% endblock %}
         </main>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logoutModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
+        <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-semibold text-gray-800">Logout Confirmation</h3>
+                <button class="text-gray-400 hover:text-gray-600" onclick="closeModal()">&times;</button>
+            </div>
+            <p class="mt-4 text-gray-600">Are you sure you want to log out?</p>
+            <form method="post" action="{% url 'admin_logout' %}" class="mt-6">
+                {% csrf_token %}
+                <div class="flex justify-end space-x-4">
+                    <button type="button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Yes, log me out</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script>
@@ -138,6 +160,21 @@
 
         window.addEventListener('resize', handleResize);
         handleResize(); // Initial check
+
+        function openModal() {
+            document.getElementById('logoutModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('logoutModal').classList.add('hidden');
+        }
+
+        // Close the modal when clicking outside of it
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('logoutModal')) {
+                closeModal();
+            }
+        }
     </script>
 </body>
 </html>

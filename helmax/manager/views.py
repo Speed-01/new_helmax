@@ -3,9 +3,7 @@ from django.contrib.auth import login, logout, authenticate
 from django.contrib import messages
 from django.views.decorators.cache import never_cache
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import get_object_or_404
 from django.db.models import Q
-from PIL import Image
 from django.core.paginator import Paginator
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle
 from reportlab.lib import colors
@@ -13,20 +11,15 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
-
-from .models import Product,Category,ProductImage,User, Brand, Variant, Size, Coupon, CouponUsage, Order, ReturnRequest, Wallet, WalletTransaction, ProductOffer, CategoryOffer
-
-from django.conf import settings
-from django.core.files.storage import default_storage
-from django.contrib.auth.decorators import login_required
-from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-from django.utils import timezone
+from django.contrib.auth.decorators import login_required
 from django.db import transaction
-
-from datetime import datetime
-
 import json
+from .models import Product,Category,ProductImage,User, Brand, Variant, Size, Coupon, CouponUsage, Order, ReturnRequest, Wallet, WalletTransaction, ProductOffer, CategoryOffer,OrderItem
+from django.utils import timezone
+from datetime import datetime
+import logging
 
 
 
@@ -119,9 +112,7 @@ def toggle_user_status(request, user_id):
 
 
 
-from django.core.paginator import Paginator
-from django.template.loader import render_to_string
-from django.http import JsonResponse
+
 
 def admin_category(request):
     search_query = request.GET.get('search', '')
@@ -235,10 +226,11 @@ def sales_report(request):
         start_date = today.date()
         end_date = start_date
 
-    # Filter orders based on date range
+    # Filter orders based on date range and delivery status
     orders = Order.objects.filter(
         created_at__date__gte=start_date,
-        created_at__date__lte=end_date
+        created_at__date__lte=end_date,
+        order_status='DELIVERED'
     ).order_by('-created_at')
 
     # Calculate summary statistics
@@ -439,7 +431,6 @@ def adminProducts(request):
     return render(request, 'adminProducts.html', context)
 
 
-from django.db.models import Q
 
 def addProducts(request):
     categories = Category.objects.filter(is_active=True)
@@ -723,18 +714,6 @@ def toggleVariant(request, variant_id):
 
 ############## orders   ####################
 
-from django.shortcuts import render, get_object_or_404, redirect
-from django.http import JsonResponse
-from django.core.paginator import Paginator
-from django.contrib import messages
-from .models import Order, ReturnRequest
-from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from django.contrib.auth.decorators import login_required
-import json
-
-from django.core.paginator import Paginator
 
 # views.py
 def admin_orders(request):
@@ -753,9 +732,7 @@ def admin_orders(request):
     context = {'orders': page_obj, 'search_query': search_query}
     return render(request, 'adminOrder.html', context)
 
-from django.http import JsonResponse
-from django.core.paginator import Paginator
-from .models import Order
+
 
 def admin_orders_api(request):
     try:
@@ -807,18 +784,14 @@ def admin_orders_api(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from django.contrib.auth.decorators import login_required
-from django.db import transaction
-import json
-from .models import Order, OrderItem, ReturnRequest
 
 @login_required
 def order_detail(request, order_id):
     order = get_object_or_404(Order, id=order_id)
     return render(request, 'order_detail.html', {'order': order})
+
+
+logger = logging.getLogger(__name__)
 
 @login_required
 @require_POST
@@ -832,20 +805,7 @@ def update_order_status(request, order_id):
             
         order = get_object_or_404(Order, order_number=order_id)
         
-        # Validate status transition
-        valid_transitions = {
-            'PROCESSING': ['SHIPPED'],
-            'SHIPPED': ['DELIVERED'],
-            'DELIVERED': []  # Final state
-        }
-        
-        if new_status not in valid_transitions.get(order.order_status, []):
-            return JsonResponse({
-                'success': False, 
-                'error': f'Cannot change status from {order.order_status} to {new_status}'
-            })
-        
-        # Update order status
+        # Update order status directly without checking valid transitions
         order.order_status = new_status
         
         # If status is changing to DELIVERED, set delivered_at timestamp
@@ -1082,7 +1042,7 @@ def admin_return_requests(request):
         'return_requests': return_requests
     }
     
-    return render(request, 'manager/return_requests.html', context)
+    return render(request, 'return_requests.html', context)
 
 @login_required
 @require_POST
@@ -1099,13 +1059,12 @@ def handle_return_request(request, request_id):
         
         with transaction.atomic():
             if action == 'approve':
-
-                return_request.status = 'approved'
+                return_request.status = 'APPROVED'
                 return_request.admin_response = admin_response
                 return_request.save()
                 return JsonResponse({'success': True, 'message': 'Return request approved'})
             else:
-                return_request.status = 'rejected'
+                return_request.status = 'REJECTED'
                 return_request.admin_response = admin_response
                 return_request.save()
                 return JsonResponse({'success': True, 'message': 'Return request rejected'})
@@ -1144,7 +1103,7 @@ def admin_product_offers(request):
     }
     return render(request, 'admin_offers.html', context)
 
-@require_POST
+
 @require_POST
 def add_product_offer(request):
     try:

@@ -45,6 +45,12 @@
                             {% else %}
                                 bg-yellow-900/50 text-yellow-300
                             {% endif %}">
+                            {% if item.order_status == 'DELIVERED' %}
+                                <button onclick="initiateReturn('{{ order.order_number }}')" 
+                                        class="ml-2 px-3 py-1 text-xs bg-gray-600 hover:bg-gray-700 rounded text-white">
+                                    Request Return
+                                </button>
+                            {% endif %}
                             {{ item.get_status_display }}
                         </span>
                         {% if item.order_status == 'PROCESSING' or item.order_status == 'SHIPPED' %}

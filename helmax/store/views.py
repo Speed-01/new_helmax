@@ -110,18 +110,18 @@ def prepare_product_data(products):
                 for size in variant.sizes.all()
             )
 
-            # Calculate discount percentage
+            # Calculate discount percentage from special price if available
             discount_percentage = None
-            if first_variant.discount_price and first_variant.price:
+            if first_variant.special_price and first_variant.price:
                 discount_percentage = int(
-                    ((first_variant.price - first_variant.discount_price) / first_variant.price) * 100
+                    ((first_variant.price - first_variant.special_price) / first_variant.price) * 100
                 )
 
             product_data.append({
                 'id': product.id,
                 'name': product.name,
                 'price': first_variant.price,
-                'discount_price': first_variant.discount_price or first_variant.price,
+                'final_price': first_variant.final_price,
                 'image_url': primary_image.image.url if primary_image else None,
                 'total_stock': total_stock,
                 'discount_percentage': discount_percentage,
@@ -224,10 +224,10 @@ def filter_products(request):
             'category': product.category.name if product.category else '',
             'brand': product.brand.name if product.brand else '',
             'price': float(first_variant.price) if first_variant.price else 0,
-            'discount_price': float(first_variant.discount_price) if first_variant.discount_price else float(first_variant.price) if first_variant.price else 0,
+            'special_price': float(first_variant.special_price) if first_variant.special_price else float(first_variant.price) if first_variant.price else 0,
             'image_url': primary_image.image.url if primary_image and hasattr(primary_image, 'image') else '/static/images/placeholder.jpg',
             'total_stock': sum(size.stock for size in first_variant.sizes.all()) if first_variant.sizes.exists() else 0,
-            'discount_percentage': int(((first_variant.price - first_variant.discount_price) / first_variant.price) * 100) if first_variant.discount_price and first_variant.price and first_variant.discount_price < first_variant.price else 0
+            'discount_percentage': int(((first_variant.price - first_variant.special_price) / first_variant.price) * 100) if first_variant.special_price and first_variant.price and first_variant.special_price < first_variant.price else 0
         })
 
     return JsonResponse({
@@ -506,11 +506,11 @@ def reset_password(request):
 
 
 
-def logout(request):
+# def logout(request):
     
-    auth_logout(request)
+#     auth_logout(request)
     
-    return redirect('/')
+#     return redirect('/')
 
 def get_variant_data(request, product_id, variant_id):
     variant = get_object_or_404(
@@ -654,10 +654,10 @@ def product_list(request):
             'name': product.name,
             'description': description,
             'price': first_variant.price or 0,
-            'discount_price': first_variant.discount_price or first_variant.price or 0,
+            'discount_price': first_variant.discount_price if first_variant.discount_price and first_variant.discount_price < first_variant.price else first_variant.price or 0,
             'image_url': primary_image.image.url if primary_image and hasattr(primary_image, 'image') else '/static/images/placeholder.jpg',
             'total_stock': total_stock,
-            'discount_percentage': discount_percentage,
+            'discount_percentage': discount_percentage if first_variant.discount_price and first_variant.discount_price < first_variant.price else 0,
             'category': category_name,
             'brand': brand_name,
         })
@@ -1286,13 +1286,9 @@ def user_checkout(request):
 
         # Calculate totals
         subtotal = cart.total_price
-        product_discount = sum(
-            (item.variant.price - item.variant.discount_price) * item.quantity
-            for item in cart_items
-            if item.variant.discount_price
-        )
+        offer_discount = cart.product_discount
         coupon_discount = cart.calculate_coupon_discount()
-        total_discount = product_discount + coupon_discount
+        total_discount = offer_discount + coupon_discount
         final_price = cart.final_price
 
         context = {
@@ -1301,7 +1297,7 @@ def user_checkout(request):
             'payment_methods': payment_methods,
             'total_quantity': total_quantity,
             'subtotal': subtotal,
-            'product_discount': product_discount,
+            'offer_discount': offer_discount,
             'coupon_discount': coupon_discount,
             'total_discount': total_discount,
             'final_price': final_price,
@@ -1316,12 +1312,203 @@ def user_checkout(request):
         return redirect('view_cart')
     
     
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
+
+# @login_required
+# def place_order(request):
+
+    
+#     if request.method != 'POST':
+#         return JsonResponse({'success': False, 'message': 'Invalid request method'})
+        
+#     try:
+#         # Get form data
+#         address_id = request.POST.get('address_id')
+#         payment_method = request.POST.get('payment_method')
+        
+#         # Validate address
+#         if not address_id:
+#             return JsonResponse({'success': False, 'message': 'Please select a delivery address'})
+            
+#         try:
+#             address = Address.objects.get(id=address_id, user=request.user)
+#         except Address.DoesNotExist:
+#             return JsonResponse({'success': False, 'message': 'Invalid address'})
+            
+#         # Get cart
+#         try:
+#             cart = Cart.objects.get(user=request.user, is_ordered=False)
+#             if not cart.items.exists():
+#                 return JsonResponse({'success': False, 'message': 'Your cart is empty'})
+#         except Cart.DoesNotExist:
+#             return JsonResponse({'success': False, 'message': 'No active cart found'})
+            
+#         # Get or create payment methods
+#         cod_method, _ = PaymentMethod.objects.get_or_create(name='COD')
+#         razorpay_method, _ = PaymentMethod.objects.get_or_create(name='Razorpay')
+        
+#         # Set payment method
+#         payment_method_obj = razorpay_method if payment_method == 'razorpay' else cod_method
+        
+#         with transaction.atomic():
+#             # Create order
+#             order = Order.objects.create(
+#                 user=request.user,
+#                 total_amount=cart.total_price,
+
+#                 payment_method=payment_method_obj,
+
+#                 full_name=address.full_name,
+#                 email=address.email,
+#                 phone=address.phone,
+#                 address_line1=address.address_line1,
+#                 address_line2=address.address_line2,
+#                 city=address.city,
+#                 state=address.state,
+#                 pincode=address.pincode
+#             )
+            
+#             # Create order items and update stock
+#             for cart_item in cart.items.all():
+#                 # Create order item
+#                 OrderItem.objects.create(
+#                     order=order,
+#                     product=cart_item.variant.product,
+#                     variant=cart_item.variant,
+#                     size=cart_item.size,
+#                     quantity=cart_item.quantity,
+#                     price=cart_item.variant.discount_price or cart_item.variant.price
+#                 )
+                
+#                 # Update stock
+#                 size = cart_item.size
+#                 if size.stock < cart_item.quantity:
+#                     raise ValueError(f'Insufficient stock for {cart_item.variant.product.name}')
+#                 size.stock -= cart_item.quantity
+#                 size.save()
+            
+#             # IMPORTANT: Clear cart items - this is the key fix
+#             CartItem.objects.filter(cart=cart).delete()
+            
+#             # Mark cart as ordered
+#             cart.is_ordered = True
+#             cart.save()
+            
+#             # Handle payment method specific logic
+#             if payment_method == 'razorpay':
+#                 try:
+#                     import razorpay
+
+#                     print("Starting Razorpay payment process...")
+                    
+#                     if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+#                         logger.error('Razorpay credentials missing in settings')
+#                         print(f"Razorpay credentials check failed - Key ID exists: {bool(settings.RAZORPAY_KEY_ID)}, Secret exists: {bool(settings.RAZORPAY_KEY_SECRET)}")
+#                         raise ValueError('Payment gateway configuration error')
+                    
+#                     print("Razorpay credentials verified successfully")
+                    
+#                     # Initialize Razorpay client
+#                     client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+#                     print("Razorpay client initialized successfully")
+                    
+#                     # Create Razorpay order
+#                     amount_in_paise = int(float(order.total_amount) * 100)
+#                     print(f"Creating Razorpay order for amount: {amount_in_paise} paise")
+
+#                     razorpay_order = client.order.create({
+#                         "amount": amount_in_paise,
+#                         "currency": "INR",
+#                         "receipt": f"order_{order.id}",
+#                         "payment_capture": "1"
+#                     })
+
+#                     print(f"Razorpay order created successfully with ID: {razorpay_order['id']}")
+
+#                     order.razorpay_order_id = razorpay_order['id']
+#                     order.save()
+                    
+#                     return JsonResponse({
+#                         'success': True,
+#                         'razorpay_order_id': razorpay_order['id'],
+#                         'amount': amount_in_paise,
+#                         'key_id': settings.RAZORPAY_KEY_ID
+#                     })
+#                 except Exception as e:
+#                     logger.error(f"Razorpay error: {str(e)}")
+#                     raise ValueError(f'Failed to create Razorpay order: {str(e)}')
+#             else:
+#                 # For COD orders, just redirect to confirmation
+#                 return JsonResponse({
+#                     'success': True,
+#                     'redirect_url': reverse('order_confirmation', args=[order.order_number])
+#                 })
+                
+#     except ValueError as e:
+#         return JsonResponse({'success': False, 'message': str(e)})
+#     except Exception as e:
+#         logger.error(f"Error in place_order: {str(e)}")
+#         return JsonResponse({'success': False, 'message': f'An unexpected error occurred: {str(e)}'})
+
+# @csrf_exempt
+# def payment_success(request):
+#     if request.method == "POST":
+#         data = json.loads(request.body)
+#         razorpay_payment_id = data.get('razorpay_payment_id')
+#         razorpay_order_id = data.get('razorpay_order_id')
+#         razorpay_signature = data.get('razorpay_signature')
+
+#         client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+#         try:
+#             # Verify payment signature
+
+#             print("Verifying Razorpay payment signature...")
+
+#             client.utility.verify_payment_signature({
+#                 'razorpay_order_id': razorpay_order_id,
+#                 'razorpay_payment_id': razorpay_payment_id,
+#                 'razorpay_signature': razorpay_signature
+#             })
+
+#             print("Payment signature verified successfully")
+
+#             order = Order.objects.get(razorpay_order_id=razorpay_order_id)
+#             print(f"Found order with ID: {order.id}")
+#             order.payment_status = 'PAID'
+#             order.razorpay_payment_id = razorpay_payment_id
+#             order.save()
+#             print("Order status updated to PAID")
+
+
+
+            
+
+#             # Clear cart
+#             cart = Cart.objects.get(user=order.user, is_ordered=False)
+#             cart.is_ordered = True
+#             cart.save()
+
+#             return JsonResponse({
+#                 'status': 'success',
+#                 'redirect_url': reverse('order_confirmation', args=[order.order_number])
+#             })
+
+#         except Exception as e:
+
+#             print(f"Payment verification failed with error: {str(e)}")
+
+#             return JsonResponse({
+#                 'status': 'error',
+#                 'message': str(e)
+#             }, status=400)
+
+#     return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
+
+# logger = logging.getLogger(__name__)
 
 @login_required
 def place_order(request):
-
-    
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Invalid request method'})
         
@@ -1359,9 +1546,7 @@ def place_order(request):
             order = Order.objects.create(
                 user=request.user,
                 total_amount=cart.total_price,
-
                 payment_method=payment_method_obj,
-
                 full_name=address.full_name,
                 email=address.email,
                 phone=address.phone,
@@ -1402,33 +1587,15 @@ def place_order(request):
             if payment_method == 'razorpay':
                 try:
                     import razorpay
-
-                    print("Starting Razorpay payment process...")
                     
-                    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
-                        logger.error('Razorpay credentials missing in settings')
-                        print(f"Razorpay credentials check failed - Key ID exists: {bool(settings.RAZORPAY_KEY_ID)}, Secret exists: {bool(settings.RAZORPAY_KEY_SECRET)}")
-                        raise ValueError('Payment gateway configuration error')
-                    
-                    print("Razorpay credentials verified successfully")
-                    
-                    # Initialize Razorpay client
                     client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-                    print("Razorpay client initialized successfully")
-                    
-                    # Create Razorpay order
                     amount_in_paise = int(float(order.total_amount) * 100)
-                    print(f"Creating Razorpay order for amount: {amount_in_paise} paise")
-
                     razorpay_order = client.order.create({
                         "amount": amount_in_paise,
                         "currency": "INR",
                         "receipt": f"order_{order.id}",
                         "payment_capture": "1"
                     })
-
-                    print(f"Razorpay order created successfully with ID: {razorpay_order['id']}")
-
                     order.razorpay_order_id = razorpay_order['id']
                     order.save()
                     
@@ -1445,7 +1612,7 @@ def place_order(request):
                 # For COD orders, just redirect to confirmation
                 return JsonResponse({
                     'success': True,
-                    'redirect_url': reverse('order_confirmation', args=[order.id])
+                    'redirect_url': reverse('order_confirmation', args=[order.order_number])
                 })
                 
     except ValueError as e:
@@ -1466,27 +1633,16 @@ def payment_success(request):
 
         try:
             # Verify payment signature
-
-            print("Verifying Razorpay payment signature...")
-
             client.utility.verify_payment_signature({
                 'razorpay_order_id': razorpay_order_id,
                 'razorpay_payment_id': razorpay_payment_id,
                 'razorpay_signature': razorpay_signature
             })
 
-            print("Payment signature verified successfully")
-
             order = Order.objects.get(razorpay_order_id=razorpay_order_id)
-            print(f"Found order with ID: {order.id}")
             order.payment_status = 'PAID'
             order.razorpay_payment_id = razorpay_payment_id
             order.save()
-            print("Order status updated to PAID")
-
-
-
-            
 
             # Clear cart
             cart = Cart.objects.get(user=order.user, is_ordered=False)
@@ -1495,19 +1651,18 @@ def payment_success(request):
 
             return JsonResponse({
                 'status': 'success',
-                'redirect_url': reverse('order_confirmation', args=[order.id])
+                'redirect_url': reverse('order_confirmation', args=[order.order_number])
             })
 
         except Exception as e:
-
-            print(f"Payment verification failed with error: {str(e)}")
-
             return JsonResponse({
                 'status': 'error',
                 'message': str(e)
             }, status=400)
 
     return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
+
+
 
 
 
@@ -1540,7 +1695,7 @@ def my_orders(request):
     return render(request, 'my_orders.html', context)
 
 @login_required(login_url='userlogin')
-def order_confirmation(request, order_id):
+def order_confirmation(request, order_number):
     try:
         order = get_object_or_404(
             Order.objects.prefetch_related(
@@ -1549,14 +1704,14 @@ def order_confirmation(request, order_id):
                 'order_items__variant',
                 'order_items__size'  
             ),
-            order_number=order_id,
+            order_number=order_number,
             user=request.user
         )
         order_items = order.order_items.all()
-        logger.debug(f"Fetched order confirmation for order {order_id}")
+        logger.debug(f"Fetched order confirmation for order {order_number}")
         
     except Order.DoesNotExist:
-        logger.error(f"Order {order_id} not found in confirmation page")
+        logger.error(f"Order {order_number} not found in confirmation page")
         messages.error(request, "Order Not found.")
         return redirect('my_orders')
     
@@ -1573,7 +1728,11 @@ def cancel_order(request, order_id):
         return JsonResponse({'success': False, 'message': 'Invalid request method'})
         
     try:
-        with transaction.atomic():  # Use transaction to ensure data consistency
+        # Parse the JSON data from the request body
+        data = json.loads(request.body)
+        logger.debug(f"Received data for cancellation: {data}")
+
+        with transaction.atomic():
             order = Order.objects.select_related('user').prefetch_related(
                 'order_items',
                 'order_items__variant',
@@ -2073,4 +2232,11 @@ def wallet_view(request):
         logger.error(f"Error in wallet view: {str(e)}")
         messages.error(request, "An error occurred while loading your wallet.")
         return redirect('home')
+
+@login_required
+def logout_confirmation(request):
+    if request.method == 'POST':
+        auth_logout(request)
+        return redirect('home')  # Redirect to home page after logout
+    return render(request, 'logout_confirmation.html')
 
