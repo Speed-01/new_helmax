@@ -7,12 +7,13 @@ urlpatterns = [
     path('signup/', views.signup, name='signup'),
     path('', views.login, name='Login'),
     path('verify_otp/', views.verify_otp, name='verify_otp'),
-    # path('logout/', views.logout, name='logout'),
+    path('logout/', views.logout, name='logout'),
     path('forgot-password/', views.forgot_password, name='forgot_password'),
     path('reset-password/', views.reset_password, name='reset_password'),
     path('resend-otp/', views.resend_otp, name='resend_otp'),
     path('search/', views.product_search, name='product_search'),
-    path('logout/', views.logout_confirmation, name='confirm_logout'),    # path('auth-receiver/', views.auth_receiver, name='auth_receiver'),
+   
+    # path('auth-receiver/', views.auth_receiver, name='auth_receiver'),
 
 
 

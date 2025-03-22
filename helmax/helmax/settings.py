@@ -67,7 +67,7 @@ INSTALLED_APPS = [
 ]
 
 
-SITE_ID = 3  
+SITE_ID = 3
 
 MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',

@@ -51,26 +51,58 @@
             z-index: -1;
         }
         
-        .login-container {
-            background-color: var(--color-bg-secondary);
-            border: 1px solid var(--color-border);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4), 
-                        0 0 0 1px rgba(255, 255, 255, 0.05) inset,
-                        0 5px 15px rgba(126, 34, 206, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
+        .page-container {
+            display: flex;
             width: 100%;
-            max-width: 400px;
-            transform: translateY(0);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            animation: fadeIn 0.5s ease-out;
+            max-width: 1200px;
+            height: 85vh;
+            margin: 0 auto;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
         
-        .login-container:hover {
-            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5), 
-                        0 0 0 1px rgba(255, 255, 255, 0.07) inset,
-                        0 5px 20px rgba(126, 34, 206, 0.15);
-            transform: translateY(-2px);
+        .login-sidebar {
+            flex: 1;
+            background-color: rgba(20, 20, 30, 0.7);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-sidebar::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(126, 34, 206, 0.1), rgba(20, 20, 30, 0.9));
+            z-index: -1;
+        }
+        
+        .login-main {
+            flex: 1;
+            background-color: var(--color-bg-secondary);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            border-left: 1px solid var(--color-border);
+        }
+        
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+            background-color: transparent;
+            border: none;
+            box-shadow: none;
         }
         
         .input-field {
@@ -159,6 +191,44 @@
             box-shadow: 0 2px 6px rgba(126, 34, 206, 0.3);
         }
         
+        .sidebar-content {
+            text-align: center;
+            max-width: 80%;
+        }
+        
+        .sidebar-content h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(to right, #d8b4fe, #a855f7);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        
+        .sidebar-content p {
+            color: var(--color-text-secondary);
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+        
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: left;
+        }
+        
+        .feature-list li {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .feature-list li i {
+            color: #a855f7;
+            margin-right: 0.75rem;
+        }
+        
         footer {
             color: var(--color-text-secondary);
             position: absolute;
@@ -177,86 +247,137 @@
                 transform: translateY(0);
             }
         }
+        
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            .page-container {
+                flex-direction: column;
+                height: auto;
+                max-width: 600px;
+            }
+            
+            .login-sidebar, .login-main {
+                width: 100%;
+            }
+            
+            .login-sidebar {
+                padding: 3rem 2rem;
+            }
+            
+            .sidebar-content {
+                max-width: 100%;
+            }
+        }
+        
+        @media (max-width: 640px) {
+            .page-container {
+                box-shadow: none;
+                height: 100vh;
+                border-radius: 0;
+            }
+            
+            .login-sidebar {
+                display: none;
+            }
+            
+            .login-main {
+                padding: 1.5rem;
+                justify-content: center;
+                height: 100%;
+            }
+        }
     </style>
 </head>
 <body>
-    <!-- Header with Logo -->
-    <div class="w-full text-center mb-6">
-        <!-- Logo placeholder -->
-        <div class="h-16 flex justify-center items-center">
-            <h1 class="text-3xl logo-text">HELMAX</h1>
-        </div>
-    </div>
-
-    <!-- Login Container -->
-    <div class="login-container p-10">
-        <div class="text-center mb-8">
-            <span class="admin-badge">ADMIN PORTAL</span>
-            <h2 class="text-2xl font-bold">Welcome Back</h2>
-            <p class="text-sm text-gray-400 mt-2">Please enter your credentials to continue</p>
+    <div class="page-container">
+        <!-- Left Sidebar -->
+        <div class="login-sidebar">
+            <div class="sidebar-content">
+                <h1 class="text-4xl logo-text mb-4">HELMAX</h1>
+                <h2>Admin Dashboard</h2>
+                <p>Access your administrative tools and manage your business operations from a single, secure platform.</p>
+                
+                <ul class="feature-list">
+                    <li><i class="fas fa-shield-alt"></i> Secure authentication system</li>
+                    <li><i class="fas fa-chart-line"></i> Real-time analytics and reporting</li>
+                    <li><i class="fas fa-users-cog"></i> Complete user management</li>
+                    <li><i class="fas fa-database"></i> Centralized data control</li>
+                </ul>
+            </div>
         </div>
         
-        <form method="post">
-            {% csrf_token %}
-            <div class="mb-6 relative">
-                <label for="username" class="block text-sm font-medium text-gray-400 mb-2">Username</label>
-                <div class="relative">
-                    <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none icon-wrapper">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <input
-                        type="text"
-                        id="username"
-                        name="username"
-                        placeholder="Enter your username"
-                        required
-                        class="input-field w-full p-3 pl-10"
-                    >
+        <!-- Right Login Form -->
+        <div class="login-main">
+            <div class="login-container">
+                <div class="text-center mb-8">
+                    <span class="admin-badge">ADMIN PORTAL</span>
+                    <h2 class="text-2xl font-bold">Welcome Back</h2>
+                    <p class="text-sm text-gray-400 mt-2">Please enter your credentials to continue</p>
                 </div>
-            </div>
-            <div class="mb-8 relative">
-                <label for="password" class="block text-sm font-medium text-gray-400 mb-2">Password</label>
-                <div class="relative">
-                    <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none icon-wrapper">
-                        <i class="fas fa-lock"></i>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-6 relative">
+                        <label for="username" class="block text-sm font-medium text-gray-400 mb-2">Username</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none icon-wrapper">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <input
+                                type="text"
+                                id="username"
+                                name="username"
+                                placeholder="Enter your username"
+                                required
+                                class="input-field w-full p-3 pl-10"
+                            >
+                        </div>
                     </div>
-                    <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        placeholder="Enter your password"
-                        required
-                        class="input-field w-full p-3 pl-10"
-                    >
-                    <button 
-                        type="button" 
-                        class="absolute inset-y-0 right-3 flex items-center password-toggle"
-                        onclick="togglePasswordVisibility()"
-                    >
-                        <i id="password-toggle-icon" class="fas fa-eye"></i>
+                    <div class="mb-8 relative">
+                        <label for="password" class="block text-sm font-medium text-gray-400 mb-2">Password</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none icon-wrapper">
+                                <i class="fas fa-lock"></i>
+                            </div>
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                placeholder="Enter your password"
+                                required
+                                class="input-field w-full p-3 pl-10"
+                            >
+                            <button 
+                                type="button" 
+                                class="absolute inset-y-0 right-3 flex items-center password-toggle"
+                                onclick="togglePasswordVisibility()"
+                            >
+                                <i id="password-toggle-icon" class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center">
+                            <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 rounded border-gray-600 bg-gray-700 text-purple-600 focus:ring-purple-500">
+                            <label for="remember-me" class="ml-2 block text-sm text-gray-400">Remember me</label>
+                        </div>
+                        <div class="text-sm">
+                            <a href="#" class="text-purple-400 hover:text-purple-300">Forgot password?</a>
+                        </div>
+                    </div>
+                    <button type="submit" class="login-btn w-full py-3 flex justify-center items-center">
+                        <span>Sign In</span>
+                        <i class="fas fa-arrow-right ml-2"></i>
                     </button>
+                </form>
+                
+                <!-- Combined Error Message Display -->
+                <div class="mt-4 text-center text-red-400">
+                    {% for message in messages %}
+                        {{ message }}
+                    {% endfor %}
                 </div>
             </div>
-            <div class="flex items-center justify-between mb-6">
-                <div class="flex items-center">
-                    <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 rounded border-gray-600 bg-gray-700 text-purple-600 focus:ring-purple-500">
-                    <label for="remember-me" class="ml-2 block text-sm text-gray-400">Remember me</label>
-                </div>
-                <div class="text-sm">
-                    <a href="#" class="text-purple-400 hover:text-purple-300">Forgot password?</a>
-                </div>
-            </div>
-            <button type="submit" class="login-btn w-full py-3 flex justify-center items-center">
-                <span>Sign In</span>
-                <i class="fas fa-arrow-right ml-2"></i>
-            </button>
-        </form>
-        
-        <!-- Combined Error Message Display -->
-        <div class="mt-4 text-center text-red-400">
-            {% for message in messages %}
-                {{ message }}
-            {% endfor %}
         </div>
     </div>
 

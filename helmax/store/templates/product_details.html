@@ -373,17 +373,22 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateProductInfo(data) {
         const currentPriceElement = document.getElementById('current-price');
         const originalPriceElement = document.getElementById('original-price');
+        const stockStatus = document.getElementById('stock-status');
+        const addToCartBtn = document.getElementById('add-to-cart-btn');
         
-        if (data.discount_price) {
-            currentPriceElement.textContent = `₹${data.discount_price}`;
+        if (!currentPriceElement || !originalPriceElement || !stockStatus || !addToCartBtn) {
+            console.error('Required elements not found');
+            return;
+        }
+        
+        if (data.special_price) {
+            currentPriceElement.textContent = `₹${data.special_price}`;
             originalPriceElement.textContent = `₹${data.price}`;
             originalPriceElement.classList.remove('hidden');
         } else {
             currentPriceElement.textContent = `₹${data.price}`;
             originalPriceElement.classList.add('hidden');
         }
-        
-        const stockStatus = document.getElementById('stock-status');
         
         // Update stock status based on selected size
         if (selectedSizeName) {

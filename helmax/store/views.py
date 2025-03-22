@@ -110,18 +110,18 @@ def prepare_product_data(products):
                 for size in variant.sizes.all()
             )
 
-            # Calculate discount percentage from special price if available
+            # Calculate discount percentage
             discount_percentage = None
-            if first_variant.special_price and first_variant.price:
+            if first_variant.discount_price and first_variant.price:
                 discount_percentage = int(
-                    ((first_variant.price - first_variant.special_price) / first_variant.price) * 100
+                    ((first_variant.price - first_variant.discount_price) / first_variant.price) * 100
                 )
 
             product_data.append({
                 'id': product.id,
                 'name': product.name,
                 'price': first_variant.price,
-                'final_price': first_variant.final_price,
+                'discount_price': first_variant.discount_price or first_variant.price,
                 'image_url': primary_image.image.url if primary_image else None,
                 'total_stock': total_stock,
                 'discount_percentage': discount_percentage,
@@ -224,10 +224,10 @@ def filter_products(request):
             'category': product.category.name if product.category else '',
             'brand': product.brand.name if product.brand else '',
             'price': float(first_variant.price) if first_variant.price else 0,
-            'special_price': float(first_variant.special_price) if first_variant.special_price else float(first_variant.price) if first_variant.price else 0,
+            'discount_price': float(first_variant.discount_price) if first_variant.discount_price else float(first_variant.price) if first_variant.price else 0,
             'image_url': primary_image.image.url if primary_image and hasattr(primary_image, 'image') else '/static/images/placeholder.jpg',
             'total_stock': sum(size.stock for size in first_variant.sizes.all()) if first_variant.sizes.exists() else 0,
-            'discount_percentage': int(((first_variant.price - first_variant.special_price) / first_variant.price) * 100) if first_variant.special_price and first_variant.price and first_variant.special_price < first_variant.price else 0
+            'discount_percentage': int(((first_variant.price - first_variant.discount_price) / first_variant.price) * 100) if first_variant.discount_price and first_variant.price and first_variant.discount_price < first_variant.price else 0
         })
 
     return JsonResponse({
@@ -506,11 +506,11 @@ def reset_password(request):
 
 
 
-# def logout(request):
+def logout(request):
     
-#     auth_logout(request)
+    auth_logout(request)
     
-#     return redirect('/')
+    return redirect('/')
 
 def get_variant_data(request, product_id, variant_id):
     variant = get_object_or_404(
@@ -654,10 +654,10 @@ def product_list(request):
             'name': product.name,
             'description': description,
             'price': first_variant.price or 0,
-            'discount_price': first_variant.discount_price if first_variant.discount_price and first_variant.discount_price < first_variant.price else first_variant.price or 0,
+            'discount_price': first_variant.discount_price or first_variant.price or 0,
             'image_url': primary_image.image.url if primary_image and hasattr(primary_image, 'image') else '/static/images/placeholder.jpg',
             'total_stock': total_stock,
-            'discount_percentage': discount_percentage if first_variant.discount_price and first_variant.discount_price < first_variant.price else 0,
+            'discount_percentage': discount_percentage,
             'category': category_name,
             'brand': brand_name,
         })
@@ -1286,9 +1286,13 @@ def user_checkout(request):
 
         # Calculate totals
         subtotal = cart.total_price
-        offer_discount = cart.product_discount
+        product_discount = sum(
+            (item.variant.price - item.variant.discount_price) * item.quantity
+            for item in cart_items
+            if item.variant.discount_price
+        )
         coupon_discount = cart.calculate_coupon_discount()
-        total_discount = offer_discount + coupon_discount
+        total_discount = product_discount + coupon_discount
         final_price = cart.final_price
 
         context = {
@@ -1297,7 +1301,7 @@ def user_checkout(request):
             'payment_methods': payment_methods,
             'total_quantity': total_quantity,
             'subtotal': subtotal,
-            'offer_discount': offer_discount,
+            'product_discount': product_discount,
             'coupon_discount': coupon_discount,
             'total_discount': total_discount,
             'final_price': final_price,
@@ -1504,8 +1508,7 @@ def user_checkout(request):
 #             }, status=400)
 
 #     return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
-
-# logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 @login_required
 def place_order(request):
@@ -1708,10 +1711,10 @@ def order_confirmation(request, order_number):
             user=request.user
         )
         order_items = order.order_items.all()
-        logger.debug(f"Fetched order confirmation for order {order_number}")
+        logger.debug(f"Fetched order confirmation for order {order_id}")
         
     except Order.DoesNotExist:
-        logger.error(f"Order {order_number} not found in confirmation page")
+        logger.error(f"Order {order_id} not found in confirmation page")
         messages.error(request, "Order Not found.")
         return redirect('my_orders')
     
@@ -1728,11 +1731,7 @@ def cancel_order(request, order_id):
         return JsonResponse({'success': False, 'message': 'Invalid request method'})
         
     try:
-        # Parse the JSON data from the request body
-        data = json.loads(request.body)
-        logger.debug(f"Received data for cancellation: {data}")
-
-        with transaction.atomic():
+        with transaction.atomic():  # Use transaction to ensure data consistency
             order = Order.objects.select_related('user').prefetch_related(
                 'order_items',
                 'order_items__variant',
@@ -2232,11 +2231,4 @@ def wallet_view(request):
         logger.error(f"Error in wallet view: {str(e)}")
         messages.error(request, "An error occurred while loading your wallet.")
         return redirect('home')
-
-@login_required
-def logout_confirmation(request):
-    if request.method == 'POST':
-        auth_logout(request)
-        return redirect('home')  # Redirect to home page after logout
-    return render(request, 'logout_confirmation.html')
 
