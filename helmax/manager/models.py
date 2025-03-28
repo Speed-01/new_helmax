@@ -390,6 +390,20 @@ class Address(BaseModel):
         verbose_name_plural = "Addresses"
 
 
+class OrderStatusHistory(models.Model):
+    order = models.ForeignKey('Order', on_delete=models.CASCADE, related_name='status_history')
+    old_status = models.CharField(max_length=20)
+    new_status = models.CharField(max_length=20)
+    reason = models.TextField(blank=True, null=True)
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.order.order_number}: {self.old_status} -> {self.new_status}'
+
 class Order(BaseModel):
     ORDER_STATUSES = [
         ('PENDING', 'Pending'),
