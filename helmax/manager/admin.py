@@ -29,9 +29,9 @@ class CustomUserAdmin(UserAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'total_amount', 'payment_status', 'order_status', 'created_at')
+    list_display = ('order_number', 'user', 'total_amount', 'payment_status', 'order_status', 'created_at')
     list_filter = ('payment_status', 'order_status', 'created_at')
-    search_fields = ('id', 'user__username', 'user__email')
+    search_fields = ('order_number', 'user__username', 'user__email')
     readonly_fields = ('created_at',)
     date_hierarchy = 'created_at'
 

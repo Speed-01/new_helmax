@@ -8,6 +8,7 @@ urlpatterns = [
     path('', views.login, name='Login'),
     path('verify_otp/', views.verify_otp, name='verify_otp'),
     path('logout/', views.logout, name='logout'),
+    path('confirm-logout/', views.confirm_logout, name='confirm_logout'),
     path('forgot-password/', views.forgot_password, name='forgot_password'),
     path('reset-password/', views.reset_password, name='reset_password'),
     path('resend-otp/', views.resend_otp, name='resend_otp'),
@@ -47,16 +48,16 @@ urlpatterns = [
 
     path('place-order/', views.place_order, name='place_order'),
     path('my-orders/', views.my_orders, name='my_orders'),
-    path('order-confirmation/<str:order_number>/', views.order_confirmation, name='order_confirmation'),
+    path('order-details/<str:order_number>/', views.order_details, name='order_details'),
 
         ########### Wishlist ########
     path('wishlist/', views.wishlist_view, name='view_wishlist'),
     path('move-to-wishlist/<int:variant_id>/', views.move_to_wishlist, name='move_to_wishlist'),
     path('remove-from-wishlist/<int:variant_id>/', views.remove_from_wishlist, name='remove_from_wishlist'),
     # urls.py
-    path('api/orders/<int:order_id>/cancel/', views.cancel_order, name='cancel_order'),
-    path('coupons/', views.available_coupons, name='available_coupons'),
     
+    path('coupons/', views.available_coupons, name='available_coupons'),
+    path('apply-coupon/', views.apply_coupon, name='apply_coupon'),
 
     # path('payment/callback/', views.payment_callback, name='payment_callback'),
     # path('payment/webhook/', views.payment_webhook, name='payment_webhook'),
@@ -65,6 +66,7 @@ urlpatterns = [
     path('wallet/', views.wallet_view, name='wallet'),
     path('api/order-items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),
     path('orders/<int:order_id>/detail/', views.order_detail, name='order_detail'),
-    path('orders/<int:order_id>/track/', views.track_order, name='track_order'),
+    path('api/orders/<int:order_id>/cancel/', views.cancel_order, name='cancel_order'),
     path('orders/items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),
+    path('order-details/<str:order_number>/', views.order_details, name='order_details'),
 ]

@@ -2,234 +2,457 @@
 {% load static %}
 
 {% block content %}
-  <!-- My Orders Page -->
-  <div class="flex min-h-screen bg-black">
-   
-     <!-- Sidebar -->
-     <aside class="w-64 bg-zinc-900 text-white p-6 space-y-6">
-        <div class="space-y-2">
-            <h2 class="text-lg font-semibold">Account</h2>
-            <nav class="space-y-1">
-                <a href="{% url 'user_profile' user.id %}" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">My Profile</a>
-                <a href="{%  url 'my_orders' %}" class="block px-4 py-2 rounded-lg py-2 text-[#ff6b00] bg-opacity-50 bg-[#222222]">Orders</a>
-                <a href="{% url 'userManageAddress' %}" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Address</a>
-                <a href="#" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Wallet</a>
-                <a href="#" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Coupons</a>
-                <a href="#" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Change Password</a>
-                <a href="#" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Transaction History</a>
-                <a href="{% url 'logout' %}" class="block px-4 py-2 rounded-lg text-gray-300 hover:bg-gray-700">Logout</a>
-            </nav>
-        </div>
-    </aside>
-    
+<style><link href="https://unpkg.com/lucide-static@latest/font/lucide.css" rel="stylesheet"></style>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  // Initialize Lucide icons
+  lucide.createIcons();
+</script>
+<!-- My Orders Page -->
+<div class="flex min-h-screen bg-black">
+  <!-- Sidebar - Hidden on mobile -->
+  <aside class="w-64 bg-[#18181b]/80 backdrop-blur-lg text-white p-6 space-y-6 border-r border-[#334155]/30 hidden md:block">
+    <div class="space-y-6">
+      <div>
+        <h2 class="text-xl font-semibold text-white bg-gradient-to-r from-[#F0F0F0] to-[#ff8533] bg-clip-text text-transparent">Account</h2>
+        <nav class="space-y-1.5 mt-6">
+          <a href="{% url 'user_profile' user.id %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+            <i data-lucide="user" class="icon mr-3"></i>
+            My Profile
+          </a>
+          <a href="{%  url 'my_orders' %}" class="flex items-center px-4 py-3 rounded-xl text-white bg-gradient-to-r from-[#ff6b00] to-[#ff8533] shadow-lg shadow-[#ff6b00]/30">
+            <i data-lucide="package" class="icon mr-3"></i>
+            Orders
+          </a>
+          <a href="{% url 'userManageAddress' %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+            <i data-lucide="map-pin" class="icon mr-3"></i>
+            Address
+          </a>
+          <a href="{% url 'wallet' %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+            <i data-lucide="credit-card" class="icon mr-3"></i>
+            Wallet
+          </a>
+          <a href="{% url 'available_coupons' %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+            <i data-lucide="ticket" class="icon mr-3"></i>
+            Coupons
+          </a>
+          <a href="/change-password" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+            <i data-lucide="key" class="icon mr-3"></i>
+            Change Password
+          </a>
+          <a href="/transactions" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+            <i data-lucide="dollar-sign" class="icon mr-3"></i>
+            Transaction History
+          </a>
+          <a href="javascript:void(0);" onclick="openLogoutModal()" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+            <i data-lucide="log-out" class="icon mr-3"></i>
+            Logout
+          </a>
+        </nav>
+      </div>
+    </div>
+  </aside>
 
-    <!-- Main Content -->
-    <div class="flex-1 p-8">
-        <h1 class="text-2xl font-bold text-white mb-6">My Orders</h1>
+  <!-- Mobile menu button -->
+  <button id="mobileMenuBtn" class="fixed top-4 left-4 z-50 md:hidden bg-zinc-800 border border-zinc-700 p-2 rounded-full">
+    <i data-lucide="menu" class="icon"></i>
+  </button>
 
-        <!-- Orders List -->
-        <div class="space-y-6">
-            {% if orders %}
-                {% for order in orders %}
-                <div class="bg-zinc-900 rounded-lg p-6 text-white">
-                    <div class="flex justify-between items-start mb-4">
-                        <div>
-                            <p class="text-gray-400">Order ID: <span class="text-white">#{{ order.order_number }}</span></p>
-                            <p class="text-gray-400">Order Date: <span class="text-white">{{ order.created_at|date:"F j, Y \a\t g:i A" }}</span></p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-gray-400">Payment: <span class="text-white">{{ order.payment_method.name }}</span></p>
-                            <p class="text-2xl font-bold text-[#ff6b00]">₹{{ order.total_amount }}</p>
-                        </div>
-                    </div>
-
-                    <!-- Order Items -->
-                    <div class="space-y-4">
-                        {% for item in order.order_items.all %}
-                        <div class="flex items-center space-x-4 border-t border-zinc-800 pt-4">
-                            {% if item.variant.images.first %}
-                                <img src="{{ item.variant.images.first.image.url }}" 
-                                     alt="{{ item.product.name }}" 
-                                     class="w-24 h-24 object-cover rounded-lg">
-                            {% else %}
-                                <div class="w-24 h-24 bg-gray-700 rounded-lg flex items-center justify-center">
-                                    <span class="text-gray-400">No Image</span>
-                                </div>
-                            {% endif %}
-                            {% load custom_filters %}
-                            <div class="flex-1">
-                                <h3 class="font-medium">{{ item.product.name }}</h3>
-                                <p class="text-gray-400">Variant: {{ item.variant.color }}</p>
-                                <p class="text-gray-400">Qty: {{ item.quantity }}</p>
-                                <p class="text-gray-400">Price: ₹{{ item.price }}</p>
-                                <p class="text-gray-400">Subtotal: ₹{{ item.price|multiply:item.quantity }}</p>
-                            </div>
-                            <div class="text-right">
-                                <div class="text-sm text-gray-400">
-                                    Status: 
-                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs
-                                        {% if item.status == 'PROCESSING' %}
-                                            bg-yellow-900/50 text-yellow-300
-                                        {% elif item.status == 'SHIPPED' %}
-                                            bg-blue-900/50 text-blue-300
-                                        {% elif item.status == 'DELIVERED' %}
-                                            bg-green-900/50 text-green-300
-                                        {% elif item.status == 'CANCELLED' %}
-                                            bg-red-900/50 text-red-300
-                                        {% elif item.status == 'RETURNED' %}
-                                            bg-gray-800 text-gray-300
-                                        {% endif %}">
-                                        <span class="flex-shrink-0">{{ item.get_status_display }}</span>
-                                    </span>
-                                    
-                                    {% if item.status == 'PROCESSING' or item.status == 'SHIPPED' %}
-                                    <button onclick="cancelOrderItem({{ item.id }})" 
-                                            class="ml-2 px-3 py-1 text-xs bg-red-900/50 text-red-300 rounded-full hover:bg-red-800/50 transition-colors duration-200 ease-in-out">
-                                        Cancel
-                                    </button>
-                                    {% endif %}
-                                    
-                                    {% if item.status == 'DELIVERED' and item.return_status == 'NOT_REQUESTED' %}
-                                    <button onclick="returnOrderItem({{ item.id }})" 
-                                            class="ml-2 px-3 py-1 text-xs bg-blue-900/50 text-blue-300 rounded-full hover:bg-blue-800/50 transition-colors duration-200 ease-in-out">
-                                        Return
-                                    </button>
-                                    {% endif %}
-                                </div>
-
-                                {% if item.admin_response %}
-                                <div class="text-sm text-gray-400 mt-2">
-                                    <p class="font-medium">Admin Response:</p>
-                                    <p>{{ item.admin_response }}</p>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-
-                    <!-- Order Summary -->
-                    <div class="mt-4 border-t border-zinc-800 pt-4">
-                        <div class="flex justify-between text-gray-400">
-                            <span>Subtotal:</span>
-                            <span>₹{{ order.total_amount }}</span>
-                        </div>
-                        {% if order.total_discount %}
-                        <div class="flex justify-between text-gray-400">
-                            <span>Discount:</span>
-                            <span>-₹0.00</span>
-                        </div>
-                        {% endif %}
-                        <div class="flex justify-between text-white font-bold mt-2">
-                            <span>Total:</span>
-                            <span>₹{{ order.total_amount }}</span>
-                        </div>
-                    </div>
-
-                    <div class="mt-4 flex justify-end">
-                        <a href="{% url 'order_confirmation' order.order_number %}" 
-                           class="bg-[#ff6b00] text-black px-6 py-2 rounded-lg hover:bg-[#ff8533] transition-colors">
-                            View Details
-                        </a>
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="bg-zinc-900 rounded-lg p-6 text-white text-center">
-                    <p>No orders found.</p>
-                </div>
-            {% endif %}
-        </div>
+  <!-- Mobile sidebar -->
+  <div id="mobileSidebar" class="fixed inset-0 z-40 transform -translate-x-full transition-transform duration-300 ease-in-out md:hidden">
+    <div class="absolute inset-0 bg-black bg-opacity-50" id="sidebarOverlay"></div>
+    <div class="relative w-64 h-full bg-[#18181b]/95 backdrop-blur-lg border-r border-[#334155]/30 p-6 space-y-6 transform transition-transform duration-300 ease-in-out">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold text-white bg-gradient-to-r from-[#F0F0F0] to-[#ff8533] bg-clip-text text-transparent">Account</h2>
+        <button id="closeSidebar" class="text-gray-400 hover:text-white">
+          <i data-lucide="x" class="icon"></i>
+        </button>
+      </div>
+      <nav class="space-y-1.5">
+        <a href="{% url 'user_profile' user.id %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+          <i data-lucide="user" class="icon mr-3"></i>
+          My Profile
+        </a>
+        <a href="{%  url 'my_orders' %}" class="flex items-center px-4 py-3 rounded-xl text-white bg-gradient-to-r from-[#ff6b00] to-[#ff8533] shadow-lg shadow-[#ff6b00]/30">
+          <i data-lucide="package" class="icon mr-3"></i>
+          Orders
+        </a>
+        <a href="{% url 'userManageAddress' %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+          <i data-lucide="map-pin" class="icon mr-3"></i>
+          Address
+        </a>
+        <a href="{% url 'wallet' %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+          <i data-lucide="credit-card" class="icon mr-3"></i>
+          Wallet
+        </a>
+        <a href="{% url 'available_coupons' %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+          <i data-lucide="ticket" class="icon mr-3"></i>
+          Coupons
+        </a>
+        <a href="/change-password" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+          <i data-lucide="key" class="icon mr-3"></i>
+          Change Password
+        </a>
+        <a href="/transactions" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+          <i data-lucide="dollar-sign" class="icon mr-3"></i>
+          Transaction History
+        </a>
+        <a href="javascript:void(0);" onclick="openLogoutModal()" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+          <i data-lucide="log-out" class="icon mr-3"></i>
+          Logout
+        </a>
+      </nav>
     </div>
   </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 p-6 md:p-8 overflow-y-auto">
+    <div class="max-w-6xl mx-auto">
+      <h1 class="text-2xl font-bold text-white mb-6">My Orders</h1>
+
+      <!-- Orders List -->
+      <div class="space-y-6">
+        {% if orders %}
+          {% for order in orders %}
+          <div class="bg-zinc-900 rounded-lg p-6 text-white">
+            <div class="flex justify-between items-start mb-4">
+              <div>
+                <p class="text-gray-400">Order ID: <span class="text-white">#{{ order.order_number }}</span></p>
+                <p class="text-gray-400">Order Date: <span class="text-white">{{ order.created_at|date:"F j, Y \a\t g:i A" }}</span></p>
+              </div>
+              <div class="text-right">
+                <p class="text-gray-400">Payment: <span class="text-white">{{ order.payment_method.name }}</span></p>
+                <p class="text-2xl font-bold text-[#ff6b00]">₹{{ order.total_amount }}</p>
+              </div>
+            </div>
+
+            <!-- Order Items -->
+            <div class="space-y-4">
+              {% for item in order.order_items.all %}
+              <div class="flex items-center space-x-4 border-t border-zinc-800 pt-4">
+                {% if item.variant.images.first %}
+                  <img src="{{ item.variant.images.first.image.url }}" 
+                       alt="{{ item.product.name }}" 
+                       class="w-24 h-24 object-cover rounded-lg">
+                {% else %}
+                  <div class="w-24 h-24 bg-gray-700 rounded-lg flex items-center justify-center">
+                    <span class="text-gray-400">No Image</span>
+                  </div>
+                {% endif %}
+                {% load custom_filters %}
+                <div class="flex-1">
+                  <h3 class="font-medium">{{ item.product.name }}</h3>
+                  <p class="text-gray-400">Variant: {{ item.variant.color }}</p>
+                  <p class="text-gray-400">Qty: {{ item.quantity }}</p>
+                  <p class="text-gray-400">Price: ₹{{ item.price }}</p>
+                  <p class="text-gray-400">Subtotal: ₹{{ item.price|multiply:item.quantity }}</p>
+                </div>
+                <div class="text-right">
+                  <div class="text-sm text-gray-400">
+                    Status: 
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs
+                      {% if item.status == 'PROCESSING' %}
+                        bg-yellow-900/50 text-yellow-300
+                      {% elif item.status == 'SHIPPED' %}
+                        bg-blue-900/50 text-blue-300
+                      {% elif item.status == 'DELIVERED' %}
+                        bg-green-900/50 text-green-300
+                      {% elif item.status == 'CANCELLED' %}
+                        bg-red-900/50 text-red-300
+                      {% elif item.status == 'RETURNED' %}
+                        bg-gray-800 text-gray-300
+                      {% endif %}">
+                      <span class="flex-shrink-0">{{ item.get_status_display }}</span>
+                    </span>
+                    
+
+                  </div>
+
+                  {% if item.admin_response %}
+                  <div class="text-sm text-gray-400 mt-2">
+                    <p class="font-medium">Admin Response:</p>
+                    <p>{{ item.admin_response }}</p>
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+
+            <!-- Order Summary -->
+            <div class="mt-4 border-t border-zinc-800 pt-4">
+              <div class="flex justify-between text-gray-400">
+                <span>Subtotal:</span>
+                <span>₹{{ order.total_amount }}</span>
+              </div>
+              {% if order.total_discount %}
+              <div class="flex justify-between text-gray-400">
+                <span>Discount:</span>
+                <span>-₹0.00</span>
+              </div>
+              {% endif %}
+              <div class="flex justify-between text-white font-bold mt-2">
+                <span>Total:</span>
+                <span>₹{{ order.total_amount }}</span>
+              </div>
+            </div>
+
+            <div class="mt-4 flex justify-end">
+              <a href="{% url 'order_details' order.order_number %}" 
+                 class="bg-[#ff6b00] text-black px-6 py-2 rounded-lg hover:bg-[#ff8533] transition-colors">
+                View Details
+              </a>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="bg-zinc-900 rounded-lg p-6 text-white text-center">
+            <p>No orders found.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Return Modal -->
+<div id="returnModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+  <div class="bg-[#1A1A1A] p-6 rounded-lg max-w-md w-full mx-4">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold text-white">Return Request</h2>
+      <button onclick="closeReturnModal()" class="text-gray-400 hover:text-white">
+        <i data-lucide="x" class="icon"></i>
+      </button>
+    </div>
+    <p class="text-gray-400 mb-4">Please provide details about your return request.</p>
+    <form id="returnForm" class="space-y-4">
+      <input type="hidden" id="returnItemId" name="itemId">
+      
+      <div class="space-y-2">
+        <label class="block text-sm font-medium text-gray-300">Reason for Return</label>
+        <select id="returnReason" name="reason" 
+                class="w-full bg-[#242424] text-white border border-[#2A2A2A] rounded-md px-3 py-2" required>
+          <option value="">Select a reason</option>
+          <option value="defective">Product Defective</option>
+          <option value="wrong_item">Wrong Item Received</option>
+          <option value="not_as_described">Item Not As Described</option>
+          <option value="size_issue">Size/Fit Issue</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      
+      <div class="space-y-2">
+        <label class="block text-sm font-medium text-gray-300">Description</label>
+        <textarea id="returnDescription" name="description" 
+                  class="w-full bg-[#242424] text-white border border-[#2A2A2A] rounded-md px-3 py-2 min-h-[100px]" 
+                  required></textarea>
+      </div>
+      
+      <div class="flex justify-end space-x-2 pt-2">
+        <button type="button" onclick="closeReturnModal()" 
+                class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors">
+          Cancel
+        </button>
+        <button type="submit" 
+                class="px-4 py-2 bg-[#ff6b00] text-black font-medium rounded-md hover:bg-[#ff8533] transition-colors">
+          Submit Request
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div id="confirmationModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+  <div class="bg-[#1A1A1A] p-6 rounded-lg max-w-md w-full mx-4">
+    <div class="flex justify-between items-center mb-4">
+      <h2 id="confirmationTitle" class="text-xl font-bold text-white">Confirmation</h2>
+      <button onclick="closeConfirmationModal()" class="text-gray-400 hover:text-white">
+        <i data-lucide="x" class="icon"></i>
+      </button>
+    </div>
+    <p id="confirmationMessage" class="text-gray-300 mb-6">Are you sure you want to proceed?</p>
+    
+    <div class="flex justify-end space-x-2">
+      <button onclick="closeConfirmationModal()" 
+              class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors">
+        No, Cancel
+      </button>
+      <button id="confirmButton"
+              class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
+        Yes, Proceed
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Logout Confirmation Modal -->
+<div id="logoutModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden z-50">
+  <div class="bg-[#1A1A1A] p-6 rounded-lg max-w-md w-full mx-4">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold text-white">Logout Confirmation</h2>
+      <button onclick="closeLogoutModal()" class="text-gray-400 hover:text-white">
+        <i data-lucide="x" class="icon"></i>
+      </button>
+    </div>
+    <p class="text-gray-300 mb-6">Are you sure you want to log out?</p>
+    <form method="post" action="{% url 'confirm_logout' %}" class="flex justify-end space-x-4">
+      {% csrf_token %}
+      <button type="button" class="px-4 py-2 bg-zinc-600 text-white rounded-md hover:bg-zinc-700 transition-colors" onclick="closeLogoutModal()">Cancel</button>
+      <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">Yes, log me out</button>
+    </form>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="https://unpkg.com/lucide@latest"></script>
 <script>
-function cancelOrderItem(itemId) {
-    if (confirm('Are you sure you want to cancel this item?')) {
-        fetch(`/cancel-order-item/${itemId}/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken'),
-                'Content-Type': 'application/json'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert(data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while cancelling the item');
-        });
-    }
-}
+  // Initialize Lucide icons
+  lucide.createIcons();
 
-function returnOrderItem(itemId) {
-    const reason = prompt('Please select a return reason:\n1. Product Defective\n2. Wrong Item Received\n3. Item Not As Described\n4. Size/Fit Issue\n5. Other\n\nEnter the number of your reason:');
+  // Logout Modal functionality
+  function openLogoutModal() {
+    document.getElementById('logoutModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLogoutModal() {
+    document.getElementById('logoutModal').classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  // Mobile sidebar functionality
+  document.getElementById('mobileMenuBtn').addEventListener('click', function() {
+    document.getElementById('mobileSidebar').classList.remove('-translate-x-full');
+  });
+  
+  document.getElementById('closeSidebar').addEventListener('click', function() {
+    document.getElementById('mobileSidebar').classList.add('-translate-x-full');
+  });
+  
+  document.getElementById('sidebarOverlay').addEventListener('click', function() {
+    document.getElementById('mobileSidebar').classList.add('-translate-x-full');
+  });
+
+  // Return Modal functionality
+  let currentItemId = null;
+  
+  function openReturnModal(itemId) {
+    document.getElementById('returnItemId').value = itemId;
+    document.getElementById('returnModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+  
+  function closeReturnModal() {
+    document.getElementById('returnModal').classList.add('hidden');
+    document.getElementById('returnForm').reset();
+    document.body.style.overflow = '';
+  }
+  
+  // Confirmation Modal functionality
+  let confirmCallback = null;
+  
+  function openConfirmationModal(itemId, title, message, callbackName) {
+    currentItemId = itemId;
+    document.getElementById('confirmationTitle').textContent = title;
+    document.getElementById('confirmationMessage').textContent = message;
     
-    if (!reason) return;
+    // Set the callback function based on the name
+    if (callbackName === 'cancelItem') {
+      confirmCallback = function() {
+        cancelItem(currentItemId);
+      };
+    }
     
-    const reasonMap = {
-        '1': 'DEFECTIVE',
-        '2': 'WRONG_ITEM',
-        '3': 'NOT_AS_DESCRIBED',
-        '4': 'SIZE_ISSUE',
-        '5': 'OTHER'
+    document.getElementById('confirmButton').onclick = function() {
+      if (confirmCallback) confirmCallback();
     };
     
-    const selectedReason = reasonMap[reason];
-    if (!selectedReason) {
-        alert('Invalid reason selected');
-        return;
-    }
+    document.getElementById('confirmationModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+  
+  function closeConfirmationModal() {
+    document.getElementById('confirmationModal').classList.add('hidden');
+    document.body.style.overflow = '';
+    currentItemId = null;
+    confirmCallback = null;
+  }
+
+  // Form submission handlers
+  document.getElementById('returnForm').addEventListener('submit', function(e) {
+    e.preventDefault();
     
-    const description = prompt('Please provide additional details about your return request:');
-    if (!description) return;
+    const itemId = document.getElementById('returnItemId').value;
+    const reason = document.getElementById('returnReason').value;
+    const description = document.getElementById('returnDescription').value;
     
     fetch(`/return-order-item/${itemId}/`, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': getCookie('csrftoken'),
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            reason: selectedReason,
-            description: description
-        })
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        reason: reason,
+        description: description
+      })
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert(data.message);
-        }
+      if (data.success) {
+        location.reload();
+      } else {
+        alert(data.message);
+      }
     })
     .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while processing your return request');
+      console.error('Error:', error);
+      alert('An error occurred while processing your return request');
     });
-}
-
-function getCookie(name) {
+    
+    closeReturnModal();
+  });
+  
+  function cancelItem(itemId) {
+    fetch(`/cancel-order-item/${itemId}/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        location.reload();
+      } else {
+        alert(data.message);
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('An error occurred while cancelling the item');
+    });
+    
+    closeConfirmationModal();
+  }
+  
+  // Helper function to get CSRF token
+  function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
         }
+      }
     }
     return cookieValue;
-}
+  }
 </script>
 {% endblock %}

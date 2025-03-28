@@ -507,10 +507,14 @@ def reset_password(request):
 
 
 def logout(request):
-    
     auth_logout(request)
-    
-    return redirect('/')
+    return redirect('Login')
+
+def confirm_logout(request):
+    if request.method == 'POST':
+        auth_logout(request)
+        return redirect('Login')
+    return redirect(request.META.get('HTTP_REFERER', 'home'))
 
 def get_variant_data(request, product_id, variant_id):
     variant = get_object_or_404(
@@ -1295,6 +1299,29 @@ def user_checkout(request):
         total_discount = product_discount + coupon_discount
         final_price = cart.final_price
 
+        # Get available coupons
+        today = timezone.now().date()
+        coupons = Coupon.objects.filter(
+            is_active=True,
+            start_date__lte=today,
+            end_date__gte=today
+        )
+        
+        coupon_data = []
+        for coupon in coupons:
+            is_applicable = cart.total_price >= coupon.minimum_purchase
+            amount_needed = coupon.minimum_purchase - cart.total_price if cart.total_price < coupon.minimum_purchase else 0
+            
+            coupon_data.append({
+                'code': coupon.code,
+                'type': coupon.type,
+                'value': coupon.value,
+                'minimum_purchase': coupon.minimum_purchase,
+                'is_applicable': is_applicable,
+                'expiry_date': coupon.end_date,
+                'amount_needed': amount_needed
+            })
+
         context = {
             'user_addresses': user_addresses,
             'cart_items': cart_items,
@@ -1306,6 +1333,7 @@ def user_checkout(request):
             'total_discount': total_discount,
             'final_price': final_price,
             'cart': cart,
+            'coupons': coupon_data
         }
 
         return render(request, 'checkout.html', context)
@@ -1445,7 +1473,7 @@ def user_checkout(request):
 #                 # For COD orders, just redirect to confirmation
 #                 return JsonResponse({
 #                     'success': True,
-#                     'redirect_url': reverse('order_confirmation', args=[order.order_number])
+#                     'redirect_url': reverse('order_details', args=[order.order_number])
 #                 })
                 
 #     except ValueError as e:
@@ -1495,7 +1523,7 @@ def user_checkout(request):
 
 #             return JsonResponse({
 #                 'status': 'success',
-#                 'redirect_url': reverse('order_confirmation', args=[order.order_number])
+#                 'redirect_url': reverse('order_details', args=[order.order_number])
 #             })
 
 #         except Exception as e:
@@ -1615,7 +1643,7 @@ def place_order(request):
                 # For COD orders, just redirect to confirmation
                 return JsonResponse({
                     'success': True,
-                    'redirect_url': reverse('order_confirmation', args=[order.order_number])
+                    'redirect_url': reverse('order_details', args=[order.order_number])
                 })
                 
     except ValueError as e:
@@ -1654,7 +1682,7 @@ def payment_success(request):
 
             return JsonResponse({
                 'status': 'success',
-                'redirect_url': reverse('order_confirmation', args=[order.order_number])
+                'redirect_url': reverse('order_details', args=[order.order_number])
             })
 
         except Exception as e:
@@ -1671,7 +1699,19 @@ def payment_success(request):
 
 ################# Order ####################
 from manager.models import Order, OrderItem, Cart, CartItem
- 
+@login_required
+def order_confirmation(request, order_number):
+    try:
+        order = Order.objects.select_related('user', 'payment_method').prefetch_related(
+            'order_items',
+            'order_items__variant',
+            'order_items__variant__product'
+        ).get(order_number=order_number, user=request.user)
+        
+        return render(request, 'order_confirmation.html', {'order': order})
+    except Order.DoesNotExist:
+        messages.error(request, 'Order not found')
+        return redirect('my_orders')
 
 def my_orders(request):
     if not request.user.is_authenticated:
@@ -1698,23 +1738,24 @@ def my_orders(request):
     return render(request, 'my_orders.html', context)
 
 @login_required(login_url='userlogin')
-def order_confirmation(request, order_number):
+def order_details(request, order_number):
     try:
         order = get_object_or_404(
             Order.objects.prefetch_related(
                 'order_items',
                 'order_items__product',
                 'order_items__variant',
+                'order_items__variant__images',
                 'order_items__size'  
             ),
             order_number=order_number,
             user=request.user
         )
         order_items = order.order_items.all()
-        logger.debug(f"Fetched order confirmation for order {order_id}")
+        logger.debug(f"Fetched order details for order {order_number}")
         
     except Order.DoesNotExist:
-        logger.error(f"Order {order_id} not found in confirmation page")
+        logger.error(f"Order {order_number} not found in details page")
         messages.error(request, "Order Not found.")
         return redirect('my_orders')
     
@@ -1722,7 +1763,7 @@ def order_confirmation(request, order_number):
         'order': order,
         'order_items': order_items,
     }
-    return render(request, 'order_confirmation.html', context)
+    return render(request, 'order_details.html', context)
 
 @login_required
 def cancel_order(request, order_id):
@@ -1805,111 +1846,6 @@ def cancel_order(request, order_id):
             'success': False,
             'message': 'An error occurred while cancelling the order'
         })
-
-def available_coupons(request):
-    today = timezone.now().date()
-    coupons = Coupon.objects.filter(
-        is_active=True,
-        start_date__lte=today,
-        end_date__gte=today
-    )
-    
-    # Get cart total if exists
-    cart = None
-    cart_total = 0
-    
-    if request.user.is_authenticated:
-        cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
-        if cart:
-            cart_total = cart.total_price
-    
-    coupon_data = []
-    for coupon in coupons:
-        # Check if coupon is applicable based on cart total
-        is_applicable = cart_total >= coupon.minimum_purchase if cart else False
-        
-        # Calculate amount needed to use coupon
-        amount_needed = coupon.minimum_purchase - cart_total if cart_total < coupon.minimum_purchase else 0
-        
-        # Format discount text based on type
-        if coupon.type == 'percentage':
-            discount_text = f"{int(coupon.value)}% OFF"
-        else:
-            discount_text = f"₹{int(coupon.value)} OFF"
-            
-        coupon_data.append({
-            'code': coupon.code,
-            'discount_text': discount_text,
-            'minimum_purchase': coupon.minimum_purchase,
-            'is_applicable': is_applicable,
-            'expiry_date': coupon.end_date,
-            'amount_needed': amount_needed  # Add this field
-        })
-    
-    return render(request, 'store/available_coupons.html', {
-        'coupons': coupon_data,
-        'cart_total': cart_total
-    })
-
-@login_required
-def apply_coupon(request):
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            code = data.get('coupon_code')
-            
-            cart = Cart.objects.get(user=request.user, is_ordered=False)
-            
-            try:
-                coupon = Coupon.objects.get(
-                    code=code,
-                    is_active=True,
-                    start_date__lte=timezone.now().date(),
-                    end_date__gte=timezone.now().date()
-                )
-                
-                # Check minimum purchase
-                if cart.total_price < coupon.minimum_purchase:
-                    return JsonResponse({
-                        'success': False,
-                        'message': f'Minimum purchase amount of ₹{coupon.minimum_purchase} required'
-                    })
-                
-                # Check usage limit
-                usage_count = CouponUsage.objects.filter(coupon=coupon, user=request.user).count()
-                if usage_count >= coupon.usage_limit:
-                    return JsonResponse({
-                        'success': False,
-                        'message': 'Coupon usage limit exceeded'
-                    })
-                
-                # Apply coupon to cart
-                cart.coupon = coupon
-                cart.save()
-                
-                return JsonResponse({
-                    'success': True,
-                    'discount': float(cart.calculate_coupon_discount()),
-                    'final_amount': float(cart.final_price),
-                    'message': 'Coupon applied successfully!'
-                })
-                
-            except Coupon.DoesNotExist:
-                return JsonResponse({
-                    'success': False,
-                    'message': 'Invalid coupon code'
-                })
-                
-        except Exception as e:
-
-            print(f"Payment verification failed with error: {str(e)}")
-
-            return JsonResponse({
-                'success': False,
-                'message': str(e)
-            })
-            
-    return JsonResponse({'success': False, 'message': 'Invalid request method'})
 
 @login_required
 @require_POST
@@ -2142,26 +2078,31 @@ def order_detail(request, order_id):
     return render(request, 'order_detail.html', context)
 
 @login_required
-def track_order(request, order_id):
-    order = get_object_or_404(Order, id=order_id, user=request.user)
+def order_details(request, order_number):
+    order = get_object_or_404(
+        Order.objects.select_related('payment_method')
+        .prefetch_related(
+            'order_items',
+            'order_items__product',
+            'order_items__variant',
+            'order_items__variant__images',
+            'order_items__size'
+        ),
+        order_number=order_number,
+        user=request.user
+    )
     
+    # Prepare timeline events
     timeline = []
     
-    # Add events to timeline
-    if order.created_at:
-        timeline.append({
-            'status': 'Order Placed',
-            'date': order.created_at,
-            'description': f'Order #{order.order_number} has been placed successfully'
-        })
+    # Order Placed (Always shown)
+    timeline.append({
+        'status': 'Order Placed',
+        'date': order.created_at,
+        'description': f'Order #{order.order_number} has been placed successfully'
+    })
     
-    if order.confirmed_at:
-        timeline.append({
-            'status': 'Order Confirmed',
-            'date': order.confirmed_at,
-            'description': 'Your order has been confirmed and is being processed'
-        })
-    
+    # Processing
     if order.processed_at:
         timeline.append({
             'status': 'Processing',
@@ -2169,6 +2110,7 @@ def track_order(request, order_id):
             'description': 'Your order is being prepared for shipping'
         })
     
+    # Shipped
     if order.shipped_at:
         timeline.append({
             'status': 'Shipped',
@@ -2176,6 +2118,7 @@ def track_order(request, order_id):
             'description': f'Your order has been shipped via {order.shipping_carrier}. Tracking number: {order.tracking_number}'
         })
     
+    # Delivered
     if order.delivered_at:
         timeline.append({
             'status': 'Delivered',
@@ -2185,12 +2128,138 @@ def track_order(request, order_id):
     
     timeline.sort(key=lambda x: x['date'])
     
+    # Prepare items with return eligibility
+    items_data = []
+    for item in order.order_items.all():
+        item_data = {
+            'id': item.id,
+            'product_name': item.product.name,
+            'variant_color': item.variant.color,
+            'size': item.size.name if item.size else None,
+            'quantity': item.quantity,
+            'price': item.price,
+            'status': item.status,
+            'return_status': item.return_status,
+            'can_return': item.can_return(),
+            'image_url': item.variant.images.first().image.url if item.variant.images.exists() else None,
+            'tracking_number': order.tracking_number if item.status == 'SHIPPED' else None,
+            'delivered_at': item.delivered_at,
+        }
+        items_data.append(item_data)
+    
     context = {
         'order': order,
+        'items': items_data,
         'timeline': timeline,
     }
     
-    return render(request, 'track_order.html', context)
+    return render(request, 'order_details.html', context)
+    
+            
+def available_coupons(request):
+    today = timezone.now().date()
+    coupons = Coupon.objects.filter(
+        is_active=True,
+        start_date__lte=today,
+        end_date__gte=today
+    )
+    
+    # Get cart total if exists
+    cart = None
+    cart_total = 0
+    
+    if request.user.is_authenticated:
+        cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
+        if cart:
+            cart_total = cart.total_price
+    
+    coupon_data = []
+    for coupon in coupons:
+        # Check if coupon is applicable based on cart total
+        is_applicable = cart_total >= coupon.minimum_purchase if cart else False
+        
+        # Calculate amount needed to use coupon
+        amount_needed = coupon.minimum_purchase - cart_total if cart_total < coupon.minimum_purchase else 0
+        
+        # Format discount text based on type
+        if coupon.type == 'percentage':
+            discount_text = f"{int(coupon.value)}% OFF"
+        else:
+            discount_text = f"₹{int(coupon.value)} OFF"
+            
+        coupon_data.append({
+            'code': coupon.code,
+            'discount_text': discount_text,
+            'minimum_purchase': coupon.minimum_purchase,
+            'is_applicable': is_applicable,
+            'expiry_date': coupon.end_date,
+            'amount_needed': amount_needed  # Add this field
+        })
+    
+    return render(request, 'available_coupons.html', {
+        'coupons': coupon_data,
+        'cart_total': cart_total
+    })
+
+@login_required
+def apply_coupon(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            code = data.get('coupon_code')
+            
+            cart = Cart.objects.get(user=request.user, is_ordered=False)
+            
+            try:
+                coupon = Coupon.objects.get(
+                    code=code,
+                    is_active=True,
+                    start_date__lte=timezone.now().date(),
+                    end_date__gte=timezone.now().date()
+                )
+                
+                # Check minimum purchase
+                if cart.total_price < coupon.minimum_purchase:
+                    return JsonResponse({
+                        'success': False,
+                        'message': f'Minimum purchase amount of ₹{coupon.minimum_purchase} required'
+                    })
+                
+                # Check usage limit
+                usage_count = CouponUsage.objects.filter(coupon=coupon, user=request.user).count()
+                if usage_count >= coupon.usage_limit:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Coupon usage limit exceeded'
+                    })
+                
+                # Apply coupon to cart
+                cart.coupon = coupon
+                cart.save()
+                
+                return JsonResponse({
+                    'success': True,
+                    'discount': float(cart.calculate_coupon_discount()),
+                    'final_amount': float(cart.final_price),
+                    'message': 'Coupon applied successfully!'
+                })
+                
+            except Coupon.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Invalid coupon code'
+                })
+                
+        except Exception as e:
+
+            print(f"Payment verification failed with error: {str(e)}")
+
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            })
+            
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
 
 @login_required
 def wallet_view(request):

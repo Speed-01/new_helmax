@@ -2,8 +2,89 @@
 {% load static %}
 
 {% block content %}
-<div class="min-h-screen bg-black text-white py-8">
-    <div class="max-w-7xl mx-auto px-4">
+<div class="min-h-screen bg-black text-white py-8 flex">
+    <!-- Mobile menu button -->
+    <button id="mobileMenuBtn" class="md:hidden fixed top-4 left-4 z-50 text-white">
+        <i class="fas fa-bars text-2xl"></i>
+    </button>
+
+    <!-- Mobile sidebar overlay -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden md:hidden"></div>
+
+    <!-- Mobile sidebar -->
+    <div id="mobileSidebar" class="fixed inset-y-0 left-0 z-50 w-64 -translate-x-full transform transition-transform duration-300 ease-in-out md:hidden">
+        <div class="relative w-64 h-full bg-[#18181b]/95 backdrop-blur-lg border-r border-[#334155]/30 p-6 space-y-6">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-semibold text-white bg-gradient-to-r from-[#F0F0F0] to-[#ff8533] bg-clip-text text-transparent">Account</h2>
+                <button id="closeSidebar" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <nav class="space-y-1.5">
+                <a href="{% url 'user_profile' user.id %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+                    <i class="fas fa-user mr-3"></i>
+                    My Profile
+                </a>
+                <a href="{% url 'my_orders' %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+                    <i class="fas fa-box mr-3"></i>
+                    Orders
+                </a>
+                <a href="{% url 'userManageAddress' %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+                    <i class="fas fa-map-marker-alt mr-3"></i>
+                    Address
+                </a>
+                <a href="{% url 'wallet' %}" class="flex items-center px-4 py-3 rounded-xl text-white bg-gradient-to-r from-[#ff6b00] to-[#ff8533] shadow-lg shadow-[#ff6b00]/30">
+                    <i class="fas fa-wallet mr-3"></i>
+                    Wallet
+                </a>
+                <a href="{% url 'available_coupons' %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+                    <i class="fas fa-ticket-alt mr-3"></i>
+                    Coupons
+                </a>
+                <a href="javascript:void(0);" onclick="openModal()" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+                    <i class="fas fa-sign-out-alt mr-3"></i>
+                    Logout
+                </a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Desktop sidebar -->
+    <aside class="w-64 bg-[#18181b]/80 backdrop-blur-lg text-white p-6 space-y-6 border-r border-[#334155]/30 hidden md:block">
+        <div class="space-y-6">
+            <div>
+                <h2 class="text-xl font-semibold text-white bg-gradient-to-r from-[#F0F0F0] to-[#ff8533] bg-clip-text text-transparent">Account</h2>
+                <nav class="space-y-1.5 mt-6">
+                    <a href="{% url 'user_profile' user.id %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+                        <i class="fas fa-user mr-3"></i>
+                        My Profile
+                    </a>
+                    <a href="{% url 'my_orders' %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+                        <i class="fas fa-box mr-3"></i>
+                        Orders
+                    </a>
+                    <a href="{% url 'userManageAddress' %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+                        <i class="fas fa-map-marker-alt mr-3"></i>
+                        Address
+                    </a>
+                    <a href="{% url 'wallet' %}" class="flex items-center px-4 py-3 rounded-xl text-white bg-gradient-to-r from-[#ff6b00] to-[#ff8533] shadow-lg shadow-[#ff6b00]/30">
+                        <i class="fas fa-wallet mr-3"></i>
+                        Wallet
+                    </a>
+                    <a href="{% url 'available_coupons' %}" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+                        <i class="fas fa-ticket-alt mr-3"></i>
+                        Coupons
+                    </a>
+                    <a href="javascript:void(0);" onclick="openModal()" class="flex items-center px-4 py-3 rounded-xl text-gray-300 hover:bg-[#ff6b00]/10 hover:text-[#ff6b00] transition-all duration-300">
+                        <i class="fas fa-sign-out-alt mr-3"></i>
+                        Logout
+                    </a>
+                </nav>
+            </div>
+        </div>
+    </aside>
+
+    <div class="flex-1 max-w-7xl mx-auto px-4">
         <div class="bg-zinc-900 rounded-lg p-6 mb-8">
             <h1 class="text-2xl font-bold mb-4">My Wallet</h1>
             <div class="text-4xl font-bold text-[#ff6b00]">₹{{ wallet.balance }}</div>
@@ -45,4 +126,4 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock %}

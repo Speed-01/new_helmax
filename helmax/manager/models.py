@@ -405,6 +405,9 @@ class OrderStatusHistory(models.Model):
         return f'{self.order.order_number}: {self.old_status} -> {self.new_status}'
 
 class Order(BaseModel):
+    product_discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    coupon_discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
     ORDER_STATUSES = [
         ('PENDING', 'Pending'),
         ('CONFIRMED', 'Confirmed'),
@@ -414,6 +417,27 @@ class Order(BaseModel):
         ('CANCELLED', 'Cancelled'),
         ('RETURNED', 'Returned')
     ]
+    
+    @property
+    def total_discount(self):
+        # Calculate product discounts from order items
+        product_discount = sum(
+            (item.variant.price - item.variant.final_price) * item.quantity
+            for item in self.order_items.all()
+            if item.variant and hasattr(item.variant, 'final_price') 
+            and item.variant.final_price and item.variant.final_price < item.variant.price
+        )
+        
+        return product_discount
+        
+    @property
+    def subtotal(self):
+        # Calculate subtotal before discounts
+        return sum(
+            item.variant.price * item.quantity
+            for item in self.order_items.all()
+            if item.variant
+        )
     
     PAYMENT_STATUSES = [
         ('PENDING', 'Pending'),
@@ -428,6 +452,13 @@ class Order(BaseModel):
     order_status = models.CharField(max_length=20, choices=ORDER_STATUSES, default='PENDING')
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUSES, default='PENDING')
     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, related_name='orders')
+    
+    # Status timestamps
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    shipped_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
     
     # Address fields
     full_name = models.CharField(max_length=100, null=True, blank=True)
@@ -513,7 +544,7 @@ class OrderItem(models.Model):
         if not self.delivered_at:
             return False
         return_window = timezone.now() - timezone.timedelta(days=7)
-        return self.delivered_at >= return_window
+        return self.delivered_at <= timezone.now() and self.delivered_at >= return_window
 
 class ReturnRequest(models.Model):
     STATUS_CHOICES = [
