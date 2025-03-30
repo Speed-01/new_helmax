@@ -271,8 +271,8 @@ def sales_report(request):
                     order.user.username,
                     order.order_items.count(),
                     f'₹{order.total_amount}',
-                    f'₹{order.total_amount - order.final_amount}',
-                    f'₹{order.final_amount}',
+                    f'₹{order.total_discount}',
+                    f'₹{order.total_amount}',
                     order.order_status
                 ])
             
@@ -319,8 +319,8 @@ def sales_report(request):
                     order.user.username,
                     order.order_items.count(),
                     float(order.total_amount),
-                    float(order.total_amount - order.final_amount),
-                    float(order.final_amount),
+                    float(order.total_discount),
+                    float(order.total_amount),
                     order.order_status
                 ])
             
@@ -769,10 +769,10 @@ def admin_orders_api(request):
             orders_data.append({
                 'id': order.id,
                 'username': order.user.username if order.user else 'N/A',
-
                 'payment_method': order.payment_method.name if order.payment_method else 'N/A',
-
                 'status': order.order_status,
+                'subtotal': float(order.subtotal),
+                'total_discount': float(order.total_discount),
                 'total_price': float(order.total_amount) if order.total_amount else 0.0,
                 'created_at': order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                 'items': order_items
@@ -850,8 +850,16 @@ def update_order_status(request, order_id):
             if timestamp_field:
                 setattr(order, timestamp_field, timezone.now())
             
-            # Update all order items status
-            order.order_items.all().update(status=new_status)
+            # Update all order items status and timestamps
+            items = order.order_items.all()
+            items.update(status=new_status)
+            
+            # Also update the timestamp for each item
+            if timestamp_field:
+                current_time = timezone.now()
+                for item in items:
+                    setattr(item, timestamp_field, current_time)
+                    item.save()
             
             order.save()
             
@@ -888,6 +896,22 @@ def update_item_status(request):
         
         with transaction.atomic():
             item.status = data['status']
+            
+            # Set the appropriate timestamp based on status
+            timestamp_fields = {
+                'DELIVERED': 'delivered_at',
+                'SHIPPED': 'shipped_at',
+                'CANCELLED': 'cancelled_at',
+                'PROCESSING': 'processed_at',
+                'CONFIRMED': 'confirmed_at',
+                'RETURNED': 'returned_at'
+            }
+            
+            # Convert status to uppercase to match the keys in timestamp_fields
+            status_upper = data['status'].upper()
+            if status_upper in timestamp_fields:
+                setattr(item, timestamp_fields[status_upper], timezone.now())
+                
             if data['status'] in ['Cancelled', 'Returned'] and data.get('reason'):
                 if data['status'] == 'Cancelled':
                     item.cancellation_reason = data['reason']
@@ -1595,8 +1619,8 @@ def sales_report(request):
                     order.user.username,
                     order.order_items.count(),
                     f'₹{order.total_amount}',
-                    f'₹{order.total_amount - order.final_amount}',
-                    f'₹{order.final_amount}',
+                    f'₹{order.total_discount}',
+                    f'₹{order.total_amount}',
                     order.order_status
                 ])
             
@@ -1643,8 +1667,8 @@ def sales_report(request):
                     order.user.username,
                     order.order_items.count(),
                     float(order.total_amount),
-                    float(order.total_amount - order.final_amount),
-                    float(order.final_amount),
+                    float(order.total_discount),
+                    float(order.total_amount),
                     order.order_status
                 ])
             

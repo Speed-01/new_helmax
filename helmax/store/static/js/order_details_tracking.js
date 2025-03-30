@@ -57,19 +57,7 @@ function initOrderDetailsTracking(orderId) {
                         statusDates[3].textContent = new Date(data.delivered_at).toLocaleString();
                     }
 
-                    // Update progress bar
-                    const progressBar = document.querySelector('.bg-[#ff6b00]');
-                    if (progressBar) {
-                        let progress = 0;
-                        if (data.order_status === 'DELIVERED') {
-                            progress = 100;
-                        } else if (data.order_status === 'SHIPPED') {
-                            progress = 66;
-                        } else if (data.order_status === 'PROCESSING') {
-                            progress = 33;
-                        }
-                        progressBar.style.width = `${progress}%`;
-                    }
+                    // Progress bar is already updated above
 
                     // Update status icons
                     const statusSteps = {

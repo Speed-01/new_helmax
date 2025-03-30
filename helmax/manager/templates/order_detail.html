@@ -1,4 +1,5 @@
 {% extends 'base01.html' %}
+{% load custom_filters %}
 {% block content %}
 
 <div class="min-h-screen bg-[#0A0A0A] py-8">
@@ -12,10 +13,12 @@
         <!-- Order Products Section -->
         <div class="bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] p-6 mb-6">
             <h2 class="text-xl font-semibold text-gray-200 mb-4">Products</h2>
-            <div class="grid grid-cols-4 gap-4 mb-4 text-gray-400 text-sm">
+            <div class="grid grid-cols-5 gap-4 mb-4 text-gray-400 text-sm">
                 <div>Product</div>
                 <div>Quantity</div>
-                <div>Price</div>
+                <div>Original Price</div>
+                <div>Discount</div>
+                <div>Final Price</div>
                 <div>Status</div>
                 <div>Actions</div>
             </div>
@@ -29,7 +32,9 @@
                         {% endif %}
                     </div>
                     <div class="text-gray-200">{{ item.quantity }}</div>
-                    <div class="text-gray-200">₹{{ item.price }}</div>
+                    <div class="text-gray-200">₹{{ item.variant.price }}</div>
+                    <div class="text-gray-200">₹{{ order.product_discount }}</div>
+                    <div class="text-gray-200">₹{{ item.variant.final_price }}</div>
                     <div class="flex items-center space-x-4">
                         <span class="px-2 py-1 rounded-full text-xs
                             {% if item.order_status == 'PROCESSING' %}

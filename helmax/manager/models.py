@@ -543,8 +543,14 @@ class OrderItem(models.Model):
             return False
         if not self.delivered_at:
             return False
-        return_window = timezone.now() - timezone.timedelta(days=7)
-        return self.delivered_at <= timezone.now() and self.delivered_at >= return_window
+        return_deadline = self.delivered_at + timezone.timedelta(days=7)
+        return timezone.now() <= return_deadline
+        
+    def __str__(self):
+        product_name = self.product.name if self.product else 'Unknown Product'
+        variant_info = f" - {self.variant.color}" if self.variant and self.variant.color else ''
+        size_info = f" - {self.size.name}" if self.size else ''
+        return f"{product_name}{variant_info}{size_info} (Order: {self.order.order_number})"
 
 class ReturnRequest(models.Model):
     STATUS_CHOICES = [
@@ -561,8 +567,8 @@ class ReturnRequest(models.Model):
         ('other', 'Other')
     ]
     
-    # Make order_item nullable initially
-    order_item = models.ForeignKey('OrderItem', on_delete=models.CASCADE, related_name='return_requests')
+    # Make order_item nullable to handle cases where the order item might not exist
+    order_item = models.ForeignKey('OrderItem', on_delete=models.CASCADE, related_name='return_requests', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     reason = models.CharField(max_length=50, choices=REASON_CHOICES)
     description = models.TextField()
@@ -571,7 +577,9 @@ class ReturnRequest(models.Model):
     admin_response = models.TextField(null=True, blank=True)
     
     def __str__(self):
-        return f"Return request for {self.order_item}"
+        if self.order_item:
+            return f"Return request for {self.order_item}"
+        return f"Return request #{self.id} by {self.user.username if self.user else 'Unknown user'}"
 
 
 @login_required

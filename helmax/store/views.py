@@ -4,6 +4,10 @@ from django.contrib import messages
 from django.utils.timezone import now
 from manager.forms import SignupForm, OTPVerificationForm, PasswordResetRequestForm,SetPasswordForm
 from .forms import AddressForm
+from django.http import Http404
+from django.conf import settings
+import os
+from .invoice_generator import generate_invoice_pdf
 from manager.models import (
     OTP, User, Category, Brand, Size, Product, Variant, ProductImage, 
     Review, Address, Cart, CartItem, PaymentMethod, Coupon, CouponUsage, 
@@ -27,7 +31,7 @@ from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 import json
 from manager.models import Variant, CartItem, Cart
-from datetime import timezone
+from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.http import  JsonResponse, HttpResponse
 import json
@@ -1573,10 +1577,20 @@ def place_order(request):
         payment_method_obj = razorpay_method if payment_method == 'razorpay' else cod_method
         
         with transaction.atomic():
-            # Create order
+            # Calculate discounts
+            product_discount = sum(
+                (item.variant.price - item.variant.discount_price) * item.quantity
+                for item in cart.items.all()
+                if item.variant.discount_price
+            )
+            coupon_discount = cart.calculate_coupon_discount() if cart.coupon else 0
+            total_discount = product_discount + coupon_discount
+            
             order = Order.objects.create(
                 user=request.user,
-                total_amount=cart.total_price,
+                total_amount=cart.final_price,
+                product_discount=product_discount,
+                coupon_discount=coupon_discount,
                 payment_method=payment_method_obj,
                 full_name=address.full_name,
                 email=address.email,
@@ -1653,6 +1667,29 @@ def place_order(request):
         return JsonResponse({'success': False, 'message': f'An unexpected error occurred: {str(e)}'})
 
 @csrf_exempt
+@login_required
+def download_invoice(request, order_number):
+    try:
+        # Get the order and verify ownership
+        order = get_object_or_404(Order, order_number=order_number, user=request.user)
+        
+        # Generate the invoice PDF
+        filename = generate_invoice_pdf(order)
+        
+        # Prepare the file path
+        file_path = os.path.join(settings.MEDIA_ROOT, 'invoices', filename)
+        
+        if os.path.exists(file_path):
+            with open(file_path, 'rb') as fh:
+                response = HttpResponse(fh.read(), content_type='application/pdf')
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                return response
+        
+        raise Http404()
+        
+    except Exception as e:
+        raise Http404(str(e))
+
 def payment_success(request):
     if request.method == "POST":
         data = json.loads(request.body)

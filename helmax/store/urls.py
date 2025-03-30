@@ -49,6 +49,7 @@ urlpatterns = [
     path('place-order/', views.place_order, name='place_order'),
     path('my-orders/', views.my_orders, name='my_orders'),
     path('order-details/<str:order_number>/', views.order_details, name='order_details'),
+    path('download-invoice/<str:order_number>/', views.download_invoice, name='download_invoice'),
 
         ########### Wishlist ########
     path('wishlist/', views.wishlist_view, name='view_wishlist'),
@@ -69,4 +70,5 @@ urlpatterns = [
     path('api/orders/<int:order_id>/cancel/', views.cancel_order, name='cancel_order'),
     path('orders/items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),
     path('order-details/<str:order_number>/', views.order_details, name='order_details'),
+    path('download-invoice/<str:order_number>/', views.download_invoice, name='download_invoice'),
 ]

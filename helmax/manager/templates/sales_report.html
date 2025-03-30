@@ -103,7 +103,7 @@
                         <td class="px-6 py-4">{{ order.order_items.count }}</td>
                         <td class="px-6 py-4">₹{{ order.total_amount }}</td>
                         <td class="px-6 py-4">₹{{ order.total_discount }}</td>
-                        <td class="px-6 py-4 font-semibold">₹{{ order.final_amount }}</td>
+                        <td class="px-6 py-4 font-semibold">₹{{ order.total_amount }}</td>
                         <td class="px-6 py-4">
                             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs
                                 {% if order.order_status == 'PROCESSING' %}

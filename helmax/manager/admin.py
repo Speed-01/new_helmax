@@ -1,5 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from django.urls import path, reverse
+from django.http import HttpResponseRedirect
+from django.utils.html import format_html
 from .models import *
 
 
@@ -53,13 +56,104 @@ models_to_register = [
     CartItem,
     Profile,
     OrderItem,
-    ReturnRequest,
     Address,
 ]
 
 # Register models without custom admin classes
 for model in models_to_register:
     admin.site.register(model)
+
+@admin.register(ReturnRequest)
+class ReturnRequestAdmin(admin.ModelAdmin):
+    list_display = ('id', 'get_order_number', 'get_customer_name', 'get_product_name', 'reason', 'status', 'created_at', 'action_buttons')
+    list_filter = ('status', 'reason', 'created_at')
+    search_fields = ('order_item__order__order_number', 'user__username', 'user__email')
+    readonly_fields = ('created_at',)
+    date_hierarchy = 'created_at'
+    
+    def get_order_number(self, obj):
+        return obj.order_item.order.order_number if obj.order_item and obj.order_item.order else ''
+    get_order_number.short_description = 'Order Number'
+    get_order_number.admin_order_field = 'order_item__order__order_number'
+    
+    def get_customer_name(self, obj):
+        if obj.user:
+            return obj.user.username
+        elif obj.order_item and obj.order_item.order and obj.order_item.order.user:
+            return obj.order_item.order.user.username
+        return ''
+    get_customer_name.short_description = 'Customer Name'
+    get_customer_name.admin_order_field = 'user__username'
+    
+    def get_product_name(self, obj):
+        if obj.order_item and obj.order_item.product:
+            product_name = obj.order_item.product.name
+            variant_info = f" - {obj.order_item.variant.color}" if obj.order_item.variant and obj.order_item.variant.color else ''
+            size_info = f" - {obj.order_item.size.name}" if obj.order_item.size and obj.order_item.size.name else ''
+            return f"{product_name}{variant_info}{size_info}"
+        return 'No product information'
+    get_product_name.short_description = 'Product'
+    get_product_name.admin_order_field = 'order_item__product__name'
+    
+    def action_buttons(self, obj):
+        if obj.status == 'PENDING':
+            approve_url = reverse('admin:approve_return', args=[obj.pk])
+            reject_url = reverse('admin:reject_return', args=[obj.pk])
+            return format_html(
+                '<a class="button" href="{}">Approve</a>&nbsp;'
+                '<a class="button" style="background-color: #ba2121;" href="{}">Reject</a>',
+                approve_url, reject_url
+            )
+        elif obj.status == 'APPROVED':
+            return format_html('<span style="color: green;">Approved</span>')
+        elif obj.status == 'REJECTED':
+            return format_html('<span style="color: red;">Rejected</span>')
+        return ''
+    action_buttons.short_description = 'Actions'
+    
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                'approve/<int:return_id>/',
+                self.admin_site.admin_view(self.approve_return),
+                name='approve_return',
+            ),
+            path(
+                'reject/<int:return_id>/',
+                self.admin_site.admin_view(self.reject_return),
+                name='reject_return',
+            ),
+        ]
+        return custom_urls + urls
+    
+    def approve_return(self, request, return_id):
+        return_request = ReturnRequest.objects.get(id=return_id)
+        return_request.status = 'APPROVED'
+        return_request.admin_response = 'Return request approved by admin.'
+        return_request.save()
+        
+        # Update the order item status
+        if return_request.order_item:
+            return_request.order_item.return_status = 'APPROVED'
+            return_request.order_item.save()
+        
+        self.message_user(request, f'Return request #{return_id} has been approved.')
+        return HttpResponseRedirect(reverse('admin:manager_returnrequest_changelist'))
+    
+    def reject_return(self, request, return_id):
+        return_request = ReturnRequest.objects.get(id=return_id)
+        return_request.status = 'REJECTED'
+        return_request.admin_response = 'Return request rejected by admin.'
+        return_request.save()
+        
+        # Update the order item status
+        if return_request.order_item:
+            return_request.order_item.return_status = 'REJECTED'
+            return_request.order_item.save()
+        
+        self.message_user(request, f'Return request #{return_id} has been rejected.')
+        return HttpResponseRedirect(reverse('admin:manager_returnrequest_changelist'))
 
 # Register models with custom admin classes
 @admin.register(ProductOffer)

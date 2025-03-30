@@ -41,7 +41,16 @@ def update_order_status(order, new_status):
     order.save()
     
     # Update all order items
-    order.order_items.all().update(status=new_status)
+    items = order.order_items.all()
+    items.update(status=new_status)
+    
+    # Also update the timestamp for each item
+    if new_status in timestamp_fields:
+        timestamp_field = timestamp_fields[new_status]
+        current_time = timezone.now()
+        for item in items:
+            setattr(item, timestamp_field, current_time)
+            item.save()
     
     # Send notification to customer
     send_order_status_notification(order)
