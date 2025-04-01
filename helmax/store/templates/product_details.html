@@ -336,6 +336,18 @@ document.addEventListener('DOMContentLoaded', function() {
             updateProductInfo(data);
             updateSizeOptions(data.sizes);
 
+            // Update main image and thumbnails
+            if (data.images && data.images.length > 0) {
+                updateImages(data.images);
+                
+                // Update zoom result background
+                const zoomResult = document.getElementById('zoom-result');
+                if (zoomResult) {
+                    const primaryImage = data.images.find(img => img.is_primary) || data.images[0];
+                    zoomResult.style.backgroundImage = `url(${primaryImage.image})`;
+                }
+            }
+
             selectedSizeName = null;
             console.log('Selected size name reset:', selectedSizeName);
 
@@ -436,38 +448,60 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Update images function with zoom support
     function updateImages(images) {
+        const mainImage = document.getElementById('main-image');
         const thumbnailsContainer = document.getElementById('thumbnails');
+        const zoomResult = document.getElementById('zoom-result');
         
         const primaryImage = images.find(img => img.is_primary) || images[0];
-        mainImage.src = primaryImage.image;
         
-        thumbnailsContainer.innerHTML = images.map((image, index) => `
-            <button 
-                class="bg-[#222222] rounded-lg overflow-hidden hover:opacity-80 transition-opacity ${image.is_primary ? 'thumbnail-active' : ''}"
-                data-image-url="${image.image}"
-            >
-                <img 
-                    src="${image.image}"
-                    alt="${image.alt_text || `Product view ${index + 1}`}"
-                    class="w-full aspect-square object-cover"
+        // Update main image
+        if (mainImage) {
+            mainImage.src = primaryImage.image;
+            mainImage.alt = primaryImage.alt_text || 'Product view';
+        }
+        
+        // Update zoom result background if it exists
+        if (zoomResult) {
+            zoomResult.style.backgroundImage = `url(${primaryImage.image})`;
+        }
+        
+        // Update thumbnails
+        if (thumbnailsContainer) {
+            thumbnailsContainer.innerHTML = images.map((image, index) => `
+                <button 
+                    class="bg-[#222222] rounded-lg overflow-hidden hover:opacity-80 transition-opacity ${image.is_primary ? 'thumbnail-active' : ''}"
+                    data-image-url="${image.image}"
                 >
-            </button>
-        `).join('');
-        
-        thumbnailsContainer.querySelectorAll('button').forEach(button => {
-            button.addEventListener('click', function() {
-                mainImage.src = this.dataset.imageUrl;
-                thumbnailsContainer.querySelectorAll('button').forEach(btn => 
-                    btn.classList.remove('thumbnail-active'));
-                this.classList.add('thumbnail-active');
-                
-                // Update zoom result background when thumbnail changes
-                const zoomResult = document.getElementById('zoom-result');
-                if (zoomResult) {
-                    zoomResult.style.backgroundImage = `url(${this.dataset.imageUrl})`;
-                }
+                    <img 
+                        src="${image.image}"
+                        alt="${image.alt_text || `Product view ${index + 1}`}"
+                        class="w-full aspect-square object-cover"
+                    >
+                </button>
+            `).join('');
+            
+            // Add click event listeners to new thumbnails
+            thumbnailsContainer.querySelectorAll('button').forEach(button => {
+                button.addEventListener('click', function() {
+                    const imageUrl = this.dataset.imageUrl;
+                    
+                    // Update main image
+                    if (mainImage) {
+                        mainImage.src = imageUrl;
+                    }
+                    
+                    // Update zoom result background
+                    if (zoomResult) {
+                        zoomResult.style.backgroundImage = `url(${imageUrl})`;
+                    }
+                    
+                    // Update active thumbnail state
+                    thumbnailsContainer.querySelectorAll('button').forEach(btn => 
+                        btn.classList.remove('thumbnail-active'));
+                    this.classList.add('thumbnail-active');
+                });
             });
-        });
+        }
     }
 
     function updateSizeOptions(sizes) {
