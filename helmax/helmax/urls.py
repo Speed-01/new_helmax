@@ -14,5 +14,5 @@ urlpatterns = [
     path('api/order-items/<int:item_id>/cancel/', views.cancel_order_item, name='cancel_order_item'),
     path('api/order-items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),
     path('manager/return-requests/', manager_views.admin_return_requests, name='admin_return_requests'),
-    path('manager/return-requests/<int:request_id>/handle/', manager_views.handle_return_request, name='handle_return_request'),
+    path('manager/handle-return-request/<int:return_request_id>/', manager_views.handle_return_request, name='handle_return_request'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

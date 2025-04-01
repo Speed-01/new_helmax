@@ -72,16 +72,32 @@ class ReturnRequestAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
     
     def get_order_number(self, obj):
-        return obj.order_item.order.order_number if obj.order_item and obj.order_item.order else ''
+        if not obj:
+            return ''
+        try:
+            if obj.order_item:
+                order = obj.order_item.order
+                if order:
+                    return order.order_number
+            return 'No Order'
+        except (AttributeError, Exception) as e:
+            return 'Error: Unable to fetch order'
     get_order_number.short_description = 'Order Number'
     get_order_number.admin_order_field = 'order_item__order__order_number'
     
     def get_customer_name(self, obj):
-        if obj.user:
-            return obj.user.username
-        elif obj.order_item and obj.order_item.order and obj.order_item.order.user:
-            return obj.order_item.order.user.username
-        return ''
+        if not obj:
+            return ''
+        try:
+            # First try to get username from the ReturnRequest's user field
+            if obj.user:
+                return obj.user.username
+            # If that's not available, try to get it from the order
+            if obj.order_item and obj.order_item.order:
+                return obj.order_item.order.user.username
+            return 'No Customer'
+        except (AttributeError, Exception) as e:
+            return 'Error: Unable to fetch customer'
     get_customer_name.short_description = 'Customer Name'
     get_customer_name.admin_order_field = 'user__username'
     

@@ -221,6 +221,16 @@
                 <i data-lucide="calendar" class="icon mr-2 text-[#ff6b00]"></i>
                 Order Information
               </h2>
+              {% if order.payment_status == 'PAYMENT_PENDING' %}
+              <div class="mt-4">
+                <button id="retry-payment-btn" 
+                        data-order-number="{{ order.order_number }}"
+                        class="w-full px-4 py-2 bg-[#ff6b00] hover:bg-[#ff8533] text-black font-medium rounded-md transition-colors flex items-center justify-center gap-2">
+                  <i data-lucide="refresh-cw" class="icon h-4 w-4"></i>
+                  Retry Payment
+                </button>
+              </div>
+              {% endif %}
             </div>
             <div class="p-6 space-y-3">
               <div class="flex justify-between">
@@ -235,12 +245,34 @@
                 <span class="text-gray-400">Payment Method:</span>
                 <span>{{ order.payment_method }}</span>
               </div>
-              <div class="flex justify-between">
+              <div class="flex justify-between items-center">
                 <span class="text-gray-400">Payment Status:</span>
-                <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-900/50 text-green-300 border border-green-800">
-                  {{ order.payment_status }}
-                </span>
+                <div class="flex items-center gap-3">
+                  <span class="px-2 py-1 text-xs font-medium rounded-full
+                    {% if order.payment_status == 'PAID' %}
+                      bg-green-900/50 text-green-300 border border-green-800
+                    {% elif order.payment_status == 'FAILED' or order.payment_status == 'PAYMENT_PENDING' %}
+                      bg-red-900/50 text-red-300 border border-red-800
+                    {% else %}
+                      bg-yellow-900/50 text-yellow-300 border border-yellow-800
+                    {% endif %}">
+                    {{ order.payment_status }}
+                  </span>
+                  {% if order.payment_status == 'FAILED' or order.payment_status == 'PAYMENT_PENDING' %}
+                  <button 
+                    onclick="retryPayment('{{ order.razorpay_order_id }}', {{ order.total_amount }})" 
+                    class="px-3 py-1 text-sm bg-[#ff6b00] hover:bg-[#ff8533] text-black font-medium rounded-md transition-colors flex items-center gap-1">
+                    <i data-lucide="refresh-cw" class="icon h-4 w-4"></i>
+                    Retry Payment
+                  </button>
+                  {% endif %}
+                </div>
               </div>
+              {% if order.payment_failure_reason %}
+              <div class="mt-2 p-3 bg-red-900/30 border border-red-800 rounded-md">
+                <p class="text-sm text-red-300">Last payment failed: {{ order.payment_failure_reason }}</p>
+              </div>
+              {% endif %}
             </div>
           </div>
 
@@ -370,23 +402,38 @@
               {% endfor %}
             </div>
 
-            <!-- Order Summary -->
-            <div class="mt-8 pt-6 border-t border-zinc-800">
-              <h4 class="font-bold mb-4 text-lg">Order Summary</h4>
-              <div class="space-y-3">
-                <div class="flex justify-between">
-                  <span class="text-gray-400">Subtotal:</span>
-                  <span>₹{{ order.subtotal }}</span>
-                </div>
-                {% if order.total_discount %}
-                <div class="flex justify-between">
-                  <span class="text-gray-400">Discount:</span>
-                  <span class="text-green-500">-₹{{ order.total_discount }}</span>
-                </div>
-                {% endif %}
-                <div class="flex justify-between font-bold text-lg">
-                  <span>Total:</span>
-                  <span class="text-[#ff6b00]">₹{{ order.total_amount }}</span>
+            <!-- Order Summary Card -->
+            <div class="mb-6 bg-zinc-900 rounded-lg overflow-hidden">
+              <div class="p-4 border-b border-zinc-800">
+                <h2 class="text-xl font-bold flex items-center">
+                  <i data-lucide="credit-card" class="icon mr-2 text-[#ff6b00]"></i>
+                  Order Summary
+                </h2>
+              </div>
+              <div class="p-6">
+                <div class="space-y-3">
+                  <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Subtotal</span>
+                    <span class="text-white">₹{{ order.subtotal }}</span>
+                  </div>
+                  {% if order.product_discount %}
+                  <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Product Discount</span>
+                    <span class="text-red-400">-₹{{ order.product_discount }}</span>
+                  </div>
+                  {% endif %}
+                  {% if order.coupon_discount %}
+                  <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Coupon Discount</span>
+                    <span class="text-red-400">-₹{{ order.coupon_discount }}</span>
+                  </div>
+                  {% endif %}
+                  <div class="pt-3 border-t border-zinc-800">
+                    <div class="flex justify-between items-center">
+                      <span class="text-gray-400 font-medium">Total Amount</span>
+                      <span class="text-white font-bold text-lg">₹{{ order.total_amount }}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -488,6 +535,73 @@
   </div>
 
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+  <script>
+    function retryPayment(orderId, amount) {
+      const options = {
+        "key": "{{ razorpay_key_id }}",
+        "amount": amount * 100,
+        "currency": "INR",
+        "name": "Helmax",
+        "description": "Order Payment",
+        "order_id": orderId,
+        "handler": function (response) {
+          // Handle successful payment
+          fetch('/payment/success/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature
+            })
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.status === 'success' || data.status === 'error') {
+              window.location.href = data.redirect_url;
+            } else {
+              alert('Payment failed: ' + data.message);
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while processing payment');
+          });
+        },
+        "prefill": {
+          "name": "{{ order.full_name }}",
+          "email": "{{ order.email }}",
+          "contact": "{{ order.phone }}"
+        },
+        "theme": {
+          "color": "#ff6b00"
+        }
+      };
+
+      const rzp1 = new Razorpay(options);
+      rzp1.open();
+    }
+
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+  </script>
   <script>
     // Initialize Lucide icons
     lucide.createIcons();

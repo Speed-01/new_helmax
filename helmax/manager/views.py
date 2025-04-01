@@ -766,13 +766,16 @@ def admin_orders_api(request):
                 } for item in order.order_items.all()
             ]
             
+            # Calculate total discount including both product and coupon discounts
+            total_discount = float(order.product_discount) + float(order.coupon_discount)
+            
             orders_data.append({
                 'id': order.id,
                 'username': order.user.username if order.user else 'N/A',
                 'payment_method': order.payment_method.name if order.payment_method else 'N/A',
                 'status': order.order_status,
                 'subtotal': float(order.subtotal),
-                'total_discount': float(order.total_discount),
+                'total_discount': total_discount,
                 'total_price': float(order.total_amount) if order.total_amount else 0.0,
                 'created_at': order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                 'items': order_items
@@ -807,17 +810,26 @@ def update_order_status(request, order_id):
             if not new_status:
                 return JsonResponse({'success': False, 'error': 'Status is required'})
             
-            # Validate status progression
+            order = get_object_or_404(Order, order_number=order_id)
+            
+            # Check if all items are cancelled
+            active_items = order.order_items.exclude(status='CANCELLED').count()
+            if active_items == 0:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Cannot modify status of fully cancelled orders'
+                })
+            
+            # Remove CANCELLED from valid transitions as it's handled by user
             valid_status_transitions = {
-                'PLACED': ['CONFIRMED', 'CANCELLED'],
-                'CONFIRMED': ['PROCESSING', 'CANCELLED'],
-                'PROCESSING': ['SHIPPED', 'CANCELLED'],
-                'SHIPPED': ['DELIVERED', 'CANCELLED'],
+                'PLACED': ['CONFIRMED'],
+                'CONFIRMED': ['PROCESSING'],
+                'PROCESSING': ['SHIPPED'],
+                'SHIPPED': ['DELIVERED'],
                 'DELIVERED': [],
                 'CANCELLED': []
             }
             
-            order = get_object_or_404(Order, order_number=order_id)
             old_status = order.order_status
             if old_status in valid_status_transitions:
                 if new_status not in valid_status_transitions[old_status]:
@@ -838,26 +850,29 @@ def update_order_status(request, order_id):
             # Update order status
             order.order_status = new_status
             
+            # If order is delivered and payment method is COD, mark payment as PAID
+            if new_status == 'DELIVERED' and order.payment_method and order.payment_method.name.upper() == 'COD':
+                order.payment_status = 'PAID'
+            
             # Set appropriate timestamp based on status
             timestamp_field = {
                 'CONFIRMED': 'confirmed_at',
                 'PROCESSING': 'processed_at',
                 'SHIPPED': 'shipped_at',
-                'DELIVERED': 'delivered_at',
-                'CANCELLED': 'cancelled_at'
+                'DELIVERED': 'delivered_at'
             }.get(new_status)
             
             if timestamp_field:
                 setattr(order, timestamp_field, timezone.now())
             
-            # Update all order items status and timestamps
-            items = order.order_items.all()
-            items.update(status=new_status)
+            # Update only non-cancelled items status and timestamps
+            active_items = order.order_items.exclude(status='CANCELLED')
+            active_items.update(status=new_status)
             
-            # Also update the timestamp for each item
+            # Also update the timestamp for each active item
             if timestamp_field:
                 current_time = timezone.now()
-                for item in items:
+                for item in active_items:
                     setattr(item, timestamp_field, current_time)
                     item.save()
             
@@ -880,8 +895,10 @@ def cancel_order(request, order_id):
         if order.order_status not in ['DELIVERED', 'CANCELLED']:
             with transaction.atomic():
                 order.order_status = 'CANCELLED'
+                order.cancelled_at = timezone.now()
                 order.save()
-                order.order_items.all().update(status='Cancelled')
+                # Update all order items status to CANCELLED
+                order.order_items.all().update(status='CANCELLED', cancelled_at=timezone.now())
             return JsonResponse({'success': True})
         return JsonResponse({'success': False, 'message': 'Order cannot be cancelled'})
     except Exception as e:
@@ -1141,9 +1158,10 @@ def admin_return_requests(request):
 @require_POST
 def handle_return_request(request, return_request_id):
     try:
+        data = json.loads(request.body)
         return_request = get_object_or_404(ReturnRequest, id=return_request_id)
-        action = request.POST.get('action')
-        admin_response = request.POST.get('admin_response', '')
+        action = data.get('action')
+        admin_response = data.get('response', '')
 
         if action not in ['approve', 'reject']:
             return JsonResponse({

@@ -105,9 +105,27 @@
                     <p class="text-gray-400">Ordered On</p>
                     <p class="text-gray-200">{{ order.created_at|date:"d / m / Y" }}</p>
                 </div>
-                <div>
-                    <p class="text-gray-400">Total Amount</p>
-                    <p class="text-gray-200">₹{{ order.total_amount }}</p>
+                <div class="flex flex-col gap-2">
+                    <div>
+                        <p class="text-gray-400">Subtotal</p>
+                        <p class="text-gray-200">₹{{ order.subtotal }}</p>
+                    </div>
+                    {% if order.product_discount %}
+                    <div>
+                        <p class="text-gray-400">Product Discount</p>
+                        <p class="text-red-400">-₹{{ order.product_discount }}</p>
+                    </div>
+                    {% endif %}
+                    {% if order.coupon_discount %}
+                    <div>
+                        <p class="text-gray-400">Coupon Discount</p>
+                        <p class="text-red-400">-₹{{ order.coupon_discount }}</p>
+                    </div>
+                    {% endif %}
+                    <div class="border-t border-[#2A2A2A] pt-2 mt-2">
+                        <p class="text-gray-400">Total Amount</p>
+                        <p class="text-gray-200 font-bold">₹{{ order.total_amount }}</p>
+                    </div>
                 </div>
                 <div>
                     <p class="text-gray-400">Order Status</p>
@@ -115,11 +133,21 @@
                         id="orderStatus" 
                         class="bg-[#242424] text-gray-200 border border-[#2A2A2A] rounded px-3 py-2 transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                         onchange="updateOrderStatus(this.value)"
+                        {% if order.order_status == 'CANCELLED' %}disabled{% endif %}
                     >
                         <option value="PROCESSING" class="bg-yellow-900/50 text-yellow-300" {% if order.order_status == 'PROCESSING' %}selected{% endif %}>Processing</option>
                         <option value="SHIPPED" class="bg-blue-900/50 text-blue-300" {% if order.order_status == 'SHIPPED' %}selected{% endif %}>Shipped</option>
                         <option value="DELIVERED" class="bg-green-900/50 text-green-300" {% if order.order_status == 'DELIVERED' %}selected{% endif %}>Delivered</option>
                     </select>
+                    {% if item.status == 'CANCELLED' %}
+                    <p class="text-sm text-red-400 mt-2">This item has been cancelled and cannot be modified.</p>
+                    {% endif %}
+                    {% if order.order_items.exclude.status == 'CANCELLED' %}
+                    <p class="text-sm text-red-400 mt-2">All items in this order have been cancelled. No status changes allowed.</p>
+                    {% endif %}
+                    {% if order.order_status == 'CANCELLED' %}
+                    <p class="text-sm text-red-400 mt-2">This order has been cancelled and cannot be modified.</p>
+                    {% endif %}
                 </div>
             </div>
         </div>

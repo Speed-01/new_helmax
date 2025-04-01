@@ -64,6 +64,7 @@ urlpatterns = [
     # path('payment/webhook/', views.payment_webhook, name='payment_webhook'),
     path('api/filter-products/', views.filter_products, name='filter_products'),
     path('payment/success/', views.payment_success, name='payment_success'),
+    path('payment/retry/<str:order_number>/', views.retry_payment, name='retry_payment'),
     path('wallet/', views.wallet_view, name='wallet'),
     path('api/order-items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),
     path('orders/<int:order_id>/detail/', views.order_detail, name='order_detail'),

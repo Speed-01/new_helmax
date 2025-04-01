@@ -1692,43 +1692,111 @@ def download_invoice(request, order_number):
 
 def payment_success(request):
     if request.method == "POST":
-        data = json.loads(request.body)
-        razorpay_payment_id = data.get('razorpay_payment_id')
-        razorpay_order_id = data.get('razorpay_order_id')
-        razorpay_signature = data.get('razorpay_signature')
-
-        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-
         try:
-            # Verify payment signature
-            client.utility.verify_payment_signature({
-                'razorpay_order_id': razorpay_order_id,
-                'razorpay_payment_id': razorpay_payment_id,
-                'razorpay_signature': razorpay_signature
-            })
+            data = json.loads(request.body)
+            razorpay_payment_id = data.get('razorpay_payment_id')
+            razorpay_order_id = data.get('razorpay_order_id')
+            razorpay_signature = data.get('razorpay_signature')
 
+            client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
             order = Order.objects.get(razorpay_order_id=razorpay_order_id)
-            order.payment_status = 'PAID'
-            order.razorpay_payment_id = razorpay_payment_id
-            order.save()
 
-            # Clear cart
-            cart = Cart.objects.get(user=order.user, is_ordered=False)
-            cart.is_ordered = True
-            cart.save()
+            try:
+                # Verify payment signature
+                client.utility.verify_payment_signature({
+                    'razorpay_order_id': razorpay_order_id,
+                    'razorpay_payment_id': razorpay_payment_id,
+                    'razorpay_signature': razorpay_signature
+                })
+                
+                # Update order status for successful payment
+                order.payment_status = 'PAID'
+                order.razorpay_payment_id = razorpay_payment_id
+                order.save()
 
-            return JsonResponse({
-                'status': 'success',
-                'redirect_url': reverse('order_details', args=[order.order_number])
-            })
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Payment successful',
+                    'redirect_url': reverse('order_details', args=[order.order_number])
+                })
 
-        except Exception as e:
+            except Exception as e:
+                # Payment verification failed - update order status
+                order.payment_status = 'FAILED'
+                order.payment_failure_reason = str(e)
+                order.payment_attempts += 1
+                order.last_payment_attempt = timezone.now()
+                order.save()
+
+                # Still redirect to order details, but with error status
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Payment verification failed. You can retry payment from order details.',
+                    'redirect_url': reverse('order_details', args=[order.order_number])
+                })
+
+        except Order.DoesNotExist:
             return JsonResponse({
                 'status': 'error',
-                'message': str(e)
+                'message': 'Order not found',
+                'redirect_url': reverse('my_orders')
+            }, status=404)
+        except Exception as e:
+            logger.error(f"Payment processing error: {str(e)}", exc_info=True)
+            return JsonResponse({
+                'status': 'error',
+                'message': 'An error occurred while processing payment',
+                'redirect_url': reverse('my_orders')
             }, status=400)
 
-    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
+    return JsonResponse({
+        'status': 'error', 
+        'message': 'Invalid request',
+        'redirect_url': reverse('my_orders')
+    }, status=400)
+
+@login_required
+def retry_payment(request, order_number):
+    try:
+        order = Order.objects.get(order_number=order_number, user=request.user)
+        
+        if order.payment_status == 'PAID':
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Order is already paid'
+            })
+
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+        
+        # Create new Razorpay order
+        payment = client.order.create({
+            'amount': int(order.total_amount * 100),  # Amount in paise
+            'currency': 'INR',
+            'payment_capture': 1
+        })
+        
+        # Update order with new Razorpay order ID
+        order.razorpay_order_id = payment['id']
+        order.payment_status = 'PAYMENT_PENDING'
+        order.save()
+        
+        return JsonResponse({
+            'status': 'success',
+            'order_id': payment['id'],
+            'amount': int(order.total_amount * 100),
+            'key': settings.RAZORPAY_KEY_ID
+        })
+        
+    except Order.DoesNotExist:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Order not found'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=400)
 
 
 

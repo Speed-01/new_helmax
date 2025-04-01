@@ -443,8 +443,13 @@ class Order(BaseModel):
         ('PENDING', 'Pending'),
         ('PAID', 'Paid'),
         ('FAILED', 'Failed'),
+        ('PAYMENT_PENDING', 'Payment Pending'),
         ('REFUNDED', 'Refunded')
     ]
+    
+    payment_attempts = models.IntegerField(default=0)
+    last_payment_attempt = models.DateTimeField(null=True, blank=True)
+    payment_failure_reason = models.TextField(blank=True, null=True)
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     order_number = models.CharField(max_length=20, unique=True)
@@ -574,7 +579,7 @@ class ReturnRequest(models.Model):
     description = models.TextField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     created_at = models.DateTimeField(auto_now_add=True)
-    admin_response = models.TextField(null=True, blank=True)
+    admin_response = models.TextField(null=True, blank=True)  # Remove max_length constraint for admin responses
     
     def __str__(self):
         if self.order_item:
