@@ -1804,19 +1804,19 @@ def retry_payment(request, order_number):
 
 ################# Order ####################
 from manager.models import Order, OrderItem, Cart, CartItem
-@login_required
-def order_confirmation(request, order_number):
-    try:
-        order = Order.objects.select_related('user', 'payment_method').prefetch_related(
-            'order_items',
-            'order_items__variant',
-            'order_items__variant__product'
-        ).get(order_number=order_number, user=request.user)
+# @login_required
+# def order_confirmation(request, order_number):
+#     try:
+#         order = Order.objects.select_related('user', 'payment_method').prefetch_related(
+#             'order_items',
+#             'order_items__variant',
+#             'order_items__variant__product'
+#         ).get(order_number=order_number, user=request.user)
         
-        return render(request, 'order_confirmation.html', {'order': order})
-    except Order.DoesNotExist:
-        messages.error(request, 'Order not found')
-        return redirect('my_orders')
+#         return render(request, 'order_confirmation.html', {'order': order})
+#     except Order.DoesNotExist:
+#         messages.error(request, 'Order not found')
+#         return redirect('my_orders')
 
 def my_orders(request):
     if not request.user.is_authenticated:
@@ -1851,7 +1851,8 @@ def order_details(request, order_number):
                 'order_items__product',
                 'order_items__variant',
                 'order_items__variant__images',
-                'order_items__size'  
+                'order_items__size' 
+                'admin_responses' 
             ),
             order_number=order_number,
             user=request.user
@@ -1859,6 +1860,28 @@ def order_details(request, order_number):
         order_items = order.order_items.all()
         logger.debug(f"Fetched order details for order {order_number}")
         
+        # Prepare timeline events
+        timeline = []
+        
+        # Order Placed (Always shown)
+        timeline.append({
+            'status': 'Order Placed',
+            'date': order.created_at,
+            'description': f'Order #{order.order_number} has been placed successfully'
+        })
+        
+        # Add admin responses to timeline
+        for response in order.admin_responses.all():
+            timeline.append({
+                'status': 'Admin Response',
+                'date': response.created_at,
+                'description': response.message,
+                'is_admin_response': True,
+                'response_type': response.response_type
+            })
+        # Sort timeline by date
+        timeline.sort(key=lambda x: x['date'])
+            
     except Order.DoesNotExist:
         logger.error(f"Order {order_number} not found in details page")
         messages.error(request, "Order Not found.")

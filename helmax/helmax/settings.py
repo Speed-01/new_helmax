@@ -79,6 +79,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "manager.middleware.NoCacheMiddleware",
 ]
 
 ROOT_URLCONF = "helmax.urls"
@@ -146,6 +147,12 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
+
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
+SESSION_COOKIE_AGE = 3600  # Session expires in 1 hour (adjust as needed)
+SESSION_COOKIE_SECURE = True  # Enforce HTTPS
+SESSION_COOKIE_HTTPONLY = True  # Prevent JS from accessing session cookie
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Store sessions in DB
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

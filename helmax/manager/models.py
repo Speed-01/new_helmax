@@ -574,48 +574,35 @@ class ReturnRequest(models.Model):
     
     # Make order_item nullable to handle cases where the order item might not exist
     order_item = models.ForeignKey('OrderItem', on_delete=models.CASCADE, related_name='return_requests', null=True, blank=True)
+    admin_response = models.TextField(null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     reason = models.CharField(max_length=50, choices=REASON_CHOICES)
     description = models.TextField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     created_at = models.DateTimeField(auto_now_add=True)
-    admin_response = models.TextField(null=True, blank=True)  # Remove max_length constraint for admin responses
+      
     
     def __str__(self):
         if self.order_item:
             return f"Return request for {self.order_item}"
         return f"Return request #{self.id} by {self.user.username if self.user else 'Unknown user'}"
 
+class AdminResponse(models.Model):
+    RESPONSE_TYPES = (
+        ('INFO', 'Information'),
+        ('STATUS_UPDATE', 'Status Update'),
+        ('RETURN', 'Return Response'),
+        ('CANCELLATION', 'Cancellation Response'),
+    )
 
-@login_required
-@require_POST
-def cancel_order(request, order_id):
-    try:
-        order = Order.objects.get(id=order_id, user=request.user)
-        if order.order_status == 'PROCESSING':
-            order.order_status = 'CANCELLED'
-            order.save()
-            return JsonResponse({'success': True, 'message': 'Order cancelled successfully'})
-        return JsonResponse({'success': False, 'message': 'Cannot cancel this order'})
-    except Order.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Order not found'})
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='admin_responses')
+    message = models.TextField()
+    response_type = models.CharField(max_length=20, choices=RESPONSE_TYPES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-@login_required
-@require_POST
-def create_return_request(request, order_id):
-    try:
-        order = Order.objects.get(id=order_id, user=request.user)
-        if order.order_status == 'DELIVERED':
-            data = json.loads(request.body)
-            return_request = ReturnRequest.objects.create(
-                order_item=data.get('order_item'),
-                reason=data.get('reason'),
-                description=data.get('description')
-            )
-            return JsonResponse({'success': True, 'message': 'Return request submitted'})
-        return JsonResponse({'success': False, 'message': 'Cannot return this order'})
-    except Order.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Order not found'})
+    class Meta:
+        ordering = ['-created_at']
 
 class Coupon(models.Model):
     COUPON_TYPES = (
@@ -659,11 +646,12 @@ class WalletTransaction(models.Model):
         ('CREDIT', 'Credit'),
         ('DEBIT', 'Debit'),
         ('REFUND', 'Refund'),
+        ('RETURN_REFUND', 'Return Refund'),
     ]
 
     wallet = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name='transactions')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
     description = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     order = models.ForeignKey('Order', on_delete=models.SET_NULL, null=True, blank=True)

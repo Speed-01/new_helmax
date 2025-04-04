@@ -10,8 +10,9 @@
                 </div>
                 <div class="card-body">
                     <p>Are you sure you want to log out?</p>
-                    <form method="post" <a href="{% url 'Login' %}"a>submit</a> >
+                    <form method="post" action="{% url 'confirm_logout' %}" id="logoutForm">
                         {% csrf_token %}
+                        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
                         <button type="submit" class="btn btn-danger">Yes, log me out</button>
                         <a href="{% url 'home' %}" class="btn btn-secondary">Cancel</a>
                     </form>

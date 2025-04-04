@@ -14,6 +14,7 @@ from openpyxl.styles import Font, PatternFill
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.db import transaction
 import json
 from .models import Product,Category,ProductImage,User, Brand, Variant, Size, Coupon, CouponUsage, Order, ReturnRequest, Wallet, WalletTransaction, ProductOffer, CategoryOffer,OrderItem, OrderStatusHistory
@@ -55,22 +56,22 @@ def adminLogin(request):
             return redirect("adminLogin")
     return render(request, "adminLogin.html")
 
-@never_cache
 
+@csrf_exempt  
+@never_cache  
 def admin_logout(request):
-    logout(request)
+    if request.method == 'POST':
+        request.session.flush()  # Completely clear session
+        logout(request)  # Django logout
+        response = redirect('adminLogin')
+        response.delete_cookie('sessionid')  # Remove session cookie
+        response.delete_cookie('csrftoken')  # Remove CSRF token
+        return response
     return redirect('adminLogin')
 
 
-
-
-
-
-
-
-
-
-
+@never_cache
+@login_required(login_url='adminLogin')
 def customers(request):
     credential = request.GET.get("value", "")
     if credential:
@@ -78,7 +79,7 @@ def customers(request):
             Q(username__icontains=credential) | Q(email__icontains=credential)
         ).exclude(is_superuser=True)
     else:
-        customers = User.objects.all().exclude(is_superuser=True)
+        customers = User.objects.all().exclude(is_superuser=True).order_by('id')
         
     search_query = request.GET.get('search', '')
     if search_query:
@@ -97,7 +98,7 @@ def customers(request):
 
 
 
-@login_required
+@login_required(login_url='adminLogin')
 def toggle_user_status(request, user_id):
     if request.method == 'POST':
         user = get_object_or_404(User, id=user_id)
@@ -115,7 +116,7 @@ def toggle_user_status(request, user_id):
 
 
 
-
+@login_required(login_url='adminLogin')
 def admin_category(request):
     search_query = request.GET.get('search', '')
     
@@ -136,7 +137,7 @@ def admin_category(request):
     
     return render(request, 'admincategory.html', context )
 
-
+@login_required(login_url='adminLogin')
 def add_category(request):
     if request.method == "POST":
         name = request.POST.get('category_name')
@@ -156,7 +157,7 @@ def add_category(request):
     return redirect('admin_category')
 
 
-
+@login_required(login_url='adminLogin')
 def edit_category(request, category_id):
     category = get_object_or_404(Category, id=category_id)
     if request.method == "POST":
@@ -179,7 +180,7 @@ def edit_category(request, category_id):
 
 
 
-
+@login_required(login_url='adminLogin')
 def toggle_category_status(request, category_id):
     print(f"Toggling category {category_id}")
     if request.method == 'POST':
@@ -202,7 +203,7 @@ def toggle_category_status(request, category_id):
 #     return redirect('admin_category')
 
 
-
+@login_required(login_url='adminLogin')
 def sales_report(request):
     # Get report type and date range from request
     report_type = request.GET.get('report_type', 'daily')
@@ -357,6 +358,7 @@ def sales_report(request):
     
     return render(request, 'sales_report.html', context)
 
+@login_required(login_url='adminLogin')
 def admin_brand(request):
     # Fetch all brands ordered by ID in descending order
     brands = Brand.objects.all().order_by("-id")
@@ -381,6 +383,7 @@ def admin_brand(request):
     # Render the template with the context
     return render(request, 'adminBrand.html', context)
 
+@login_required(login_url='adminLogin')
 def add_brand(request):
     if request.method == "POST":
         name = request.POST.get('brand_name')
@@ -389,6 +392,7 @@ def add_brand(request):
         return redirect('admin_brand')
     return redirect('admin_brand')
 
+@login_required(login_url='adminLogin')
 def edit_brand(request, brand_id):
     brand = get_object_or_404(Brand, id=brand_id)
     if request.method == "POST":
@@ -400,6 +404,7 @@ def edit_brand(request, brand_id):
         return redirect('admin_brand')
     return render(request, 'editBrand.html', {'brand': brand})
 
+@login_required(login_url='adminLogin')
 def toggle_brand_status(request, brand_id):
     if request.method == 'POST':
         brand = get_object_or_404(Brand, id=brand_id)
@@ -412,12 +417,7 @@ def toggle_brand_status(request, brand_id):
     return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
 
 
-
-
-
-
-
-
+@login_required(login_url='adminLogin')
 def adminProducts(request):
     # Fetch all products ordered by ID
     products = Product.objects.all().order_by('id')
@@ -433,7 +433,7 @@ def adminProducts(request):
     return render(request, 'adminProducts.html', context)
 
 
-
+@login_required(login_url='adminLogin')
 def addProducts(request):
     categories = Category.objects.filter(is_active=True)
     brands = Brand.objects.filter(is_active=True)
@@ -479,6 +479,7 @@ def addProducts(request):
 
     return render(request, 'addProducts.html', {'categories': categories, 'brands': brands})
 
+@login_required(login_url='adminLogin')
 def addVariant(request, product_id):
     product = get_object_or_404(Product, id=product_id)
 
@@ -531,6 +532,7 @@ def addVariant(request, product_id):
     }
     return render(request, 'addVariant.html', context)
 
+@login_required(login_url='adminLogin')
 def editProduct(request, product_id):
     product = get_object_or_404(Product, id=product_id)
     categories = Category.objects.filter(is_active=True)
@@ -560,6 +562,7 @@ def editProduct(request, product_id):
     }
     return render(request, 'editProduct.html', context)
 
+@login_required(login_url='adminLogin')
 def editVariant(request, variant_id):
     variant = get_object_or_404(Variant, id=variant_id)
     product = variant.product
@@ -659,6 +662,7 @@ def editVariant(request, variant_id):
     }
     return render(request, 'editVariant.html', context)
 
+@login_required(login_url='adminLogin')
 def deleteProduct(request, product_id):
     if request.method == 'POST':
         product = get_object_or_404(Product, id=product_id)
@@ -672,6 +676,7 @@ def deleteProduct(request, product_id):
         
     return redirect('adminProducts')
 
+@login_required(login_url='adminLogin')
 def deleteVariant(request, variant_id):
     if request.method == 'POST':
         variant = get_object_or_404(Variant, id=variant_id)
@@ -685,7 +690,7 @@ def deleteVariant(request, variant_id):
     
     return redirect('adminProducts')
 
-
+@login_required(login_url='adminLogin')
 def toggle_product_status(request, product_id):
     print(f"Toggling status for product ID: {product_id}")
     try:
@@ -700,7 +705,7 @@ def toggle_product_status(request, product_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
     
-
+@login_required(login_url='adminLogin')
 def toggleVariant(request, variant_id):
     if request.method == 'POST':
         variant = get_object_or_404(Variant, id=variant_id)
@@ -716,8 +721,7 @@ def toggleVariant(request, variant_id):
 
 ############## orders   ####################
 
-
-# views.py
+@login_required(login_url='adminLogin')
 def admin_orders(request):
     # Handle initial page render (HTML)
 
@@ -735,7 +739,7 @@ def admin_orders(request):
     return render(request, 'adminOrders.html', context)
 
 
-
+@login_required(login_url='adminLogin')
 def admin_orders_api(request):
     try:
         # Fetch orders with related user, paymentmethod, and order items
@@ -790,7 +794,7 @@ def admin_orders_api(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@login_required
+@login_required(login_url='adminLogin')
 def order_detail(request, order_id):
     order = get_object_or_404(Order, id=order_id)
     return render(request, 'order_detail.html', {'order': order})
@@ -798,7 +802,7 @@ def order_detail(request, order_id):
 
 logger = logging.getLogger(__name__)
 
-@login_required
+@login_required(login_url='adminLogin')
 @require_POST
 def update_order_status(request, order_id):
     try:
@@ -887,7 +891,7 @@ def update_order_status(request, order_id):
         logger.error(f"Error updating order status: {str(e)}")
         return JsonResponse({'success': False, 'error': str(e)})
 
-@login_required
+@login_required(login_url='adminLogin')
 @require_POST
 def cancel_order(request, order_id):
     try:
@@ -904,7 +908,7 @@ def cancel_order(request, order_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})    
 
-@login_required
+@login_required(login_url='adminLogin')
 @require_POST
 def update_item_status(request):
     try:
@@ -947,41 +951,19 @@ def update_item_status(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required
-# def handle_return_request(request, return_id):
-#     try:
-#         data = json.loads(request.body)
-#         return_request = get_object_or_404(ReturnRequest, id=return_id)
-        
-#         with transaction.atomic():
-#             return_request.status = data['action']
-#             return_request.admin_response = data.get('response', '')
-#             return_request.save()
-            
-#             # Update order and items status based on return request decision
-#             order = return_request.order
-#             new_status = 'RETURNED' if data['action'] == 'approved' else order.order_status
-#             order.order_status = new_status
-#             order.save()
-            
-#             if data['action'] == 'approved':
-#                 order.order_items.all().update(status='Returned')
-                
-#         return JsonResponse({
-#             'success': True,
-#             'message': f'Return request has been {data["action"]}'
-#         })
-#     except Exception as e:
-#         return JsonResponse({'success': False, 'error': str(e)})
-
+@login_required(login_url='adminLogin')
 def admin_coupons(request):
+    """ Fetch all coupons ordered by newest first. """
     coupons = Coupon.objects.all().order_by('-created_at')
     return render(request, 'admin_coupons.html', {'coupons': coupons})
 
+@login_required(login_url='adminLogin')
+@csrf_exempt
 def add_coupon(request):
+    """ Add a new coupon after validation. """
     if request.method == 'POST':
         try:
-            code = request.POST.get('code')
+            code = request.POST.get('code', '').strip()
             coupon_type = request.POST.get('type')
             value = request.POST.get('value')
             minimum_purchase = request.POST.get('minimum_purchase')
@@ -990,12 +972,17 @@ def add_coupon(request):
             usage_limit = request.POST.get('usage_limit')
             is_active = request.POST.get('is_active') == 'on'
 
-            # Validate coupon code uniqueness
-            if Coupon.objects.filter(code=code).exists():
-                messages.error(request, 'Coupon code already exists')
+            # Validate coupon code (alphanumeric check)
+            if not code.isalnum():
+                messages.error(request, 'Coupon code must be alphanumeric.')
                 return redirect('admin_coupons')
 
-            # Create the coupon
+            # Check if coupon code already exists (case-sensitive)
+            if Coupon.objects.filter(code=code).exists():
+                messages.error(request, 'Coupon code already exists.')
+                return redirect('admin_coupons')
+
+            # Create and save coupon
             Coupon.objects.create(
                 code=code,
                 type=coupon_type,
@@ -1006,13 +993,14 @@ def add_coupon(request):
                 usage_limit=usage_limit,
                 is_active=is_active
             )
-            messages.success(request, 'Coupon added successfully')
-            
+            messages.success(request, 'Coupon added successfully.')
+
         except Exception as e:
             messages.error(request, f'Error creating coupon: {str(e)}')
-        
+
     return redirect('admin_coupons')
 
+@login_required(login_url='adminLogin')
 @require_POST
 def delete_coupon(request, coupon_id):
     try:
@@ -1021,8 +1009,7 @@ def delete_coupon(request, coupon_id):
         return JsonResponse({'success': True, 'message': 'Coupon deleted successfully'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
-
-# Add this to your existing checkout view or create a new one
+@login_required(login_url='adminLogin')
 def apply_coupon(request):
     if request.method == 'POST':
         code = request.POST.get('coupon_code')
@@ -1073,6 +1060,7 @@ def apply_coupon(request):
                 'message': 'Invalid coupon code'
             })
 
+@login_required(login_url='adminLogin')
 def get_coupon_details(request, coupon_id):
     try:
         coupon = get_object_or_404(Coupon, id=coupon_id)
@@ -1089,6 +1077,7 @@ def get_coupon_details(request, coupon_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
+@login_required(login_url='adminLogin')
 def edit_coupon(request, coupon_id):
     if request.method == 'POST':
         try:
@@ -1114,7 +1103,7 @@ def edit_coupon(request, coupon_id):
             messages.error(request, f'Error updating coupon: {str(e)}')
     return redirect('admin_coupons')
 
-@login_required
+@login_required(login_url='adminLogin')
 def admin_return_requests(request):
     return_requests = ReturnRequest.objects.all().order_by('-created_at')
     
@@ -1124,38 +1113,10 @@ def admin_return_requests(request):
     
     return render(request, 'return_requests.html', context)
 
-# @login_required
-# @require_POST
-# def handle_return_request(request, request_id):
-#     try:
-#         data = json.loads(request.body)
-#         action = data.get('action')  # 'approve' or 'reject'
-#         admin_response = data.get('response', '')
-        
-#         if action not in ['approve', 'reject']:
-#             return JsonResponse({'success': False, 'message': 'Invalid action'})
-            
-#         return_request = get_object_or_404(ReturnRequest, id=request_id)
-        
-#         with transaction.atomic():
-#             if action == 'approve':
-#                 return_request.status = 'APPROVED'
-#                 return_request.admin_response = admin_response
-#                 return_request.save()
-#                 return JsonResponse({'success': True, 'message': 'Return request approved'})
-#             else:
-#                 return_request.status = 'REJECTED'
-#                 return_request.admin_response = admin_response
-#                 return_request.save()
-#                 return JsonResponse({'success': True, 'message': 'Return request rejected'})
-#     except json.JSONDecodeError:
-#         return JsonResponse({'success': False, 'message': 'Invalid JSON data'})
-#     except ReturnRequest.DoesNotExist:
-#         return JsonResponse({'success': False, 'message': 'Return request not found'})
-#     except Exception as e:
-#         return JsonResponse({'success': False, 'message': str(e)})
+
 
 @require_POST
+@login_required(login_url='adminLogin')
 def handle_return_request(request, return_request_id):
     try:
         data = json.loads(request.body)
@@ -1230,7 +1191,7 @@ def handle_return_request(request, return_request_id):
         }, status=400)
 
 
-# Offer Management Views
+@login_required(login_url='adminLogin')
 def admin_offers(request):
     today = timezone.now()
     offers = list(ProductOffer.objects.select_related('product').all()) + \
@@ -1248,6 +1209,7 @@ def admin_offers(request):
     }
     return render(request, 'admin_offers.html', context)
 
+@login_required(login_url='adminLogin')
 def admin_product_offers(request):
     product_offers = ProductOffer.objects.select_related('product').all().order_by('-created_at')
     products = Product.objects.filter(is_active=True)
@@ -1258,7 +1220,7 @@ def admin_product_offers(request):
     }
     return render(request, 'admin_offers.html', context)
 
-
+@login_required(login_url='adminLogin')
 @require_POST
 def add_product_offer(request):
     try:
@@ -1297,6 +1259,7 @@ def add_product_offer(request):
             'error': str(e)
         }, status=400)
 
+@login_required(login_url='adminLogin')
 def get_product_offer(request, offer_id):
     try:
         offer = get_object_or_404(ProductOffer, id=offer_id)
@@ -1311,6 +1274,7 @@ def get_product_offer(request, offer_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
+@login_required(login_url='adminLogin')
 @require_POST
 def edit_product_offer(request, offer_id):
     try:
@@ -1395,6 +1359,7 @@ def edit_product_offer(request, offer_id):
             'error': str(e)
         }, status=400)
 
+@login_required(login_url='adminLogin')
 @require_POST
 def delete_product_offer(request, offer_id):
     try:
@@ -1404,6 +1369,7 @@ def delete_product_offer(request, offer_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
+@login_required(login_url='adminLogin')
 def admin_category_offers(request):
     offers = CategoryOffer.objects.select_related('category').all().order_by('-created_at')
     categories = Category.objects.filter(is_active=True)
@@ -1414,6 +1380,7 @@ def admin_category_offers(request):
     }
     return render(request, 'admin_offers.html', context)
 
+@login_required(login_url='adminLogin')
 @require_POST
 def add_category_offer(request):
     try:
@@ -1460,6 +1427,7 @@ def add_category_offer(request):
             'error': str(e)
         }, status=400)
 
+@login_required(login_url='adminLogin')
 def get_category_offer(request, offer_id):
     try:
         offer = get_object_or_404(CategoryOffer, id=offer_id)
@@ -1474,6 +1442,7 @@ def get_category_offer(request, offer_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
+@login_required(login_url='adminLogin')
 @require_POST
 def edit_category_offer(request, offer_id):
     try:
@@ -1523,6 +1492,7 @@ def edit_category_offer(request, offer_id):
             'error': str(e)
         }, status=400)
 
+@login_required(login_url='adminLogin')
 @require_POST
 def delete_category_offer(request, offer_id):
     try:
@@ -1532,6 +1502,7 @@ def delete_category_offer(request, offer_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
+@login_required(login_url='adminLogin')
 def get_active_products(request):
     try:
         products = Product.objects.filter(is_active=True).values('id', 'name')
@@ -1540,12 +1511,7 @@ def get_active_products(request):
         return JsonResponse({'error': str(e)}, status=400)
 
 
- 
-
-
-
-
-
+@login_required(login_url='adminLogin')
 def toggle_category_status(request, category_id):
     print(f"Toggling category {category_id}")
     if request.method == 'POST':
@@ -1559,16 +1525,7 @@ def toggle_category_status(request, category_id):
         })
     return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
 
-
-# def delete_category(request, category_id):
-#     category = get_object_or_404(Category, id=category_id)
-#     category.is_deleted = True
-#     category.save()
-#     print("Category deleted successfully")
-#     return redirect('admin_category')
-
-
-
+@login_required(login_url='adminLogin')
 def sales_report(request):
     # Get report type and date range from request
     report_type = request.GET.get('report_type', 'daily')
@@ -1723,6 +1680,7 @@ def sales_report(request):
     
     return render(request, 'sales_report.html', context)
 
+@login_required(login_url='adminLogin')
 def admin_brand(request):
     # Fetch all brands ordered by ID in descending order
     brands = Brand.objects.all().order_by("-id")
@@ -1747,6 +1705,7 @@ def admin_brand(request):
     # Render the template with the context
     return render(request, 'adminBrand.html', context)
 
+@login_required(login_url='adminLogin')
 def add_brand(request):
     if request.method == "POST":
         name = request.POST.get('brand_name')
@@ -1755,6 +1714,7 @@ def add_brand(request):
         return redirect('admin_brand')
     return redirect('admin_brand')
 
+@login_required(login_url='adminLogin')
 def edit_brand(request, brand_id):
     brand = get_object_or_404(Brand, id=brand_id)
     if request.method == "POST":
@@ -1766,6 +1726,7 @@ def edit_brand(request, brand_id):
         return redirect('admin_brand')
     return render(request, 'editBrand.html', {'brand': brand})
 
+@login_required(login_url='adminLogin')
 def toggle_brand_status(request, brand_id):
     if request.method == 'POST':
         brand = get_object_or_404(Brand, id=brand_id)
@@ -1777,13 +1738,7 @@ def toggle_brand_status(request, brand_id):
         })
     return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
 
-
-
-
-
-
-
-
+@login_required(login_url='adminLogin')
 def adminProducts(request):
     # Fetch all products ordered by ID
     products = Product.objects.all().order_by('id')
@@ -1799,7 +1754,7 @@ def adminProducts(request):
     return render(request, 'adminProducts.html', context)
 
 
-
+@login_required(login_url='adminLogin')
 def addProducts(request):
     categories = Category.objects.filter(is_active=True)
     brands = Brand.objects.filter(is_active=True)
@@ -1845,6 +1800,7 @@ def addProducts(request):
 
     return render(request, 'addProducts.html', {'categories': categories, 'brands': brands})
 
+@login_required(login_url='adminLogin')
 def addVariant(request, product_id):
     product = get_object_or_404(Product, id=product_id)
 
@@ -1897,6 +1853,7 @@ def addVariant(request, product_id):
     }
     return render(request, 'addVariant.html', context)
 
+@login_required(login_url='adminLogin')
 def editProduct(request, product_id):
     product = get_object_or_404(Product, id=product_id)
     categories = Category.objects.filter(is_active=True)
@@ -1926,6 +1883,7 @@ def editProduct(request, product_id):
     }
     return render(request, 'editProduct.html', context)
 
+@login_required(login_url='adminLogin')
 def editVariant(request, variant_id):
     variant = get_object_or_404(Variant, id=variant_id)
     product = variant.product
@@ -2024,7 +1982,7 @@ def editVariant(request, variant_id):
         'existing_images': existing_images
     }
     return render(request, 'editVariant.html', context)
-
+@login_required(login_url='adminLogin')
 def deleteProduct(request, product_id):
     if request.method == 'POST':
         product = get_object_or_404(Product, id=product_id)
@@ -2038,6 +1996,7 @@ def deleteProduct(request, product_id):
         
     return redirect('adminProducts')
 
+@login_required(login_url='adminLogin')
 def deleteVariant(request, variant_id):
     if request.method == 'POST':
         variant = get_object_or_404(Variant, id=variant_id)
@@ -2051,7 +2010,7 @@ def deleteVariant(request, variant_id):
     
     return redirect('adminProducts')
 
-
+@login_required(login_url='adminLogin')
 def toggle_product_status(request, product_id):
     print(f"Toggling status for product ID: {product_id}")
     try:
@@ -2066,7 +2025,7 @@ def toggle_product_status(request, product_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
     
-
+@login_required(login_url='adminLogin')
 def toggleVariant(request, variant_id):
     if request.method == 'POST':
         variant = get_object_or_404(Variant, id=variant_id)
@@ -2078,768 +2037,3 @@ def toggleVariant(request, variant_id):
         except Exception as e:
             messages.error(request, f'Error updating variant status: {str(e)}')
     return redirect('adminProducts')
-
-
-############## orders   ####################
-
-# views.py
-# def admin_orders(request):
-#     # Handle initial page render (HTML)
-
-#     orders = Order.objects.select_related('user', 'payment_method').order_by('-created_at')
-
-#     search_query = request.GET.get('search', '')
-#     if search_query:
-#         orders = orders.filter(user__username__icontains=search_query)
-    
-#     paginator = Paginator(orders, 10)
-#     page_number = request.GET.get('page')
-#     page_obj = paginator.get_page(page_number)
-    
-#     context = {'orders': page_obj, 'search_query': search_query}
-#     return render(request, 'adminOrders.html', context)
-
-
-
-# def admin_orders_api(request):
-#     try:
-#         # Fetch orders with related user, paymentmethod, and order items
-
-#         orders = Order.objects.select_related('user', 'payment_method').prefetch_related('order_items').order_by('-created_at')
-
-        
-#         # Apply search filter
-#         search_query = request.GET.get('search', '')
-#         if search_query:
-#             orders = orders.filter(user__username__icontains=search_query)
-        
-#         # Paginate results
-#         paginator = Paginator(orders, 10)
-#         page_number = request.GET.get('page', 1)
-#         page_obj = paginator.get_page(page_number)
-        
-#         # Prepare data for JSON response
-#         orders_data = []
-#         for order in page_obj:
-#             order_items = [
-#                 {
-#                     'product_name': item.product.name if item.product else 'N/A',
-#                     'variant_details': f"{item.variant.color}" if item.variant else 'N/A',
-#                     'quantity': item.quantity,
-#                     'price': float(item.price),
-#                     'status': item.status
-#                 } for item in order.order_items.all()
-#             ]
-            
-#             orders_data.append({
-#                 'id': order.id,
-#                 'username': order.user.username if order.user else 'N/A',
-
-#                 'payment_method': order.payment_method.name if order.payment_method else 'N/A',
-
-#                 'status': order.order_status,
-#                 'total_price': float(order.total_amount) if order.total_amount else 0.0,
-#                 'created_at': order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-#                 'items': order_items
-#             })
-        
-#         return JsonResponse({
-#             'orders': orders_data,
-#             'total_pages': paginator.num_pages
-#         })
-    
-#     except Exception as e:
-#         return JsonResponse({'error': str(e)}, status=500)
-
-
-# @login_required
-# def order_detail(request, order_id):
-#     order = get_object_or_404(Order, id=order_id)
-#     return render(request, 'order_detail.html', {'order': order})
-
-
-# logger = logging.getLogger(__name__)
-
-# @login_required
-# @require_POST
-# def update_order_status(request, order_id):
-#     try:
-#         data = json.loads(request.body)
-#         new_status = data.get('status')
-#         reason = data.get('reason')
-        
-#         if not new_status:
-#             return JsonResponse({'success': False, 'error': 'Status is required'})
-            
-#         order = get_object_or_404(Order, order_number=order_id)
-#         old_status = order.order_status
-        
-#         # Create status history entry
-#         OrderStatusHistory.objects.create(
-#             order=order,
-#             old_status=old_status,
-#             new_status=new_status,
-#             reason=reason,
-#             changed_by=request.user
-#         )
-        
-#         # Update order status
-#         order.order_status = new_status
-        
-#         # Set appropriate timestamp based on status
-#         timestamp_field = {
-#             'CONFIRMED': 'confirmed_at',
-#             'PROCESSING': 'processed_at',
-#             'SHIPPED': 'shipped_at',
-#             'DELIVERED': 'delivered_at',
-#             'CANCELLED': 'cancelled_at'
-#         }.get(new_status)
-        
-#         if timestamp_field:
-#             setattr(order, timestamp_field, timezone.now())
-        
-#         # Update all order items status
-#         order.order_items.all().update(status=new_status)
-        
-#         order.save()
-        
-#         # Send notification to customer
-#         send_order_status_notification(order)
-        
-#         return JsonResponse({'success': True})
-        
-#     except Exception as e:
-#         logger.error(f"Error updating order status: {str(e)}")
-#         return JsonResponse({'success': False, 'error': str(e)})
-
-# @login_required
-# @require_POST
-# def cancel_order(request, order_id):
-#     try:
-#         order = get_object_or_404(Order, id=order_id)
-#         if order.order_status not in ['DELIVERED', 'CANCELLED']:
-#             with transaction.atomic():
-#                 order.order_status = 'CANCELLED'
-#                 order.save()
-#                 order.order_items.all().update(status='Cancelled')
-#             return JsonResponse({'success': True})
-#         return JsonResponse({'success': False, 'message': 'Order cannot be cancelled'})
-#     except Exception as e:
-#         return JsonResponse({'success': False, 'error': str(e)})    
-
-# @login_required
-# @require_POST
-# def update_item_status(request):
-#     try:
-#         data = json.loads(request.body)
-#         item = get_object_or_404(OrderItem, id=data['item_id'])
-        
-#         with transaction.atomic():
-#             item.status = data['status']
-#             if data['status'] in ['Cancelled', 'Returned'] and data.get('reason'):
-#                 if data['status'] == 'Cancelled':
-#                     item.cancellation_reason = data['reason']
-#                 else:
-#                     item.return_reason = data['reason']
-#             item.save()
-            
-#             # Update order status if all items have the same status
-#             order = item.order
-#             all_items_status = set(order.order_items.values_list('status', flat=True))
-#             if len(all_items_status) == 1:
-#                 order.order_status = data['status'].upper()
-#                 order.save()
-                
-#         return JsonResponse({'success': True})
-#     except Exception as e:
-#         return JsonResponse({'success': False, 'error': str(e)})
-# @login_required
-# def handle_return_request(request, return_id):
-#     try:
-#         data = json.loads(request.body)
-#         return_request = get_object_or_404(ReturnRequest, id=return_id)
-        
-#         with transaction.atomic():
-#             return_request.status = data['action']
-#             return_request.admin_response = data.get('response', '')
-#             return_request.save()
-            
-#             # Update order and items status based on return request decision
-#             order = return_request.order
-#             new_status = 'RETURNED' if data['action'] == 'approved' else order.order_status
-#             order.order_status = new_status
-#             order.save()
-            
-#             if data['action'] == 'approved':
-#                 order.order_items.all().update(status='Returned')
-                
-#         return JsonResponse({
-#             'success': True,
-#             'message': f'Return request has been {data["action"]}'
-#         })
-#     except Exception as e:
-#         return JsonResponse({'success': False, 'error': str(e)})
-
-# def admin_coupons(request):
-#     coupons = Coupon.objects.all().order_by('-created_at')
-#     return render(request, 'admin_coupons.html', {'coupons': coupons})
-
-# def add_coupon(request):
-#     if request.method == 'POST':
-#         try:
-#             code = request.POST.get('code')
-#             coupon_type = request.POST.get('type')
-#             value = request.POST.get('value')
-#             minimum_purchase = request.POST.get('minimum_purchase')
-#             start_date = request.POST.get('start_date')
-#             end_date = request.POST.get('end_date')
-#             usage_limit = request.POST.get('usage_limit')
-#             is_active = request.POST.get('is_active') == 'on'
-
-#             # Validate coupon code uniqueness
-#             if Coupon.objects.filter(code=code).exists():
-#                 messages.error(request, 'Coupon code already exists')
-#                 return redirect('admin_coupons')
-
-#             # Create the coupon
-#             Coupon.objects.create(
-#                 code=code,
-#                 type=coupon_type,
-#                 value=value,
-#                 minimum_purchase=minimum_purchase,
-#                 start_date=start_date,
-#                 end_date=end_date,
-#                 usage_limit=usage_limit,
-#                 is_active=is_active
-#             )
-#             messages.success(request, 'Coupon added successfully')
-            
-#         except Exception as e:
-#             messages.error(request, f'Error creating coupon: {str(e)}')
-        
-#     return redirect('admin_coupons')
-
-# @require_POST
-# def delete_coupon(request, coupon_id):
-#     try:
-#         coupon = get_object_or_404(Coupon, id=coupon_id)
-#         coupon.delete()
-#         return JsonResponse({'success': True, 'message': 'Coupon deleted successfully'})
-#     except Exception as e:
-#         return JsonResponse({'success': False, 'error': str(e)}, status=400)
-
-# # Add this to your existing checkout view or create a new one
-# def apply_coupon(request):
-#     if request.method == 'POST':
-#         code = request.POST.get('coupon_code')
-#         cart = request.user.cart_set.filter(is_ordered=False).first()
-        
-#         try:
-#             coupon = Coupon.objects.get(
-#                 code=code,
-#                 is_active=True,
-#                 start_date__lte=timezone.now().date(),
-#                 end_date__gte=timezone.now().date()
-#             )
-            
-#             # Check minimum purchase
-#             if cart.total_price < coupon.minimum_purchase:
-#                 return JsonResponse({
-#                     'success': False,
-#                     'message': f'Minimum purchase amount of ₹{coupon.minimum_purchase} required'
-#                 })
-            
-#             # Check usage limit
-#             usage_count = CouponUsage.objects.filter(
-#                 coupon=coupon,
-#                 user=request.user
-#             ).count()
-            
-#             if usage_count >= coupon.usage_limit:
-#                 return JsonResponse({
-#                     'success': False,
-#                     'message': 'Coupon usage limit exceeded'
-#                 })
-            
-#             # Calculate discount
-#             if coupon.type == 'percentage':
-#                 discount = (cart.total_price * coupon.value) / 100
-#             else:
-#                 discount = coupon.value
-                
-#             return JsonResponse({
-#                 'success': True,
-#                 'discount': float(discount),
-#                 'final_amount': float(cart.total_price - discount)
-#             })
-            
-#         except Coupon.DoesNotExist:
-#             return JsonResponse({
-#                 'success': False,
-#                 'message': 'Invalid coupon code'
-#             })
-
-# def get_coupon_details(request, coupon_id):
-#     try:
-#         coupon = get_object_or_404(Coupon, id=coupon_id)
-#         return JsonResponse({
-#             'code': coupon.code,
-#             'type': coupon.type,
-#             'value': str(coupon.value),
-#             'minimum_purchase': str(coupon.minimum_purchase),
-#             'start_date': coupon.start_date.strftime('%Y-%m-%d'),
-#             'end_date': coupon.end_date.strftime('%Y-%m-%d'),
-#             'usage_limit': coupon.usage_limit,
-#             'is_active': coupon.is_active
-#         })
-#     except Exception as e:
-#         return JsonResponse({'error': str(e)}, status=400)
-
-# def edit_coupon(request, coupon_id):
-#     if request.method == 'POST':
-#         try:
-#             coupon = get_object_or_404(Coupon, id=coupon_id)
-            
-#             # Check if code exists for other coupons
-#             if Coupon.objects.filter(code=request.POST.get('code')).exclude(id=coupon_id).exists():
-#                 messages.error(request, 'Coupon code already exists')
-#                 return redirect('admin_coupons')
-
-#             coupon.code = request.POST.get('code')
-#             coupon.type = request.POST.get('type')
-#             coupon.value = request.POST.get('value')
-#             coupon.minimum_purchase = request.POST.get('minimum_purchase')
-#             coupon.start_date = request.POST.get('start_date')
-#             coupon.end_date = request.POST.get('end_date')
-#             coupon.usage_limit = request.POST.get('usage_limit')
-#             coupon.is_active = request.POST.get('is_active') == 'on'
-#             coupon.save()
-            
-#             messages.success(request, 'Coupon updated successfully')
-#         except Exception as e:
-#             messages.error(request, f'Error updating coupon: {str(e)}')
-#     return redirect('admin_coupons')
-
-# @login_required
-# def admin_return_requests(request):
-#     return_requests = ReturnRequest.objects.all().order_by('-created_at')
-    
-#     context = {
-#         'return_requests': return_requests
-#     }
-    
-#     return render(request, 'return_requests.html', context)
-
-# @login_required
-# @require_POST
-# def handle_return_request(request, request_id):
-#     try:
-#         data = json.loads(request.body)
-#         action = data.get('action')  # 'approve' or 'reject'
-#         admin_response = data.get('response', '')
-        
-#         if action not in ['approve', 'reject']:
-#             return JsonResponse({'success': False, 'message': 'Invalid action'})
-            
-#         return_request = get_object_or_404(ReturnRequest, id=request_id)
-        
-#         with transaction.atomic():
-#             if action == 'approve':
-#                 return_request.status = 'APPROVED'
-#                 return_request.admin_response = admin_response
-#                 return_request.save()
-#                 return JsonResponse({'success': True, 'message': 'Return request approved'})
-#             else:
-#                 return_request.status = 'REJECTED'
-#                 return_request.admin_response = admin_response
-#                 return_request.save()
-#                 return JsonResponse({'success': True, 'message': 'Return request rejected'})
-#     except json.JSONDecodeError:
-#         return JsonResponse({'success': False, 'message': 'Invalid JSON data'})
-#     except ReturnRequest.DoesNotExist:
-#         return JsonResponse({'success': False, 'message': 'Return request not found'})
-#     except Exception as e:
-#         return JsonResponse({'success': False, 'message': str(e)})
-
-# # Offer Management Views
-# def admin_offers(request):
-#     today = timezone.now()
-#     offers = list(ProductOffer.objects.select_related('product').all()) + \
-#             list(CategoryOffer.objects.select_related('category').all())
-    
-#     # Get all active products and categories for the dropdowns
-#     products = Product.objects.filter(is_active=True).order_by('name')
-#     categories = Category.objects.all().order_by('name')
-    
-#     context = {
-#         'offers': offers,
-#         'products': products,
-#         'categories': categories,
-#         'today': today
-#     }
-#     return render(request, 'admin_offers.html', context)
-
-# def admin_product_offers(request):
-#     product_offers = ProductOffer.objects.select_related('product').all().order_by('-created_at')
-#     products = Product.objects.filter(is_active=True)
-    
-#     context = {
-#         'product_offers': product_offers,
-#         'products': products
-#     }
-#     return render(request, 'admin_offers.html', context)
-
-
-# @require_POST
-# def add_product_offer(request):
-#     try:
-#         name = request.POST.get('name')
-#         product_id = request.POST.get('product')
-#         discount_percentage = request.POST.get('discount_percentage')
-#         start_date = timezone.make_aware(datetime.strptime(request.POST.get('start_date'), '%Y-%m-%d'))
-#         end_date = timezone.make_aware(datetime.strptime(request.POST.get('end_date'), '%Y-%m-%d'))
-#         is_active = request.POST.get('is_active') == 'on'
-        
-#         # Validate input
-#         if not all([name, product_id, discount_percentage, start_date, end_date]):
-#             return JsonResponse({
-#                 'success': False,
-#                 'errors': {'form': 'All fields are required'}
-#             }, status=400)
-        
-#         # Multiple offers are now allowed for the same product
-#         # The system will automatically apply the highest discount offer
-        
-#         ProductOffer.objects.create(
-#             name=name,
-#             product_id=product_id,
-#             discount_percentage=discount_percentage,
-#             start_date=start_date,
-#             end_date=end_date,
-#             is_active=is_active
-#         )
-#         return JsonResponse({
-#             'success': True,
-#             'message': 'Product offer added successfully'
-#         })
-#     except Exception as e:
-#         return JsonResponse({
-#             'success': False,
-#             'error': str(e)
-#         }, status=400)
-
-# def get_product_offer(request, offer_id):
-#     try:
-#         offer = get_object_or_404(ProductOffer, id=offer_id)
-#         return JsonResponse({
-#             'name': offer.name,
-#             'product_id': offer.product.id,
-#             'discount_percentage': str(offer.discount_percentage),
-#             'start_date': offer.start_date.isoformat(),
-#             'end_date': offer.end_date.isoformat(),
-#             'is_active': offer.is_active
-#         })
-#     except Exception as e:
-#         return JsonResponse({'error': str(e)}, status=400)
-
-# @require_POST
-# def edit_product_offer(request, offer_id):
-#     try:
-#         offer = get_object_or_404(ProductOffer, id=offer_id)
-        
-#         # Get form data
-#         name = request.POST.get('name')
-#         product_id = request.POST.get('product')
-#         discount_percentage = request.POST.get('discount_percentage')
-#         start_date = request.POST.get('start_date')
-#         end_date = request.POST.get('end_date')
-        
-#         # Validate required fields
-#         if not all([name, product_id, discount_percentage, start_date, end_date]):
-#             return JsonResponse({
-#                 'success': False,
-#                 'errors': {'form': 'All fields are required'}
-#             }, status=400)
-        
-#         try:
-#             # Parse and validate dates
-#             start_date = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
-#             end_date = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d'))
-#         except ValueError:
-#             return JsonResponse({
-#                 'success': False,
-#                 'errors': {'form': 'Invalid date format'}
-#             }, status=400)
-            
-#             if start_date > end_date:
-#                 return JsonResponse({
-#                     'success': False,
-#                     'errors': {'form': 'Start date must be before end date'}
-#                 }, status=400)
-                
-#             # Validate discount percentage
-#             try:
-#                 discount_percentage = float(discount_percentage)
-#                 if not (0 <= discount_percentage <= 100):
-#                     return JsonResponse({
-#                         'success': False,
-#                         'errors': {'discount_percentage': 'Discount percentage must be between 0 and 100'}
-#                     }, status=400)
-#             except ValueError:
-#                 return JsonResponse({
-#                     'success': False,
-#                     'errors': {'discount_percentage': 'Invalid discount percentage'}
-#                 }, status=400)
-                
-#             # Update offer details
-#             offer.name = name
-#             offer.product_id = product_id
-#             offer.discount_percentage = discount_percentage
-#             offer.start_date = start_date
-#             offer.end_date = end_date
-#             offer.is_active = request.POST.get('is_active') == 'on'
-        
-#             # Check for overlapping offers
-#             if ProductOffer.objects.filter(
-#                 product_id=offer.product_id,
-#                 start_date__lte=offer.end_date,
-#                 end_date__gte=offer.start_date
-#             ).exclude(id=offer_id).exists():
-#                 return JsonResponse({
-#                     'success': False,
-#                     'errors': {'form': 'An offer already exists for this product during the specified period'}
-#                 }, status=400)
-            
-#             offer.save()
-#             return JsonResponse({
-#                 'success': True,
-#                 'message': 'Product offer updated successfully'
-#             })
-#         except ProductOffer.DoesNotExist:
-#             return JsonResponse({
-#                 'success': False,
-#                 'error': 'Product offer not found'
-#             }, status=404)
-#     except Exception as e:
-#         return JsonResponse({
-#             'success': False,
-#             'error': str(e)
-#         }, status=400)
-
-# @require_POST
-# def delete_product_offer(request, offer_id):
-#     try:
-#         offer = get_object_or_404(ProductOffer, id=offer_id)
-#         offer.delete()
-#         return JsonResponse({'success': True, 'message': 'Product offer deleted successfully'})
-#     except Exception as e:
-#         return JsonResponse({'success': False, 'error': str(e)}, status=400)
-
-# def admin_category_offers(request):
-#     offers = CategoryOffer.objects.select_related('category').all().order_by('-created_at')
-#     categories = Category.objects.filter(is_active=True)
-    
-#     context = {
-#         'offers': offers,
-#         'categories': categories
-#     }
-#     return render(request, 'admin_offers.html', context)
-
-# @require_POST
-# def add_category_offer(request):
-#     try:
-#         name = request.POST.get('name')
-#         category_id = request.POST.get('category')
-#         discount_percentage = request.POST.get('discount_percentage')
-#         start_date = timezone.make_aware(datetime.strptime(request.POST.get('start_date'), '%Y-%m-%d'))
-#         end_date = timezone.make_aware(datetime.strptime(request.POST.get('end_date'), '%Y-%m-%d'))
-#         is_active = request.POST.get('is_active') == 'on'
-        
-#         # Validate input
-#         if not all([name, category_id, discount_percentage, start_date, end_date]):
-#             return JsonResponse({
-#                 'success': False,
-#                 'errors': {'form': 'All fields are required'}
-#             }, status=400)
-        
-#         # Check for overlapping offers
-#         if CategoryOffer.objects.filter(
-#             category_id=category_id,
-#             start_date__lte=end_date,
-#             end_date__gte=start_date
-#         ).exists():
-#             return JsonResponse({
-#                 'success': False,
-#                 'errors': {'form': 'An offer already exists for this category during the specified period'}
-#             }, status=400)
-        
-#         CategoryOffer.objects.create(
-#             name=name,
-#             category_id=category_id,
-#             discount_percentage=discount_percentage,
-#             start_date=start_date,
-#             end_date=end_date,
-#             is_active=is_active
-#         )
-#         return JsonResponse({
-#             'success': True,
-#             'message': 'Category offer added successfully'
-#         })
-#     except Exception as e:
-#         return JsonResponse({
-#             'success': False,
-#             'error': str(e)
-#         }, status=400)
-
-# def get_category_offer(request, offer_id):
-#     try:
-#         offer = get_object_or_404(CategoryOffer, id=offer_id)
-#         return JsonResponse({
-#             'name': offer.name,
-#             'category_id': offer.category.id,
-#             'discount_percentage': str(offer.discount_percentage),
-#             'start_date': offer.start_date.isoformat(),
-#             'end_date': offer.end_date.isoformat(),
-#             'is_active': offer.is_active
-#         })
-#     except Exception as e:
-#         return JsonResponse({'error': str(e)}, status=400)
-
-# @require_POST
-# def edit_category_offer(request, offer_id):
-#     try:
-#         offer = get_object_or_404(CategoryOffer, id=offer_id)
-        
-#         # Get and validate required fields
-#         name = request.POST.get('name')
-#         category_id = request.POST.get('category')
-#         discount_percentage = request.POST.get('discount_percentage')
-#         start_date = timezone.make_aware(datetime.strptime(request.POST.get('start_date'), '%Y-%m-%d'))
-#         end_date = timezone.make_aware(datetime.strptime(request.POST.get('end_date'), '%Y-%m-%d'))
-        
-#         # Validate required fields
-#         if not all([name, category_id, discount_percentage, start_date, end_date]):
-#             return JsonResponse({
-#                 'success': False,
-#                 'errors': {'form': 'All fields are required'}
-#             }, status=400)
-            
-#         # Update offer details
-#         offer.name = name
-#         offer.category_id = category_id
-#         offer.discount_percentage = discount_percentage
-#         offer.start_date = start_date
-#         offer.end_date = end_date
-#         offer.is_active = request.POST.get('is_active') == 'on'
-        
-#         # Check for overlapping offers
-#         if CategoryOffer.objects.filter(
-#             category_id=offer.category_id,
-#             start_date__lte=offer.end_date,
-#             end_date__gte=offer.start_date
-#         ).exclude(id=offer_id).exists():
-#             return JsonResponse({
-#                 'success': False,
-#                 'errors': {'form': 'An offer already exists for this category during the specified period'}
-#             }, status=400)
-        
-#         offer.save()
-#         return JsonResponse({
-#             'success': True,
-#             'message': 'Category offer updated successfully'
-#         })
-#     except Exception as e:
-#         return JsonResponse({
-#             'success': False,
-#             'error': str(e)
-#         }, status=400)
-
-# @require_POST
-# def delete_category_offer(request, offer_id):
-#     try:
-#         offer = get_object_or_404(CategoryOffer, id=offer_id)
-#         offer.delete()
-#         return JsonResponse({'success': True, 'message': 'Category offer deleted successfully'})
-#     except Exception as e:
-#         return JsonResponse({'success': False, 'error': str(e)}, status=400)
-
-# def get_active_products(request):
-#     try:
-#         products = Product.objects.filter(is_active=True).values('id', 'name')
-#         return JsonResponse(list(products), safe=False)
-#     except Exception as e:
-#         return JsonResponse({'error': str(e)}, status=400)
-
-# @require_POST
-# def handle_return_request(request, return_request_id):
-#     try:
-#         return_request = get_object_or_404(ReturnRequest, id=return_request_id)
-#         action = request.POST.get('action')
-#         admin_response = request.POST.get('admin_response', '')
-
-#         if action not in ['approve', 'reject']:
-#             return JsonResponse({
-#                 'success': False,
-#                 'message': 'Invalid action specified'
-#             }, status=400)
-
-#         with transaction.atomic():
-#             if action == 'approve':
-
-#                 # Update return request
-#                 return_request.status = 'APPROVED'
-#                 return_request.admin_response = admin_response
-#                 return_request.save()
-                
-#                 # Update order item
-#                 order_item = return_request.order_item
-#                 order_item.status = 'Returned'
-#                 order_item.return_status = 'APPROVED'
-#                 order_item.admin_response = admin_response
-#                 order_item.save()
-                
-#                 # Restore stock
-#                 if order_item.size:
-#                     order_item.size.stock += order_item.quantity
-#                     order_item.size.save()
-                    
-#                 # Process refund if payment was made
-#                 if order_item.order.payment_status == 'PAID':
-#                     wallet, created = Wallet.objects.get_or_create(user=order_item.order.user)
-#                     refund_amount = order_item.price * order_item.quantity
-                    
-#                     wallet.balance += refund_amount
-#                     wallet.save()
-                    
-#                     # Record transaction
-#                     WalletTransaction.objects.create(
-#                         wallet=wallet,
-#                         amount=refund_amount,
-#                         transaction_type='RETURN_REFUND',
-#                         description=f'Refund for returned item #{order_item.id}'
-#                     )
-#             else:  # reject
-#                 # Update return request
-#                 return_request.status = 'REJECTED'
-#                 return_request.admin_response = admin_response
-#                 return_request.save()
-                
-#                 # Update order item
-#                 order_item = return_request.order_item
-#                 order_item.return_status = 'REJECTED'
-#                 order_item.admin_response = admin_response
-#                 order_item.save()
-            
-#             return JsonResponse({
-#                 'success': True,
-#                 'message': f'Return request {action}ed successfully'
-#             })
-            
-#     except Exception as e:
-#         logger.error(f"Error handling return request: {str(e)}")
-#         return JsonResponse({
-#             'success': False,
-#             'message': f'An error occurred: {str(e)}'
-
-#         }, status=400)
-
