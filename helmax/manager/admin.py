@@ -32,9 +32,9 @@ class CustomUserAdmin(UserAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('order_number', 'user', 'total_amount', 'payment_status', 'order_status', 'created_at')
+    list_display = ('order_id', 'user', 'total_amount', 'payment_status', 'order_status', 'created_at')
     list_filter = ('payment_status', 'order_status', 'created_at')
-    search_fields = ('order_number', 'user__username', 'user__email')
+    search_fields = ('order_id', 'user__username', 'user__email')
     readonly_fields = ('created_at',)
     date_hierarchy = 'created_at'
 
@@ -65,25 +65,25 @@ for model in models_to_register:
 
 @admin.register(ReturnRequest)
 class ReturnRequestAdmin(admin.ModelAdmin):
-    list_display = ('id', 'get_order_number', 'get_customer_name', 'get_product_name', 'reason', 'status', 'created_at', 'action_buttons')
+    list_display = ('id', 'get_order_id', 'get_customer_name', 'get_product_name', 'reason', 'status', 'created_at', 'action_buttons')
     list_filter = ('status', 'reason', 'created_at')
-    search_fields = ('order_item__order__order_number', 'user__username', 'user__email')
+    search_fields = ('order_item__order__order_id', 'user__username', 'user__email')
     readonly_fields = ('created_at',)
     date_hierarchy = 'created_at'
     
-    def get_order_number(self, obj):
+    def get_order_id(self, obj):
         if not obj:
             return ''
         try:
             if obj.order_item:
                 order = obj.order_item.order
                 if order:
-                    return order.order_number
+                    return order.order_id
             return 'No Order'
         except (AttributeError, Exception) as e:
             return 'Error: Unable to fetch order'
-    get_order_number.short_description = 'Order Number'
-    get_order_number.admin_order_field = 'order_item__order__order_number'
+    get_order_id.short_description = 'Order ID'
+    get_order_id.admin_order_field = 'order_item__order__order_id'
     
     def get_customer_name(self, obj):
         if not obj:

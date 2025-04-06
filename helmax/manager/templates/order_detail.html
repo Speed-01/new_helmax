@@ -2,161 +2,216 @@
 {% load custom_filters %}
 {% block content %}
 
-<div class="min-h-screen bg-[#0A0A0A] py-8">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="mb-8">
-            <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
-                Edit Orders #{{ order.order_number }}
-            </h1>
-        </div>
-
-        <!-- Order Products Section -->
-        <div class="bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] p-6 mb-6">
-            <h2 class="text-xl font-semibold text-gray-200 mb-4">Products</h2>
-            <div class="grid grid-cols-5 gap-4 mb-4 text-gray-400 text-sm">
-                <div>Product</div>
-                <div>Quantity</div>
-                <div>Original Price</div>
-                <div>Discount</div>
-                <div>Final Price</div>
-                <div>Status</div>
-                <div>Actions</div>
-            </div>
-            <div class="space-y-4">
-                {% for item in order.order_items.all %}
-                <div class="grid grid-cols-4 gap-4 items-center">
-                    <div class="text-gray-200">
-                        {{ item.product.name }}
-                        {% if item.variant %}
-                        <span class="text-gray-400 text-sm">({{ item.variant.color }})</span>
-                        {% endif %}
-                    </div>
-                    <div class="text-gray-200">{{ item.quantity }}</div>
-                    <div class="text-gray-200">₹{{ item.variant.price }}</div>
-                    <div class="text-gray-200">₹{{ order.product_discount }}</div>
-                    <div class="text-gray-200">₹{{ item.variant.final_price }}</div>
-                    <div class="flex items-center space-x-4">
-                        <span class="px-2 py-1 rounded-full text-xs
-                            {% if item.order_status == 'PROCESSING' %}
-                                bg-yellow-900/50 text-yellow-300
-                            {% elif item.order_status == 'SHIPPED' %}
-                                bg-blue-900/50 text-blue-300
-                            {% elif item.order_status == 'DELIVERED' %}
-                                bg-green-900/50 text-green-300
-                            {% elif item.order_status == 'CANCELLED' %}
-                                bg-red-900/50 text-red-300
-                            {% elif item.order_status == 'RETURNED' %}
-                                bg-gray-800 text-gray-300
-                            {% else %}
-                                bg-yellow-900/50 text-yellow-300
-                            {% endif %}">
-                            {% if item.order_status == 'DELIVERED' %}
-                                <button onclick="initiateReturn('{{ order.order_number }}')" 
-                                        class="ml-2 px-3 py-1 text-xs bg-gray-600 hover:bg-gray-700 rounded text-white">
-                                    Request Return
-                                </button>
-                            {% endif %}
-                            {{ item.get_status_display }}
-                        </span>
-                        {% if item.order_status == 'PROCESSING' or item.order_status == 'SHIPPED' %}
-                        <button onclick="cancelOrder('{{ order.order_number }}')" 
-                                class="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 rounded text-white">
-                            Cancel
-                        </button>
-                        {% elif item.order_status == 'DELIVERED' %}
-                        <button onclick="returnOrder('{{ order.order_number }}')" 
-                                class="px-3 py-1 text-xs bg-yellow-600 hover:bg-yellow-700 rounded text-white">
-                            Return
-                        </button>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-
-        <!-- Customer Details -->
-        <div class="bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] p-6 mb-6">
-            <h2 class="text-xl font-semibold text-gray-200 mb-4">Customer Details</h2>
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <p class="text-gray-400">Customer Name</p>
-                    <p class="text-gray-200">{{ order.user.username }}</p>
-                </div>
-                <div>
-                    <p class="text-gray-400">Address</p>
-                    <p class="text-gray-200">{{ order.address_line2 }}</p>
-                </div>
-                <div>
-                    <p class="text-gray-400">Payment Method</p>
-                    <p class="text-gray-200">{{ order.payment_method.name }}</p>
-                </div>
-                <div>
-                    <p class="text-gray-400">Payment Status</p>
-                    <p class="text-gray-200">{{ order.get_payment_status_display }}</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Order Update Section -->
-        <div class="bg-[#1A1A1A] rounded-lg border border-[#2A2A2A] p-6">
-            <div class="flex justify-between items-start">
-                <div>
-                    <p class="text-gray-400">Ordered On</p>
-                    <p class="text-gray-200">{{ order.created_at|date:"d / m / Y" }}</p>
-                </div>
-                <div class="flex flex-col gap-2">
-                    <div>
-                        <p class="text-gray-400">Subtotal</p>
-                        <p class="text-gray-200">₹{{ order.subtotal }}</p>
-                    </div>
-                    {% if order.product_discount %}
-                    <div>
-                        <p class="text-gray-400">Product Discount</p>
-                        <p class="text-red-400">-₹{{ order.product_discount }}</p>
-                    </div>
-                    {% endif %}
-                    {% if order.coupon_discount %}
-                    <div>
-                        <p class="text-gray-400">Coupon Discount</p>
-                        <p class="text-red-400">-₹{{ order.coupon_discount }}</p>
-                    </div>
-                    {% endif %}
-                    <div class="border-t border-[#2A2A2A] pt-2 mt-2">
-                        <p class="text-gray-400">Total Amount</p>
-                        <p class="text-gray-200 font-bold">₹{{ order.total_amount }}</p>
-                    </div>
-                </div>
-                <div>
-                    <p class="text-gray-400">Order Status</p>
-                    <select 
-                        id="orderStatus" 
-                        class="bg-[#242424] text-gray-200 border border-[#2A2A2A] rounded px-3 py-2 transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                        onchange="updateOrderStatus(this.value)"
-                        {% if order.order_status == 'CANCELLED' %}disabled{% endif %}
-                    >
-                        <option value="PROCESSING" class="bg-yellow-900/50 text-yellow-300" {% if order.order_status == 'PROCESSING' %}selected{% endif %}>Processing</option>
-                        <option value="SHIPPED" class="bg-blue-900/50 text-blue-300" {% if order.order_status == 'SHIPPED' %}selected{% endif %}>Shipped</option>
-                        <option value="DELIVERED" class="bg-green-900/50 text-green-300" {% if order.order_status == 'DELIVERED' %}selected{% endif %}>Delivered</option>
-                    </select>
-                    {% if item.status == 'CANCELLED' %}
-                    <p class="text-sm text-red-400 mt-2">This item has been cancelled and cannot be modified.</p>
-                    {% endif %}
-                    {% if order.order_items.exclude.status == 'CANCELLED' %}
-                    <p class="text-sm text-red-400 mt-2">All items in this order have been cancelled. No status changes allowed.</p>
-                    {% endif %}
-                    {% if order.order_status == 'CANCELLED' %}
-                    <p class="text-sm text-red-400 mt-2">This order has been cancelled and cannot be modified.</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
+<div class="min-h-screen bg-gradient-to-b from-black to-gray-950 py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header Section -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between">
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-amber-400 via-orange-500 to-orange-600 bg-clip-text text-transparent">
+          Order #{{ order.order_number }}
+        </h1>
+        <span class="px-4 py-2 rounded-full text-sm font-medium
+          {% if order.order_status == 'PROCESSING' %}
+            bg-yellow-900/30 text-yellow-300 border border-yellow-600/30
+          {% elif order.order_status == 'SHIPPED' %}
+            bg-blue-900/30 text-blue-300 border border-blue-600/30
+          {% elif order.order_status == 'DELIVERED' %}
+            bg-green-900/30 text-green-300 border border-green-600/30
+          {% elif order.order_status == 'CANCELLED' %}
+            bg-red-900/30 text-red-300 border border-red-600/30
+          {% elif order.order_status == 'RETURNED' %}
+            bg-gray-800 text-gray-300 border border-gray-600/30
+          {% endif %}">
+          {{ order.get_order_status_display }}
+        </span>
+      </div>
+      <p class="text-gray-400 mt-2">Ordered on {{ order.created_at|date:"d M, Y" }}</p>
     </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Left Column: Products -->
+      <div class="lg:col-span-2">
+        <!-- Order Products Section -->
+        <div class="bg-black/70 backdrop-blur-sm rounded-xl border border-gray-800/50 p-6 mb-6 shadow-lg">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-semibold text-white">Products</h2>
+            <span class="text-sm text-gray-400">{{ order.order_items.all|length }} item(s)</span>
+          </div>
+          
+          <div class="space-y-6">
+            {% for item in order.order_items.all %}
+            <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-800/50">
+              <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <!-- Product Info -->
+                <div class="flex-1">
+                  <h3 class="text-white font-medium">{{ item.product.name }}</h3>
+                  {% if item.variant %}
+                  <p class="text-gray-400 text-sm mt-1">Variant: {{ item.variant.color }}</p>
+                  {% endif %}
+                  <div class="flex items-center mt-2">
+                    <span class="px-2 py-1 rounded-full text-xs
+                      {% if item.order_status == 'PROCESSING' %}
+                        bg-yellow-900/50 text-yellow-300 border border-yellow-600/30
+                      {% elif item.order_status == 'SHIPPED' %}
+                        bg-blue-900/50 text-blue-300 border border-blue-600/30
+                      {% elif item.order_status == 'DELIVERED' %}
+                        bg-green-900/50 text-green-300 border border-green-600/30
+                      {% elif item.order_status == 'CANCELLED' %}
+                        bg-red-900/50 text-red-300 border border-red-600/30
+                      {% elif item.order_status == 'RETURNED' %}
+                        bg-gray-800 text-gray-300 border border-gray-600/30
+                      {% else %}
+                        bg-yellow-900/50 text-yellow-300 border border-yellow-600/30
+                      {% endif %}">
+                      {{ item.get_status_display }}
+                    </span>
+                  </div>
+                </div>
+                
+                <!-- Quantity & Price -->
+                <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                  <div class="text-center px-4">
+                    <p class="text-gray-400 text-xs">Quantity</p>
+                    <p class="text-white font-medium">{{ item.quantity }}</p>
+                  </div>
+                  
+                  <div class="text-center px-4">
+                    <p class="text-gray-400 text-xs">Price</p>
+                    <div class="flex flex-col">
+                      {% if item.variant.price != item.variant.final_price %}
+                      <p class="text-gray-400 line-through text-xs">₹{{ item.variant.price }}</p>
+                      {% endif %}
+                      <p class="text-white font-medium">₹{{ item.variant.final_price }}</p>
+                    </div>
+                  </div>
+                  
+                  <div class="text-center px-4">
+                    <p class="text-gray-400 text-xs">Total</p>
+                    <p class="text-white font-medium">₹{{ item.variant.final_price|multiply:item.quantity }}</p>
+                  </div>
+                </div>
+                
+                <!-- Actions -->
+                <div class="flex gap-2">
+                  {% if item.order_status == 'PROCESSING' or item.order_status == 'SHIPPED' %}
+                  <button onclick="cancelOrder('{{ order.order_number }}')" 
+                          class="px-3 py-1.5 text-xs bg-red-600/80 hover:bg-red-600 rounded-lg text-white transition-colors duration-200 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Cancel
+                  </button>
+                  {% elif item.order_status == 'DELIVERED' %}
+                  <button onclick="returnOrder('{{ order.order_number }}')" 
+                          class="px-3 py-1.5 text-xs bg-amber-600/80 hover:bg-amber-600 rounded-lg text-white transition-colors duration-200 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3" />
+                    </svg>
+                    Return
+                  </button>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Right Column: Customer Details & Order Summary -->
+      <div class="lg:col-span-1">
+        <!-- Customer Details -->
+        <div class="bg-black/70 backdrop-blur-sm rounded-xl border border-gray-800/50 p-6 mb-6 shadow-lg">
+          <h2 class="text-xl font-semibold text-white mb-4">Customer Details</h2>
+          <div class="space-y-4">
+            <div>
+              <p class="text-gray-400 text-sm">Customer Name</p>
+              <p class="text-white">{{ order.user.username }}</p>
+            </div>
+            <div>
+              <p class="text-gray-400 text-sm">Address</p>
+              <p class="text-white">{{ order.address_line2 }}</p>
+            </div>
+            <div>
+              <p class="text-gray-400 text-sm">Payment Method</p>
+              <p class="text-white">{{ order.payment_method.name }}</p>
+            </div>
+            <div>
+              <p class="text-gray-400 text-sm">Payment Status</p>
+              <span class="px-2 py-1 rounded-full text-xs
+                {% if order.payment_status == 'PAID' %}
+                  bg-green-900/50 text-green-300 border border-green-600/30
+                {% elif order.payment_status == 'PENDING' %}
+                  bg-yellow-900/50 text-yellow-300 border border-yellow-600/30
+                {% elif order.payment_status == 'FAILED' %}
+                  bg-red-900/50 text-red-300 border border-red-600/30
+                {% else %}
+                  bg-gray-800 text-gray-300 border border-gray-600/30
+                {% endif %}">
+                {{ order.get_payment_status_display }}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Order Summary -->
+        <div class="bg-black/70 backdrop-blur-sm rounded-xl border border-gray-800/50 p-6 shadow-lg">
+          <h2 class="text-xl font-semibold text-white mb-4">Order Summary</h2>
+          <div class="space-y-3">
+            <div class="flex justify-between">
+              <p class="text-gray-400">Subtotal</p>
+              <p class="text-white">₹{{ order.subtotal }}</p>
+            </div>
+            
+            {% if order.product_discount %}
+            <div class="flex justify-between">
+              <p class="text-gray-400">Product Discount</p>
+              <p class="text-green-400">-₹{{ order.product_discount }}</p>
+            </div>
+            {% endif %}
+            
+            {% if order.coupon_discount %}
+            <div class="flex justify-between">
+              <p class="text-gray-400">Coupon Discount</p>
+              <p class="text-green-400">-₹{{ order.coupon_discount }}</p>
+            </div>
+            {% endif %}
+            
+            <div class="border-t border-gray-800 pt-3 mt-3">
+              <div class="flex justify-between">
+                <p class="text-gray-300 font-medium">Total Amount</p>
+                <p class="text-white font-bold">₹{{ order.total_amount }}</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Order Status Update -->
+          <div class="mt-8">
+            <h3 class="text-white font-medium mb-3">Update Order Status</h3>
+            <select 
+              id="orderStatus" 
+              class="w-full bg-black text-gray-200 border border-gray-800 rounded-lg px-4 py-2.5 transition-all duration-200 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              onchange="updateOrderStatus(this.value)"
+              {% if order.order_status == 'CANCELLED' %}disabled{% endif %}
+            >
+              <option value="PROCESSING" {% if order.order_status == 'PROCESSING' %}selected{% endif %}>Processing</option>
+              <option value="SHIPPED" {% if order.order_status == 'SHIPPED' %}selected{% endif %}>Shipped</option>
+              <option value="DELIVERED" {% if order.order_status == 'DELIVERED' %}selected{% endif %}>Delivered</option>
+            </select>
+            
+            {% if order.order_status == 'CANCELLED' %}
+            <p class="text-sm text-red-400 mt-2">This order has been cancelled and cannot be modified.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
 function updateOrderStatus(status) {
-    fetch('/manager/update-order-status/{{ order.order_number }}/', {
+    fetch('/manager/update-order-status/{{ order.order_id }}/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -242,3 +297,4 @@ function returnOrder(orderId) {
 </script>
 
 {% endblock %}
+

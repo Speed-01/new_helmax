@@ -2,26 +2,26 @@
 
 {% block content %}
 
-<div class="min-h-screen bg-[#0A0A0A] py-8">
+<div class="min-h-screen bg-black py-10">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <!-- Header -->
-        <div class="mb-8">
-            <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
+        <!-- Header with improved spacing and typography -->
+        <div class="mb-10">
+            <h1 class="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
                 Order Management
             </h1>
             <p class="mt-2 text-sm text-gray-400">Manage and track all customer orders</p>
         </div>
 
-        <!-- Search and Filter Section -->
-        <div class="mb-6 flex justify-between items-center">
-            <div class="flex-1 max-w-lg">
+        <!-- Search and Filter Section with improved styling -->
+        <div class="mb-8">
+            <div class="max-w-lg">
                 <div class="relative">
                     <input type="text" 
                            id="searchInput"
-                           class="w-full pl-10 pr-4 py-2 rounded-md bg-[#1A1A1A] border border-[#2A2A2A] text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                           class="w-full pl-10 pr-4 py-3 rounded-lg bg-[#111111] border border-[#222222] text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-all duration-200"
                            placeholder="Search by username...">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="h-5 w-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                         </svg>
                     </div>
@@ -29,38 +29,40 @@
             </div>
         </div>
 
-        <!-- Orders Table -->
-        <div class="bg-[#1A1A1A] shadow overflow-hidden sm:rounded-lg border border-[#2A2A2A]">
-            <table class="min-w-full divide-y divide-[#2A2A2A]">
-                <thead class="bg-[#242424]">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Order ID</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Username</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Payment Method</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Subtotal</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Discount</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Total Price</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="ordersTableBody" class="bg-[#1A1A1A] divide-y divide-[#2A2A2A]">
-                    <!-- Table content will be populated by JavaScript -->
-                </tbody>
-            </table>
+        <!-- Orders Table with improved styling -->
+        <div class="bg-[#0A0A0A] shadow-xl overflow-hidden rounded-xl border border-[#222222]">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-[#222222]">
+                    <thead class="bg-[#111111]">
+                        <tr>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Order ID</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Username</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Payment Method</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Subtotal</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Discount</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Total Price</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersTableBody" class="bg-[#0A0A0A] divide-y divide-[#1A1A1A]">
+                        <!-- Table content will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        <!-- Pagination -->
-        <div class="mt-4 flex justify-between items-center text-gray-200">
+        <!-- Pagination with improved styling -->
+        <div class="mt-6 flex justify-between items-center text-gray-300">
             <div class="text-sm">
-                Showing page <span id="currentPage">1</span> of <span id="totalPages">1</span>
+                Showing page <span id="currentPage" class="font-medium text-yellow-500">1</span> of <span id="totalPages" class="font-medium">1</span>
             </div>
-            <div class="flex space-x-2">
-                <button id="prevPage" class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-sm font-medium text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+            <div class="flex space-x-3">
+                <button id="prevPage" class="px-5 py-2.5 bg-[#111111] border border-[#222222] rounded-lg text-sm font-medium text-gray-200 hover:bg-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
                     Previous
                 </button>
-                <button id="nextPage" class="px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-sm font-medium text-gray-200 hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200">
+                <button id="nextPage" class="px-5 py-2.5 bg-[#111111] border border-[#222222] rounded-lg text-sm font-medium text-gray-200 hover:bg-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
                     Next
                 </button>
             </div>
@@ -93,7 +95,7 @@ function fetchOrders(page = 1, search = '') {
         })
         .catch(error => {
             console.error('Error:', error);
-            document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-red-500">Error loading orders. Please try again.</td></tr>';
+            document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="9" class="px-6 py-8 text-center text-red-400">Error loading orders. Please try again.</td></tr>';
         });
 }
 
@@ -103,22 +105,22 @@ function updateTable(orders) {
     
     orders.forEach(order => {
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-[#242424] cursor-pointer transition-colors duration-150';
+        tr.className = 'hover:bg-[#111111] cursor-pointer transition-colors duration-200';
         tr.innerHTML = `
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">#${order.id}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.username}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.payment_method.replace('_', ' ').charAt(0).toUpperCase() + order.payment_method.slice(1).toLowerCase()}</td>
-            <td class="px-6 py-4 whitespace-nowrap">
-                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+            <td class="px-6 py-5 whitespace-nowrap text-sm font-medium text-gray-200">#${order.id}</td>
+            <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-300">${order.username}</td>
+            <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-300">${order.payment_method.replace('_', ' ').charAt(0).toUpperCase() + order.payment_method.slice(1).toLowerCase()}</td>
+            <td class="px-6 py-5 whitespace-nowrap">
+                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
                     ${getStatusColor(order.status)}">
                     ${order.status.charAt(0).toUpperCase() + order.status.slice(1).toLowerCase()}
                 </span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">$${order.subtotal.toFixed(2)}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">$${order.total_discount.toFixed(2)}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">$${order.total_price.toFixed(2)}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.created_at}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-300">$${order.subtotal.toFixed(2)}</td>
+            <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-300">$${order.total_discount.toFixed(2)}</td>
+            <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-300">$${order.total_price.toFixed(2)}</td>
+            <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-300">${order.created_at}</td>
+            <td class="px-6 py-5 whitespace-nowrap text-sm font-medium">
                 <a href="/manager/order-detail/${order.id}/" 
                    class="text-yellow-500 hover:text-yellow-400 transition-colors duration-150">
                     View Details
@@ -133,14 +135,14 @@ function getStatusColor(status) {
     // Normalize status to uppercase for consistent comparison
     const normalizedStatus = status.toUpperCase();
     const colors = {
-        'PENDING': 'bg-yellow-900/50 text-yellow-300',
-        'PROCESSING': 'bg-yellow-900/50 text-yellow-300',
-        'SHIPPED': 'bg-blue-900/50 text-blue-300',
-        'DELIVERED': 'bg-green-900/50 text-green-300',
-        'CANCELLED': 'bg-red-900/50 text-red-300',
-        'RETURNED': 'bg-gray-800 text-gray-300'
+        'PENDING': 'bg-[#1A1500] text-yellow-400',
+        'PROCESSING': 'bg-[#1A1500] text-yellow-400',
+        'SHIPPED': 'bg-[#001A29] text-blue-400',
+        'DELIVERED': 'bg-[#001A00] text-green-400',
+        'CANCELLED': 'bg-[#1A0000] text-red-400',
+        'RETURNED': 'bg-[#1A1A1A] text-gray-400'
     };
-    return colors[normalizedStatus] || 'bg-gray-800 text-gray-300';
+    return colors[normalizedStatus] || 'bg-[#1A1A1A] text-gray-400';
 }
 
 function updatePagination() {

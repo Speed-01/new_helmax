@@ -57,7 +57,7 @@ def update_order_status(order, new_status):
 
 def send_order_status_notification(order):
     """Send email notification about order status change"""
-    subject = f'Order #{order.order_number} Status Update'
+    subject = f'Order #{order.order_id} Status Update'
     message = f'Your order status has been updated to: {order.get_order_status_display()}'
     
     if order.tracking_number and order.order_status == 'SHIPPED':

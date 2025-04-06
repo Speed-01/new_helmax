@@ -48,8 +48,8 @@ urlpatterns = [
 
     path('place-order/', views.place_order, name='place_order'),
     path('my-orders/', views.my_orders, name='my_orders'),
-    path('order-details/<str:order_number>/', views.order_details, name='order_details'),
-    path('download-invoice/<str:order_number>/', views.download_invoice, name='download_invoice'),
+    path('order-details/<str:order_id>/', views.order_details, name='order_details'),
+    path('download-invoice/<str:order_id>/', views.download_invoice, name='download_invoice'),
 
         ########### Wishlist ########
     path('wishlist/', views.wishlist_view, name='view_wishlist'),
@@ -64,12 +64,12 @@ urlpatterns = [
     # path('payment/webhook/', views.payment_webhook, name='payment_webhook'),
     path('api/filter-products/', views.filter_products, name='filter_products'),
     path('payment/success/', views.payment_success, name='payment_success'),
-    path('payment/retry/<str:order_number>/', views.retry_payment, name='retry_payment'),
+    path('payment/retry/<str:order_id>/', views.retry_payment, name='retry_payment'),
     path('wallet/', views.wallet_view, name='wallet'),
     path('api/order-items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),
     path('orders/<int:order_id>/detail/', views.order_detail, name='order_detail'),
     path('api/orders/<int:order_id>/cancel/', views.cancel_order, name='cancel_order'),
     path('orders/items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),
-    path('order-details/<str:order_number>/', views.order_details, name='order_details'),
-    path('download-invoice/<str:order_number>/', views.download_invoice, name='download_invoice'),
+    path('order-details/<str:order_id>/', views.order_details, name='order_details'),
+    path('download-invoice/<str:order_id>/', views.download_invoice, name='download_invoice'),
 ]

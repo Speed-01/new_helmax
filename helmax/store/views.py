@@ -1477,7 +1477,7 @@ def user_checkout(request):
 #                 # For COD orders, just redirect to confirmation
 #                 return JsonResponse({
 #                     'success': True,
-#                     'redirect_url': reverse('order_details', args=[order.order_number])
+#                     'redirect_url': reverse('order_details', args=[order.order_id])
 #                 })
                 
 #     except ValueError as e:
@@ -1527,7 +1527,7 @@ def user_checkout(request):
 
 #             return JsonResponse({
 #                 'status': 'success',
-#                 'redirect_url': reverse('order_details', args=[order.order_number])
+#                 'redirect_url': reverse('order_details', args=[order.order_id])
 #             })
 
 #         except Exception as e:
@@ -1657,7 +1657,7 @@ def place_order(request):
                 # For COD orders, just redirect to confirmation
                 return JsonResponse({
                     'success': True,
-                    'redirect_url': reverse('order_details', args=[order.order_number])
+                    'redirect_url': reverse('order_details', args=[order.order_id])
                 })
                 
     except ValueError as e:
@@ -1668,10 +1668,10 @@ def place_order(request):
 
 @csrf_exempt
 @login_required
-def download_invoice(request, order_number):
+def download_invoice(request, order_id):
     try:
         # Get the order and verify ownership
-        order = get_object_or_404(Order, order_number=order_number, user=request.user)
+        order = get_object_or_404(Order, order_id=order_id, user=request.user)
         
         # Generate the invoice PDF
         filename = generate_invoice_pdf(order)
@@ -1717,7 +1717,7 @@ def payment_success(request):
                 return JsonResponse({
                     'status': 'success',
                     'message': 'Payment successful',
-                    'redirect_url': reverse('order_details', args=[order.order_number])
+                    'redirect_url': reverse('order_details', args=[order.order_id])
                 })
 
             except Exception as e:
@@ -1732,7 +1732,7 @@ def payment_success(request):
                 return JsonResponse({
                     'status': 'error',
                     'message': 'Payment verification failed. You can retry payment from order details.',
-                    'redirect_url': reverse('order_details', args=[order.order_number])
+                    'redirect_url': reverse('order_details', args=[order.order_id])
                 })
 
         except Order.DoesNotExist:
@@ -1756,9 +1756,9 @@ def payment_success(request):
     }, status=400)
 
 @login_required
-def retry_payment(request, order_number):
+def retry_payment(request, order_id):
     try:
-        order = Order.objects.get(order_number=order_number, user=request.user)
+        order = Order.objects.get(order_id=order_id, user=request.user)
         
         if order.payment_status == 'PAID':
             return JsonResponse({
@@ -1843,7 +1843,7 @@ def my_orders(request):
     return render(request, 'my_orders.html', context)
 
 @login_required(login_url='userlogin')
-def order_details(request, order_number):
+def order_details(request, order_id):
     try:
         order = get_object_or_404(
             Order.objects.prefetch_related(
@@ -1854,11 +1854,11 @@ def order_details(request, order_number):
                 'order_items__size' 
                 'admin_responses' 
             ),
-            order_number=order_number,
+            order_id=order_id,
             user=request.user
         )
         order_items = order.order_items.all()
-        logger.debug(f"Fetched order details for order {order_number}")
+        logger.debug(f"Fetched order details for order {order_id}")
         
         # Prepare timeline events
         timeline = []
@@ -1867,7 +1867,7 @@ def order_details(request, order_number):
         timeline.append({
             'status': 'Order Placed',
             'date': order.created_at,
-            'description': f'Order #{order.order_number} has been placed successfully'
+            'description': f'Order #{order.order_id} has been placed successfully'
         })
         
         # Add admin responses to timeline
@@ -1883,7 +1883,7 @@ def order_details(request, order_number):
         timeline.sort(key=lambda x: x['date'])
             
     except Order.DoesNotExist:
-        logger.error(f"Order {order_number} not found in details page")
+        logger.error(f"Order {order_id} not found in details page")
         messages.error(request, "Order Not found.")
         return redirect('my_orders')
     
@@ -2206,7 +2206,7 @@ def order_detail(request, order_id):
     return render(request, 'order_detail.html', context)
 
 @login_required
-def order_details(request, order_number):
+def order_details(request, order_id):
     order = get_object_or_404(
         Order.objects.select_related('payment_method')
         .prefetch_related(
@@ -2216,7 +2216,7 @@ def order_details(request, order_number):
             'order_items__variant__images',
             'order_items__size'
         ),
-        order_number=order_number,
+        order_id=order_id,
         user=request.user
     )
     
@@ -2227,7 +2227,7 @@ def order_details(request, order_number):
     timeline.append({
         'status': 'Order Placed',
         'date': order.created_at,
-        'description': f'Order #{order.order_number} has been placed successfully'
+        'description': f'Order #{order.order_id} has been placed successfully'
     })
     
     # Processing

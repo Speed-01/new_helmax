@@ -44,7 +44,7 @@ def get_order_timeline(order):
         timeline.append({
             'status': 'Order Placed',
             'date': order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            'description': f'Order #{order.order_number} has been placed successfully'
+            'description': f'Order #{order.order_id} has been placed successfully'
         })
     
     if order.confirmed_at:

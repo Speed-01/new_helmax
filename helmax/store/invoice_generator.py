@@ -8,7 +8,7 @@ import os
 
 def generate_invoice_pdf(order):
     # Create the PDF file path in a temporary location
-    filename = f'invoice_{order.order_number}.pdf'
+    filename = f'invoice_{order.order_id}.pdf'
     filepath = os.path.join(settings.MEDIA_ROOT, 'invoices', filename)
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     
@@ -33,7 +33,7 @@ def generate_invoice_pdf(order):
     elements.append(Spacer(1, 12))
     
     # Add order information
-    elements.append(Paragraph(f'Order Number: {order.order_number}', styles['Normal']))
+    elements.append(Paragraph(f'Order ID: {order.order_id}', styles['Normal']))
     elements.append(Paragraph(f'Date: {order.created_at.strftime("%Y-%m-%d")}', styles['Normal']))
     elements.append(Spacer(1, 12))
     

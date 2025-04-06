@@ -16,6 +16,7 @@ import json
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import AbstractUser
 from django.utils.crypto import get_random_string
+from django.utils.text import slugify
 
 
 class library(models.Model):
@@ -402,7 +403,7 @@ class OrderStatusHistory(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'{self.order.order_number}: {self.old_status} -> {self.new_status}'
+        return f'{self.order.order_id}: {self.old_status} -> {self.new_status}'
 
 class Order(BaseModel):
     product_discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -452,7 +453,7 @@ class Order(BaseModel):
     payment_failure_reason = models.TextField(blank=True, null=True)
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    order_number = models.CharField(max_length=20, unique=True)
+    order_id = models.CharField(max_length=25, unique=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     order_status = models.CharField(max_length=20, choices=ORDER_STATUSES, default='PENDING')
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUSES, default='PENDING')
@@ -493,10 +494,11 @@ class Order(BaseModel):
     cancelled_at = models.DateTimeField(null=True, blank=True)
     
     def save(self, *args, **kwargs):
-        if not self.order_number:
-            # Generate a unique order number based on timestamp
+        if not self.order_id:
+            # Generate a unique order ID based on timestamp and random string
             timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
-            self.order_number = f'ORD{timestamp}'
+            random_suffix = get_random_string(4).upper()
+            self.order_id = f'ORD{timestamp}-{random_suffix}'
         super().save(*args, **kwargs)
 
 class OrderItem(models.Model):
@@ -555,7 +557,7 @@ class OrderItem(models.Model):
         product_name = self.product.name if self.product else 'Unknown Product'
         variant_info = f" - {self.variant.color}" if self.variant and self.variant.color else ''
         size_info = f" - {self.size.name}" if self.size else ''
-        return f"{product_name}{variant_info}{size_info} (Order: {self.order.order_number})"
+        return f"{product_name}{variant_info}{size_info} (Order: {self.order.order_id})"
 
 class ReturnRequest(models.Model):
     STATUS_CHOICES = [

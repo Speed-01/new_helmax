@@ -117,7 +117,7 @@
           <div class="bg-zinc-900 rounded-lg p-6 text-white">
             <div class="flex justify-between items-start mb-4">
               <div>
-                <p class="text-gray-400">Order ID: <span class="text-white">#{{ order.order_number }}</span></p>
+                <p class="text-gray-400">Order ID: <span class="text-white">#{{ order.order_id }}</span></p>
                 <p class="text-gray-400">Order Date: <span class="text-white">{{ order.created_at|date:"F j, Y \a\t g:i A" }}</span></p>
               </div>
               <div class="text-right">
@@ -198,7 +198,7 @@
             </div>
 
             <div class="mt-4 flex justify-end">
-              <a href="{% url 'order_details' order.order_number %}" 
+              <a href="{% url 'order_details' order.order_id %}" 
                  class="bg-[#ff6b00] text-black px-6 py-2 rounded-lg hover:bg-[#ff8533] transition-colors">
                 View Details
               </a>

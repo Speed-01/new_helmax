@@ -774,7 +774,7 @@ def admin_orders_api(request):
             total_discount = float(order.product_discount) + float(order.coupon_discount)
             
             orders_data.append({
-                'id': order.id,
+                'id': order.order_id,
                 'username': order.user.username if order.user else 'N/A',
                 'payment_method': order.payment_method.name if order.payment_method else 'N/A',
                 'status': order.order_status,
@@ -796,7 +796,7 @@ def admin_orders_api(request):
 
 @login_required(login_url='adminLogin')
 def order_detail(request, order_id):
-    order = get_object_or_404(Order, id=order_id)
+    order = get_object_or_404(Order, order_id=order_id)
     return render(request, 'order_detail.html', {'order': order})
 
 
@@ -814,7 +814,7 @@ def update_order_status(request, order_id):
             if not new_status:
                 return JsonResponse({'success': False, 'error': 'Status is required'})
             
-            order = get_object_or_404(Order, order_number=order_id)
+            order = get_object_or_404(Order, order_id=order_id)
             
             # Check if all items are cancelled
             active_items = order.order_items.exclude(status='CANCELLED').count()
@@ -895,7 +895,7 @@ def update_order_status(request, order_id):
 @require_POST
 def cancel_order(request, order_id):
     try:
-        order = get_object_or_404(Order, id=order_id)
+        order = get_object_or_404(Order, order_id=order_id)
         if order.order_status not in ['DELIVERED', 'CANCELLED']:
             with transaction.atomic():
                 order.order_status = 'CANCELLED'

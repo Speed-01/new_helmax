@@ -91,7 +91,7 @@ urlpatterns = [
 
     path('admin_orders/api/', views.admin_orders_api, name='admin_orders_api'),
 
-    path('order-detail/<int:order_id>/', views.order_detail, name='orderDetail'),
+    path('order-detail/<str:order_id>/', views.order_detail, name='orderDetail'),
 
     path('update-order-status/<str:order_id>/', views.update_order_status, name='updateOrderStatus'),
 

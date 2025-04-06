@@ -7,10 +7,10 @@ import os
 from django.conf import settings
 
 @login_required
-def download_invoice(request, order_number):
+def download_invoice(request, order_id):
     try:
         # Get the order and verify ownership
-        order = get_object_or_404(Order, order_number=order_number, user=request.user)
+        order = get_object_or_404(Order, order_id=order_id, user=request.user)
         
         # Generate the invoice PDF
         filename = generate_invoice_pdf(order)
