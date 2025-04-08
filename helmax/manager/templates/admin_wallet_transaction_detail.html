@@ -1,0 +1,119 @@
+{% extends 'base01.html' %}
+{% load static %}
+
+{% block content %}
+<div class="bg-dark-200 rounded-lg shadow-lg border border-dark-100 overflow-hidden">
+    <div class="p-6 border-b border-dark-100 flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Transaction Details</h1>
+            <p class="text-gray-400 mt-1">Transaction #{{ transaction.id }}</p>
+        </div>
+        <a href="{% url 'admin_wallet' %}" class="px-4 py-2 bg-dark-100 text-gray-300 rounded-lg hover:bg-dark-100 hover:text-white transition-colors">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Transactions
+        </a>
+    </div>
+
+    <div class="p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- User Information -->
+            <div class="bg-dark-300 rounded-lg p-6 border border-dark-100">
+                <h2 class="text-xl font-semibold text-white mb-4">User Details</h2>
+                <div class="space-y-4">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Username:</span>
+                        <span class="text-white font-medium">{{ transaction.wallet.user.username }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Email:</span>
+                        <span class="text-white font-medium">{{ transaction.wallet.user.email }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Current Wallet Balance:</span>
+                        <span class="text-white font-medium">₹{{ transaction.wallet.balance }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Account Created:</span>
+                        <span class="text-white font-medium">{{ transaction.wallet.user.date_joined|date:"d M Y" }}</span>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-dark-100">
+                        <a href="{% url 'customers' %}?search={{ transaction.wallet.user.username }}" class="text-accent-primary hover:text-accent-secondary transition-colors">
+                            <i class="fas fa-user mr-1"></i> View User Profile
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transaction Information -->
+            <div class="bg-dark-300 rounded-lg p-6 border border-dark-100">
+                <h2 class="text-xl font-semibold text-white mb-4">Transaction Information</h2>
+                <div class="space-y-4">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Transaction ID:</span>
+                        <span class="text-white font-medium">#{{ transaction.id }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Date & Time:</span>
+                        <span class="text-white font-medium">{{ transaction.created_at|date:"d M Y, h:i A" }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Transaction Type:</span>
+                        <span class="px-2 py-1 text-xs rounded-full {% if transaction.transaction_type == 'CREDIT' or transaction.transaction_type == 'REFUND' or transaction.transaction_type == 'RETURN_REFUND' %}bg-green-900 text-green-300{% else %}bg-red-900 text-red-300{% endif %}">
+                            {{ transaction.get_transaction_type_display }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Amount:</span>
+                        <span class="text-white font-medium {% if transaction.transaction_type == 'CREDIT' or transaction.transaction_type == 'REFUND' or transaction.transaction_type == 'RETURN_REFUND' %}text-green-400{% else %}text-red-400{% endif %}">
+                            {% if transaction.transaction_type == 'CREDIT' or transaction.transaction_type == 'REFUND' or transaction.transaction_type == 'RETURN_REFUND' %}+{% else %}-{% endif %}₹{{ transaction.amount }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Status:</span>
+                        <span class="px-2 py-1 text-xs rounded-full {% if transaction.status == 'SUCCESS' %}bg-green-900 text-green-300{% else %}bg-yellow-900 text-yellow-300{% endif %}">
+                            {{ transaction.status }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transaction Source -->
+        <div class="mt-6 bg-dark-300 rounded-lg p-6 border border-dark-100">
+            <h2 class="text-xl font-semibold text-white mb-4">Transaction Source</h2>
+            
+            <div class="space-y-4">
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Description:</span>
+                    <span class="text-white font-medium">{{ transaction.description|default:"No description provided" }}</span>
+                </div>
+                
+                {% if transaction.order %}
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Related Order:</span>
+                    <span class="text-white font-medium">#{{ transaction.order.order_id }}</span>
+                </div>
+                
+                <div class="mt-4 pt-4 border-t border-dark-100">
+                    {% if transaction.transaction_type == 'RETURN_REFUND' %}
+                    <div class="bg-dark-100 p-4 rounded-lg mb-4">
+                        <p class="text-gray-300 mb-2"><i class="fas fa-info-circle mr-2 text-accent-primary"></i> This transaction is related to a returned or canceled product.</p>
+                        <a href="{% url 'orderDetail' transaction.order.order_id %}" class="inline-block px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-secondary transition-colors">
+                            <i class="fas fa-external-link-alt mr-2"></i>View Order Details
+                        </a>
+                    </div>
+                    {% else %}
+                    <a href="{% url 'orderDetail' transaction.order.order_id %}" class="text-accent-primary hover:text-accent-secondary transition-colors">
+                        <i class="fas fa-external-link-alt mr-1"></i> View Related Order
+                    </a>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="text-gray-400 italic">
+                    No related order for this transaction.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

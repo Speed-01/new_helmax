@@ -1,49 +1,175 @@
-{% extends 'base.html' %}
-{% load static %}
+<!DOCTYPE html>
+{% load custom_filters %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Wishlist</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#ff6b00',
+                        'primary-hover': '#ff7d1a',
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer components {
+            .btn {
+                @apply px-4 py-2 rounded font-medium transition-colors duration-200 flex items-center justify-center gap-2;
+            }
+            .btn-primary {
+                @apply bg-primary text-black hover:bg-primary-hover;
+            }
+            .btn-outline {
+                @apply border bg-transparent hover:bg-zinc-800;
+            }
+            .btn-danger {
+                @apply border border-red-500 text-red-500 hover:bg-red-500 hover:text-white;
+            }
+            .card {
+                @apply bg-zinc-900 rounded-lg overflow-hidden transition-transform duration-300 hover:scale-[1.02] hover:shadow-lg;
+            }
+            .dropdown {
+                @apply relative inline-block;
+            }
+            .dropdown-content {
+                @apply hidden absolute right-0 mt-2 w-48 bg-zinc-800 rounded-md shadow-lg z-10;
+            }
+            .dropdown-item {
+                @apply block px-4 py-2 text-sm text-white hover:bg-zinc-700 cursor-pointer;
+            }
+            .dropdown:hover .dropdown-content {
+                @apply block;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-black text-white">
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold" data-user-id="{{ request.user.id }}">My Wishlist</h1>
+                <p class="text-gray-400 mt-1">{% if wishlist_items %}{{ wishlist_items|length }} item{% if wishlist_items|length != 1 %}s{% endif %}{% else %}0 items{% endif %}</p>
+            </div>
+            
+            <div class="flex flex-wrap gap-2 mt-4 md:mt-0">
+                <!-- Sort Dropdown -->
+                <div class="dropdown">
+                    <button class="btn btn-outline">
+                        <i class='bx bx-filter'></i>
+                        Sort by
+                        <i class='bx bx-chevron-down'></i>
+                    </button>
+                    <div class="dropdown-content">
+                        <a class="dropdown-item" onclick="sortWishlist('newest')">Newest first</a>
+                        <a class="dropdown-item" onclick="sortWishlist('price-low')">Price: Low to High</a>
+                        <a class="dropdown-item" onclick="sortWishlist('price-high')">Price: High to Low</a>
+                        <a class="dropdown-item" onclick="sortWishlist('discount')">Discount</a>
+                        <a class="dropdown-item" onclick="sortWishlist('name')">Name</a>
+                    </div>
+                </div>
+                
+                <!-- Share Button -->
+                <button class="btn btn-outline" onclick="shareWishlist()">
+                    <i class='bx bx-share-alt'></i>
+                    Share
+                </button>
+                
+                <!-- Clear Button -->
+                <button class="btn btn-outline text-red-500 border-red-500 hover:bg-red-500 hover:text-white" onclick="clearWishlist()">
+                    <i class='bx bx-trash'></i>
+                    Clear
+                </button>
+            </div>
+        </div>
 
-{% block content %}
-<div class="min-h-screen bg-black text-white py-8">
-    <div class="max-w-7xl mx-auto px-4">
-        <h1 class="text-3xl font-bold mb-8">My Wishlist</h1>
+        {% if wishlist_items %}
+        <!-- Wishlist Summary -->
+        <div class="bg-zinc-900 rounded-lg p-4 mb-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                <div>
+                    <p class="text-sm text-gray-400">Wishlist Summary</p>
+                    {% with total_price=0 total_discount=0 %}
+                    {% for item in wishlist_items %}
+                        {% with item_price=item.price|default:0 discount_price=item.discount_price|default:item.price %}
+                            {% with saving=item_price|sub:discount_price %}
+                                {% with total_price=total_price|add:discount_price total_discount=total_discount|add:saving %}{% endwith %}
+                            {% endwith %}
+                        {% endwith %}
+                    {% endfor %}
+                    <p class="text-lg font-bold">Total Value: ₹{{ total_price }}</p>
+                    {% if total_discount > 0 %}
+                    <p class="text-sm text-green-500">You save: ₹{{ total_discount }}</p>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+                <button class="btn btn-primary mt-4 md:mt-0" onclick="moveAllToCart()">
+                    Move All to Cart
+                </button>
+            </div>
+        </div>
+        {% endif %}
 
+        <!-- Wishlist Items Grid -->
         {% if wishlist_items %}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {% for item in wishlist_items %}
-            <div class="bg-zinc-900 rounded-lg overflow-hidden">
-                <div class="relative aspect-square overflow-hidden">
-                    <img src="{{ item.image_url }}" 
-                         alt="{{ item.name }}"
-                         class="w-full h-full object-cover">
-                    {% if item.discount_price %}
-                        <div class="absolute top-2 right-2 bg-[#ff6b00] text-black px-2 py-1 rounded text-sm font-bold">
-                            {{ item.discount_percentage }}% OFF
-                        </div>
+            <div class="card" data-variant-id="{{ item.id }}">
+                <div class="relative aspect-square overflow-hidden group">
+                    <img src="{{ item.image_url|default:'https://placehold.co/300x300' }}" alt="{{ item.product_name }}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                    {% if item.discount_price and item.discount_price < item.price %}
+                    <div class="absolute top-2 right-2 bg-primary text-black px-2 py-1 rounded text-sm font-bold">
+                        {% with discount_percent=item.price|sub:item.discount_price|div:item.price|mul:100|floatformat:0 %}
+                        {{ discount_percent }}% OFF
+                        {% endwith %}
+                    </div>
                     {% endif %}
+                    <div class="absolute inset-0 bg-black bg-opacity-40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                        <button class="btn bg-white text-black mx-2 hover:bg-gray-200" onclick="quickView('{{ item.id }}')">
+                            Quick View
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="p-4">
-                    <h3 class="font-medium text-lg mb-2">{{ item.name }}</h3>
+                    <div class="flex items-center gap-1 mb-1">
+                        <i class='bx bxs-star text-yellow-500'></i>
+                        <span class="text-sm">4.5</span>
+                        <span class="text-xs text-gray-400">(128)</span>
+                    </div>
+                    
+                    <h3 class="font-medium text-lg mb-1">{{ item.product_name }}</h3>
                     <p class="text-sm text-gray-400 mb-2">{{ item.color }}</p>
                     
                     <div class="flex items-baseline gap-2 mb-4">
                         <span class="text-lg font-bold">₹{{ item.discount_price|default:item.price }}</span>
-                        {% if item.discount_price %}
-                            <span class="text-sm text-gray-400 line-through">₹{{ item.price }}</span>
+                        {% if item.discount_price and item.discount_price < item.price %}
+                        <span class="text-sm text-gray-400 line-through">₹{{ item.price }}</span>
                         {% endif %}
                     </div>
 
                     <div class="space-y-2">
                         {% if item.stock > 0 %}
-                            <button onclick="addToCart('{{ item.id }}')"
-                                    class="w-full bg-[#ff6b00] text-black py-2 rounded hover:bg-[#ff7d1a] transition-colors">
-                                Add to Cart
-                            </button>
+                        <button class="btn btn-primary w-full" onclick="addToCart('{{ item.id }}')">
+                            <i class='bx bx-cart-add'></i>
+                            Add to Cart
+                        </button>
                         {% else %}
-                            <p class="text-red-500 text-sm">Out of Stock</p>
+                        <div class="w-full py-2 bg-red-500/20 text-red-500 text-center rounded text-sm font-medium">
+                            Out of Stock
+                        </div>
                         {% endif %}
                         
-                        <button onclick="moveToWishlist('{{ item.id }}')"
-                                class="w-full border border-red-500 text-red-500 py-2 rounded hover:bg-red-500 hover:text-white transition-colors">
+                        <button class="btn btn-danger w-full" onclick="removeItem('{{ item.id }}')">
+                            <i class='bx bx-heart'></i>
                             Remove
                         </button>
                     </div>
@@ -52,14 +178,418 @@
             {% endfor %}
         </div>
         {% else %}
-        <div class="text-center py-12">
-            <p class="text-gray-400 mb-4">Your wishlist is empty</p>
-            <a href="{% url 'product_list' %}" 
-               class="inline-block bg-[#ff6b00] text-black px-6 py-2 rounded hover:bg-[#ff7d1a] transition-colors">
+        <!-- Empty State -->
+        <div class="text-center py-16 bg-zinc-900 rounded-lg">
+            <div class="flex justify-center mb-4">
+                <i class='bx bx-heart text-gray-500 text-6xl'></i>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">Your wishlist is empty</h2>
+            <p class="text-gray-400 mb-6 max-w-md mx-auto">
+                Items added to your wishlist will be saved here for you to purchase later
+            </p>
+            <a href="{% url 'product_list' %}" class="btn btn-primary">
                 Continue Shopping
             </a>
         </div>
         {% endif %}
+
+        <!-- Recommended Products -->
+        <div class="mt-12">
+            <h2 class="text-xl font-bold mb-4">You might also like</h2>
+            <div id="similar-products" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {% for product in similar_products %}
+                <a href="{% url 'product_detail' product.id %}" class="bg-zinc-900 rounded-lg p-3 hover:bg-zinc-800 transition-colors">
+                    <div class="aspect-square mb-2">
+                        <img src="{{ product.image_url|default:'https://placehold.co/200x200' }}" alt="{{ product.name }}" class="w-full h-full object-cover rounded">
+                    </div>
+                    <p class="font-medium text-sm truncate">{{ product.name }}</p>
+                    <div class="flex items-baseline gap-2">
+                        <p class="text-sm text-[#ff6b00]">₹{{ product.discount_price|default:product.price }}</p>
+                        {% if product.discount_price and product.discount_price < product.price %}
+                        <p class="text-xs text-gray-400 line-through">₹{{ product.price }}</p>
+                        {% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Empty State is now handled in the main wishlist section with conditional rendering -->
     </div>
-</div>
-{% endblock %}
+
+    <!-- Toast Notification (hidden by default) -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-zinc-800 text-white px-4 py-3 rounded-lg shadow-lg transform translate-y-full opacity-0 transition-all duration-300 flex items-center gap-3 max-w-xs">
+        <i class='bx bx-check-circle text-green-500 text-xl'></i>
+        <div>
+            <p id="toastTitle" class="font-medium">Success</p>
+            <p id="toastMessage" class="text-sm text-gray-300">Action completed successfully</p>
+        </div>
+    </div>
+
+    <!-- Quick View Modal (hidden by default) -->
+    <div id="quickViewModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-zinc-900 rounded-lg max-w-4xl w-full mx-4 overflow-hidden">
+            <div class="flex justify-end p-4">
+                <button onclick="closeQuickView()" class="text-gray-400 hover:text-white">
+                    <i class='bx bx-x text-2xl'></i>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+                <div class="aspect-square">
+                    <img id="modalImage" src="https://placehold.co/500x500" alt="Product" class="w-full h-full object-cover rounded">
+                </div>
+                <div>
+                    <h2 id="modalTitle" class="text-2xl font-bold mb-2">Product Name</h2>
+                    <div class="flex items-center gap-1 mb-2">
+                        <i class='bx bxs-star text-yellow-500'></i>
+                        <span id="modalRating" class="text-sm">4.5</span>
+                        <span id="modalReviews" class="text-xs text-gray-400">(128 reviews)</span>
+                    </div>
+                    <p id="modalColor" class="text-gray-400 mb-4">Color: Black</p>
+                    
+                    <div class="flex items-baseline gap-2 mb-4">
+                        <span id="modalPrice" class="text-2xl font-bold">₹3,999</span>
+                        <span id="modalOriginalPrice" class="text-gray-400 line-through">₹4,999</span>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <h3 class="font-medium mb-2">Select Size</h3>
+                        <div class="flex gap-2">
+                            <button class="w-10 h-10 rounded-full border border-gray-600 flex items-center justify-center hover:border-white">S</button>
+                            <button class="w-10 h-10 rounded-full border border-gray-600 flex items-center justify-center hover:border-white">M</button>
+                            <button class="w-10 h-10 rounded-full border border-gray-600 flex items-center justify-center hover:border-white">L</button>
+                            <button class="w-10 h-10 rounded-full border border-gray-600 flex items-center justify-center hover:border-white">XL</button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-4 mb-6">
+                        <div class="flex border border-gray-600 rounded">
+                            <button class="px-3 py-2 hover:bg-gray-800">-</button>
+                            <span class="px-4 py-2">1</span>
+                            <button class="px-3 py-2 hover:bg-gray-800">+</button>
+                        </div>
+                        <button class="btn btn-primary flex-1" onclick="addToCartFromModal()">
+                            Add to Cart
+                        </button>
+                    </div>
+                    
+                    <div class="border-t border-gray-700 pt-4">
+                        <h3 class="font-medium mb-2">Product Details</h3>
+                        <p class="text-gray-400 text-sm">
+                            Premium quality product with excellent craftsmanship. Made with high-quality materials for durability and comfort.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Toast notification
+        // Sort wishlist items
+        function sortWishlist(sortBy) {
+            const userId = document.querySelector('h1[data-user-id]').dataset.userId;
+            // Update this URL to match your actual endpoint
+            fetch(`/sort-wishlist/${sortBy}/`, {
+                method: 'GET',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const grid = document.querySelector('.grid');
+                    grid.innerHTML = '';
+                    
+                    data.items.forEach(item => {
+                        const card = createWishlistCard(item);
+                        grid.appendChild(card);
+                    });
+                    
+                    showToast('Sorted', `Items sorted by ${sortBy}`);
+                } else {
+                    showToast('Error', data.message || 'Failed to sort items', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error sorting wishlist:', error);
+                showToast('Error', 'Failed to sort items', 'error');
+            });
+        }
+
+        // Create wishlist card element
+        function createWishlistCard(item) {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.dataset.variantId = item.id;
+            
+            card.innerHTML = `
+                <div class="relative aspect-square overflow-hidden group">
+                    <img src="${item.image_url || 'https://placehold.co/300x300'}" alt="${item.product_name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                    ${item.discount_price && item.discount_price < item.price ? `
+                        <div class="absolute top-2 right-2 bg-primary text-black px-2 py-1 rounded text-sm font-bold">
+                            ${Math.round((item.price - item.discount_price) / item.price * 100)}% OFF
+                        </div>
+                    ` : ''}
+                    <div class="absolute inset-0 bg-black bg-opacity-40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                        <button class="btn bg-white text-black mx-2 hover:bg-gray-200" onclick="quickView('${item.id}')">
+                            Quick View
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="p-4">
+                    <div class="flex items-center gap-1 mb-1">
+                        <i class='bx bxs-star text-yellow-500'></i>
+                        <span class="text-sm">4.5</span>
+                        <span class="text-xs text-gray-400">(128)</span>
+                    </div>
+                    
+                    <h3 class="font-medium text-lg mb-1">${item.product_name}</h3>
+                    <p class="text-sm text-gray-400 mb-2">${item.color}</p>
+                    
+                    <div class="flex items-baseline gap-2 mb-4">
+                        <span class="text-lg font-bold">₹${item.discount_price || item.price}</span>
+                        ${item.discount_price && item.discount_price < item.price ? `
+                            <span class="text-sm text-gray-400 line-through">₹${item.price}</span>
+                        ` : ''}
+                    </div>
+
+                    <div class="space-y-2">
+                        ${item.stock > 0 ? `
+                            <button class="btn btn-primary w-full" onclick="addToCart('${item.id}')">
+                                <i class='bx bx-cart-add'></i>
+                                Add to Cart
+                            </button>
+                        ` : `
+                            <div class="w-full py-2 bg-red-500/20 text-red-500 text-center rounded text-sm font-medium">
+                                Out of Stock
+                            </div>
+                        `}
+                        
+                        <button class="btn btn-danger w-full" onclick="removeItem('${item.id}')">
+                            <i class='bx bx-heart'></i>
+                            Remove
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        function loadSimilarProducts() {
+            const userId = document.querySelector('h1[data-user-id]').dataset.userId;
+            // Update this URL to match your actual endpoint
+            fetch(`/api/similar-products/`, {
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.products.length > 0) {
+                    const container = document.querySelector('#similar-products');
+                    container.innerHTML = '';
+                    
+                    data.products.forEach(product => {
+                        const card = document.createElement('a');
+                        card.href = `/product/${product.id}/`;
+                        card.className = 'bg-zinc-900 rounded-lg p-3 hover:bg-zinc-800 transition-colors';
+                        
+                        card.innerHTML = `
+                            <div class="aspect-square mb-2">
+                                <img src="${product.image_url || 'https://placehold.co/200x200'}" alt="${product.name}" class="w-full h-full object-cover rounded">
+                            </div>
+                            <p class="font-medium text-sm truncate">${product.name}</p>
+                            <div class="flex items-baseline gap-2">
+                                <p class="text-sm text-[#ff6b00]">₹${product.discount_price || product.price}</p>
+                                ${product.discount_price && product.discount_price < product.price ? `
+                                    <p class="text-xs text-gray-400 line-through">₹${product.price}</p>
+                                ` : ''}
+                            </div>
+                        `;
+                        
+                        container.appendChild(card);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error loading similar products:', error);
+            });
+        }
+
+        // Load similar products on page load
+        document.addEventListener('DOMContentLoaded', loadSimilarProducts);
+
+        function showToast(title, message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastTitle = document.getElementById('toastTitle');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toastTitle.textContent = title;
+            toastMessage.textContent = message;
+            
+            // Set icon based on type
+            const icon = toast.querySelector('i');
+            if (type === 'success') {
+                icon.className = 'bx bx-check-circle text-green-500 text-xl';
+            } else if (type === 'error') {
+                icon.className = 'bx bx-error-circle text-red-500 text-xl';
+            }
+            
+            // Show toast
+            toast.classList.remove('translate-y-full', 'opacity-0');
+            
+            // Hide toast after 3 seconds
+            setTimeout(() => {
+                toast.classList.add('translate-y-full', 'opacity-0');
+            }, 3000);
+        }
+
+        // Quick View Modal
+        function quickView(id) {
+            const modal = document.getElementById('quickViewModal');
+            modal.classList.remove('hidden');
+            
+            // Fetch product details via AJAX
+            fetch(`/api/product/${id}/`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('modalTitle').textContent = data.name;
+                    document.getElementById('modalPrice').textContent = `₹${data.discount_price || data.price}`;
+                    if (data.discount_price && data.discount_price < data.price) {
+                        document.getElementById('modalOriginalPrice').textContent = `₹${data.price}`;
+                        document.getElementById('modalOriginalPrice').classList.remove('hidden');
+                    } else {
+                        document.getElementById('modalOriginalPrice').classList.add('hidden');
+                    }
+                    document.getElementById('modalColor').textContent = `Color: ${data.color}`;
+                    document.getElementById('modalImage').src = data.image_url;
+                })
+                .catch(error => {
+                    console.error('Error fetching product details:', error);
+                    showToast('Error', 'Failed to load product details', 'error');
+                });
+        }
+        
+        function closeQuickView() {
+            const modal = document.getElementById('quickViewModal');
+            modal.classList.add('hidden');
+        }
+        
+        function addToCart(id) {
+        fetch(`/add-to-cart/${id}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                quantity: 1
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Added to cart', data.message || 'Item has been added to your cart');
+                // Update cart count in header if needed
+                if (data.cart_count) {
+                    document.querySelector('.cart-count').textContent = data.cart_count;
+                }
+            } else {
+                showToast('Error', data.message || 'Failed to add item to cart', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error adding to cart:', error);
+            showToast('Error', 'Failed to add item to cart', 'error');
+        });
+    }
+        
+        function addToCartFromModal() {
+            const id = document.getElementById('modalTitle').dataset.productId;
+            closeQuickView();
+            addToCart(id);
+        }
+        
+        // Remove item
+        function removeItem(id) {
+            fetch(`/remove-from-wishlist/${id}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Remove the item from the DOM
+                    const card = document.querySelector(`.card[data-variant-id="${id}"]`);
+                    if (card) {
+                        card.remove();
+                        
+                        // Update wishlist count in header
+                        const wishlistCount = document.querySelector('.wishlist-count');
+                        if (wishlistCount) {
+                            const currentCount = parseInt(wishlistCount.textContent);
+                            if (currentCount > 1) {
+                                wishlistCount.textContent = currentCount - 1;
+                            } else {
+                                wishlistCount.remove();
+                            }
+                        }
+                        
+                        // Check if this was the last item
+                        const remainingItems = document.querySelectorAll('.card');
+                        if (remainingItems.length === 0) {
+                            // Show empty state
+                            document.querySelector('.grid')?.classList.add('hidden');
+                            document.querySelector('.bg-zinc-900.rounded-lg.p-4.mb-6')?.classList.add('hidden');
+                            
+                            // Create and show empty state
+                            const emptyState = `
+                            <div class="text-center py-16 bg-zinc-900 rounded-lg">
+                                <div class="flex justify-center mb-4">
+                                    <i class='bx bx-heart text-gray-500 text-6xl'></i>
+                                </div>
+                                <h2 class="text-2xl font-bold mb-2">Your wishlist is empty</h2>
+                                <p class="text-gray-400 mb-6 max-w-md mx-auto">
+                                    Items added to your wishlist will be saved here for you to purchase later
+                                </p>
+                                <a href="/products/" class="btn btn-primary">
+                                    Continue Shopping
+                                </a>
+                            </div>`;
+                            
+                            const container = document.querySelector('.grid').parentNode;
+                            const emptyStateDiv = document.createElement('div');
+                            emptyStateDiv.innerHTML = emptyState;
+                            container.appendChild(emptyStateDiv.firstElementChild);
+                        }
+                        
+                        showToast('Removed from wishlist', 'Item has been removed from your wishlist');
+                    }
+                } else {
+                    showToast('Error', data.message || 'Failed to remove item from wishlist', 'error');
+                }
+            }
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+</body>
+</html>

@@ -52,9 +52,14 @@ urlpatterns = [
     path('download-invoice/<str:order_id>/', views.download_invoice, name='download_invoice'),
 
         ########### Wishlist ########
-    path('wishlist/', views.wishlist_view, name='view_wishlist'),
+    path('wishlist/', views.wishlist_view, name='wishlist'),
     path('move-to-wishlist/<int:variant_id>/', views.move_to_wishlist, name='move_to_wishlist'),
     path('remove-from-wishlist/<int:variant_id>/', views.remove_from_wishlist, name='remove_from_wishlist'),
+    path('clear-wishlist/', views.clear_wishlist, name='clear_wishlist'),
+    path('add-multiple-to-cart/', views.add_multiple_to_cart, name='add_multiple_to_cart'),
+    path('api/product/<int:variant_id>/', views.get_product_details, name='get_product_details'),
+    path('sort-wishlist/<str:sort_by>/', views.sort_wishlist, name='sort_wishlist'),
+    path('api/similar-products/', views.load_similar_products, name='load_similar_products'),
     # urls.py
     
     path('coupons/', views.available_coupons, name='available_coupons'),

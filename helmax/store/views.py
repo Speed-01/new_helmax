@@ -11,7 +11,7 @@ from .invoice_generator import generate_invoice_pdf
 from manager.models import (
     OTP, User, Category, Brand, Size, Product, Variant, ProductImage, 
     Review, Address, Cart, CartItem, PaymentMethod, Coupon, CouponUsage, 
-    Wishlist, ReturnRequest, Wallet, WalletTransaction
+    Order, OrderItem, Wishlist, ReturnRequest, Wallet, WalletTransaction
 )
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.cache import never_cache
@@ -22,15 +22,12 @@ from django.db import transaction
 from django.http import JsonResponse
 from django.urls import reverse
 import logging
-
-from manager.models import Cart, CartItem, Address, Order, OrderItem
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 import json
-from manager.models import Variant, CartItem, Cart
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.http import  JsonResponse, HttpResponse
@@ -959,6 +956,9 @@ def wishlist_view(request):
         ).prefetch_related('images')
 
         items_data = []
+        product_categories = set()  # To collect categories for similar products
+        product_ids = set()  # To exclude wishlist products from similar products
+        
         for variant in wishlist_items:
             # Get primary image or first image
             primary_image = variant.images.filter(is_primary=True).first()
@@ -974,9 +974,46 @@ def wishlist_view(request):
                 'image_url': primary_image.image.url if primary_image else None,
                 'stock': sum(size.stock for size in variant.sizes.all())
             })
+            
+            # Collect category and product ID for similar products
+            if variant.product.category:
+                product_categories.add(variant.product.category.id)
+            product_ids.add(variant.product.id)
+        
+        # Get similar products based on categories
+        similar_products = []
+        if product_categories:
+            # Get products from the same categories but not in the wishlist
+            similar_products_query = Product.objects.filter(
+                category__id__in=product_categories,
+                is_active=True
+            ).exclude(
+                id__in=product_ids
+            ).distinct().prefetch_related(
+                'variants', 'variants__images'
+            )[:8]  # Limit to 8 similar products
+            
+            # Prepare similar products data
+            for product in similar_products_query:
+                # Get first active variant
+                first_variant = product.variants.filter(is_active=True).first()
+                if first_variant:
+                    # Get primary image or first image
+                    primary_image = first_variant.images.filter(is_primary=True).first()
+                    if not primary_image:
+                        primary_image = first_variant.images.first()
+                    
+                    similar_products.append({
+                        'id': product.id,
+                        'name': product.name,
+                        'price': first_variant.price,
+                        'discount_price': first_variant.discount_price,
+                        'image_url': primary_image.image.url if primary_image else None
+                    })
 
         return render(request, 'wishlist.html', {
-            'wishlist_items': items_data
+            'wishlist_items': items_data,
+            'similar_products': similar_products
         })
         
     except Exception as e:
@@ -1023,23 +1060,195 @@ def move_to_wishlist(request, variant_id):
 
 @login_required
 @require_POST
-def remove_from_wishlist(request, item_id):
+def remove_from_wishlist(request, variant_id):
     """Remove item from wishlist"""
     try:
-        wishlist_item = Wishlist.objects.get(id=item_id, user=request.user)
-        wishlist_item.delete()
-        return JsonResponse({'success': True})
-    except Wishlist.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Item not found'})
+        wishlist = Wishlist.get_or_create_wishlist(request.user)
+        variant = Variant.objects.get(id=variant_id)
+        
+        if variant in wishlist.variants.all():
+            wishlist.variants.remove(variant)
+            return JsonResponse({
+                'success': True, 
+                'message': 'Item removed from wishlist',
+                'wishlist_count': wishlist.variants.count()
+            })
+        else:
+            return JsonResponse({'success': False, 'message': 'Item not found in wishlist'})
+    except Variant.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Product variant not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': 'Error removing item from wishlist'})
 
 # Optional: Add to wishlist directly from products
 @login_required
 @require_POST
 def add_to_wishlist(request, variant_id):
     """Add item directly to wishlist"""
-    variant = get_object_or_404(Variant, id=variant_id)
-    Wishlist.objects.get_or_create(user=request.user, variant=variant)
-    return JsonResponse({'success': True, 'message': 'Added to wishlist!'})
+    try:
+        variant = get_object_or_404(Variant, id=variant_id)
+        wishlist = Wishlist.get_or_create_wishlist(request.user)
+        wishlist.variants.add(variant)
+        return JsonResponse({'success': True, 'message': 'Added to wishlist!'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': 'Error adding to wishlist'})
+
+@login_required
+def sort_wishlist(request, sort_by):
+    """Sort wishlist items"""
+    try:
+        wishlist = Wishlist.get_or_create_wishlist(request.user)
+        items = wishlist.variants.filter(
+            is_active=True,
+            product__is_active=True
+        ).select_related('product').prefetch_related('images')
+        
+        if sort_by == 'newest':
+            items = items.order_by('-created_at')
+        elif sort_by == 'price-low':
+            items = items.order_by('discount_price', 'price')
+        elif sort_by == 'price-high':
+            items = items.order_by('-discount_price', '-price')
+        elif sort_by == 'discount':
+            items = items.annotate(
+                discount_percent=ExpressionWrapper(
+                    (F('price') - F('discount_price')) * 100.0 / F('price'),
+                    output_field=FloatField()
+                )
+            ).order_by('-discount_percent')
+        elif sort_by == 'name':
+            items = items.order_by('product__name')
+        
+        items_data = [{
+            'id': item.id,
+            'product_name': item.product.name,
+            'color': item.color,
+            'price': item.price,
+            'discount_price': item.discount_price,
+            'image_url': item.images.filter(is_primary=True).first().image.url if item.images.filter(is_primary=True).exists() else item.images.first().image.url if item.images.exists() else None,
+            'stock': sum(size.stock for size in item.sizes.all())
+        } for item in items]
+        
+        return JsonResponse({
+            'success': True,
+            'items': items_data
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        })
+
+@login_required
+def load_similar_products(request):
+    """Load similar products based on wishlist items"""
+    try:
+        wishlist = Wishlist.get_or_create_wishlist(request.user)
+        wishlist_items = wishlist.variants.filter(
+            is_active=True,
+            product__is_active=True
+        ).select_related('product')
+        
+        # Collect categories and product IDs
+        product_categories = set()
+        product_ids = set()
+        for item in wishlist_items:
+            if item.product.category:
+                product_categories.add(item.product.category.id)
+            product_ids.add(item.product.id)
+        
+        # Get similar products
+        similar_products = []
+        if product_categories:
+            products = Product.objects.filter(
+                category__id__in=product_categories,
+                is_active=True
+            ).exclude(
+                id__in=product_ids
+            ).distinct().prefetch_related(
+                'variants',
+                'variants__images'
+            )[:8]
+            
+            for product in products:
+                variant = product.variants.filter(is_active=True).first()
+                if variant:
+                    image = variant.images.filter(is_primary=True).first() or variant.images.first()
+                    similar_products.append({
+                        'id': product.id,
+                        'name': product.name,
+                        'price': variant.price,
+                        'discount_price': variant.discount_price,
+                        'image_url': image.image.url if image else None
+                    })
+        
+        return JsonResponse({
+            'success': True,
+            'products': similar_products
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        })
+
+@login_required
+@require_POST
+def clear_wishlist(request):
+    """Clear all items from wishlist"""
+    try:
+        wishlist = Wishlist.get_or_create_wishlist(request.user)
+        wishlist.variants.clear()
+        return JsonResponse({'success': True, 'message': 'Wishlist cleared successfully'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': 'Error clearing wishlist'})
+
+@login_required
+@require_POST
+def add_multiple_to_cart(request):
+    """Add multiple wishlist items to cart"""
+    try:
+        data = json.loads(request.body)
+        variant_ids = data.get('variant_ids', [])
+        
+        if not variant_ids:
+            return JsonResponse({'success': False, 'message': 'No items selected'})
+        
+        cart = Cart.objects.get_or_create(user=request.user)[0]
+        added_count = 0
+        
+        for variant_id in variant_ids:
+            try:
+                variant = Variant.objects.get(id=variant_id, is_active=True)
+                # Check if variant has stock
+                if sum(size.stock for size in variant.sizes.all()) > 0:
+                    # Get first size with stock
+                    size = next((s for s in variant.sizes.all() if s.stock > 0), None)
+                    if size:
+                        cart_item, created = CartItem.objects.get_or_create(
+                            cart=cart,
+                            variant=variant,
+                            size=size,
+                            defaults={'quantity': 1}
+                        )
+                        if not created:
+                            cart_item.quantity += 1
+                            cart_item.save()
+                        added_count += 1
+            except Variant.DoesNotExist:
+                continue
+        
+        if added_count > 0:
+            return JsonResponse({
+                'success': True, 
+                'message': f'{added_count} item(s) added to cart',
+                'cart_count': CartItem.objects.filter(cart=cart).count()
+            })
+        else:
+            return JsonResponse({'success': False, 'message': 'No items could be added to cart'})
+            
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': 'Error adding items to cart'})
 
 
 
@@ -2428,4 +2637,36 @@ def wallet_view(request):
         logger.error(f"Error in wallet view: {str(e)}")
         messages.error(request, "An error occurred while loading your wallet.")
         return redirect('home')
+
+def get_product_details(request, variant_id):
+    try:
+        variant = get_object_or_404(
+            Variant.objects.select_related('product')
+            .prefetch_related('images', 'sizes'),
+            id=variant_id,
+            is_active=True,
+            product__is_active=True
+        )
+        
+        # Get primary image or first image
+        primary_image = variant.images.filter(is_primary=True).first()
+        if not primary_image:
+            primary_image = variant.images.first()
+            
+        data = {
+            'id': variant.id,
+            'product_id': variant.product.id,
+            'product_name': variant.product.name,
+            'color': variant.color,
+            'price': variant.price,
+            'discount_price': variant.discount_price,
+            'image_url': primary_image.image.url if primary_image else None,
+            'stock': sum(size.stock for size in variant.sizes.all()),
+            'sizes': [{'id': size.id, 'size': size.size, 'stock': size.stock} for size in variant.sizes.all()]
+        }
+        
+        return JsonResponse({'success': True, 'data': data})
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
 

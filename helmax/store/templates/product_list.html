@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load offer_filters %}
 
 {% block content %}
 <div class="min-h-screen bg-black text-white p-4 sm:p-6 lg:p-8">
@@ -160,11 +161,13 @@
                                         >
                                         <div class="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent opacity-0 group-hover:opacity-60 transition-opacity duration-300"></div>
                                         
-                                        {% if product.discount_percentage > 0 %}
+                                        {% with best_offer=product.get_best_offer %}
+                                        {% if best_offer %}
                                         <div class="absolute top-2 right-2 bg-[#ff6b00] text-white text-xs font-bold px-2 py-1 rounded-sm">
-                                            -{{ product.discount_percentage }}%
+                                            -{{ best_offer.discount_percentage }}%
                                         </div>
                                         {% endif %}
+                                        {% endwith %}
                                     </div>
                                     <div class="p-4">
 
@@ -178,10 +181,19 @@
                                         <div class="flex items-center justify-between">
                                             <div class="flex items-center gap-2">
                                                 {% if product.discount_price and product.discount_price < product.price %}
-                                                    <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.final_price }}</span>
-                                                    <span class="text-sm text-gray-400 line-through">₹{{ product.price }}</span>
+                                                    <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.discount_price|floatformat:2 }}</span>
+                                                    <span class="text-sm text-gray-400 line-through">₹{{ product.price|floatformat:2 }}</span>
+                                                    <span class="text-xs text-[#ff6b00] ml-2">({{ product.discount_percentage }}% off)</span>
                                                 {% else %}
-                                                    <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.price }}</span>
+                                                    {% with best_offer=product.get_best_offer %}
+                                                    {% if best_offer %}
+                                                        <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.price|calculate_offer_price:best_offer.discount_percentage|floatformat:2 }}</span>
+                                                        <span class="text-sm text-gray-400 line-through">₹{{ product.price|floatformat:2 }}</span>
+                                                        <span class="text-xs text-[#ff6b00] ml-2">({{ best_offer.discount_percentage }}% off)</span>
+                                                    {% else %}
+                                                        <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.price|floatformat:2 }}</span>
+                                                    {% endif %}
+                                                    {% endwith %}
                                                 {% endif %}
                                             </div>
                                         </div>

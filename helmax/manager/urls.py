@@ -133,4 +133,8 @@ urlpatterns = [
     path('category-offers/delete/<int:offer_id>/', views.delete_category_offer, name='delete_category_offer'),
     path('get-active-products/', views.get_active_products, name='get_active_products'),
 
+    # Wallet Management URLs
+    path('wallet/', views.admin_wallet, name='admin_wallet'),
+    path('wallet/transaction/<int:transaction_id>/', views.admin_wallet_transaction_detail, name='admin_wallet_transaction_detail'),
+
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

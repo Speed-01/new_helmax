@@ -25,3 +25,31 @@ def currency(value):
         return f'₹{float(value):.2f}'
     except (ValueError, TypeError):
         return value
+        
+@register.filter
+def sub(value, arg):
+    try:
+        return value - arg
+    except (ValueError, TypeError):
+        return 0
+        
+@register.filter
+def add(value, arg):
+    try:
+        return value + arg
+    except (ValueError, TypeError):
+        return value
+        
+@register.filter
+def mul(value, arg):
+    try:
+        return value * arg
+    except (ValueError, TypeError):
+        return 0
+        
+@register.filter
+def div(value, arg):
+    try:
+        return value / arg
+    except (ValueError, TypeError, ZeroDivisionError):
+        return 0

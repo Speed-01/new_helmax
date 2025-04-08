@@ -1303,61 +1303,62 @@ def edit_product_offer(request, offer_id):
                 'success': False,
                 'errors': {'form': 'Invalid date format'}
             }, status=400)
-            
-            if start_date > end_date:
-                return JsonResponse({
-                    'success': False,
-                    'errors': {'form': 'Start date must be before end date'}
-                }, status=400)
-                
-            # Validate discount percentage
-            try:
-                discount_percentage = float(discount_percentage)
-                if not (0 <= discount_percentage <= 100):
-                    return JsonResponse({
-                        'success': False,
-                        'errors': {'discount_percentage': 'Discount percentage must be between 0 and 100'}
-                    }, status=400)
-            except ValueError:
-                return JsonResponse({
-                    'success': False,
-                    'errors': {'discount_percentage': 'Invalid discount percentage'}
-                }, status=400)
-                
-            # Update offer details
-            offer.name = name
-            offer.product_id = product_id
-            offer.discount_percentage = discount_percentage
-            offer.start_date = start_date
-            offer.end_date = end_date
-            offer.is_active = request.POST.get('is_active') == 'on'
         
-            # Check for overlapping offers
-            if ProductOffer.objects.filter(
-                product_id=offer.product_id,
-                start_date__lte=offer.end_date,
-                end_date__gte=offer.start_date
-            ).exclude(id=offer_id).exists():
-                return JsonResponse({
-                    'success': False,
-                    'errors': {'form': 'An offer already exists for this product during the specified period'}
-                }, status=400)
-            
-            offer.save()
-            return JsonResponse({
-                'success': True,
-                'message': 'Product offer updated successfully'
-            })
-        except ProductOffer.DoesNotExist:
+        # Validate date order
+        if start_date > end_date:
             return JsonResponse({
                 'success': False,
-                'error': 'Product offer not found'
-            }, status=404)
+                'errors': {'form': 'Start date must be before end date'}
+            }, status=400)
+            
+        # Validate discount percentage
+        try:
+            discount_percentage = float(discount_percentage)
+            if not (0 <= discount_percentage <= 100):
+                return JsonResponse({
+                    'success': False,
+                    'errors': {'discount_percentage': 'Discount percentage must be between 0 and 100'}
+                }, status=400)
+        except ValueError:
+            return JsonResponse({
+                'success': False,
+                'errors': {'discount_percentage': 'Invalid discount percentage'}
+            }, status=400)
+            
+        # Update offer details
+        offer.name = name
+        offer.product_id = product_id
+        offer.discount_percentage = discount_percentage
+        offer.start_date = start_date
+        offer.end_date = end_date
+        offer.is_active = request.POST.get('is_active') == 'on'
+    
+        # Check for overlapping offers
+        if ProductOffer.objects.filter(
+            product_id=offer.product_id,
+            start_date__lte=offer.end_date,
+            end_date__gte=offer.start_date
+        ).exclude(id=offer_id).exists():
+            return JsonResponse({
+                'success': False,
+                'errors': {'form': 'An offer already exists for this product during the specified period'}
+            }, status=400)
+        
+        offer.save()
+        return JsonResponse({
+            'success': True,
+            'message': 'Product offer updated successfully'
+        })
+    except ProductOffer.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Product offer not found'
+        }, status=404)
     except Exception as e:
         return JsonResponse({
             'success': False,
             'error': str(e)
-        }, status=400)
+        }, status=500)
 
 @login_required(login_url='adminLogin')
 @require_POST
@@ -2037,3 +2038,51 @@ def toggleVariant(request, variant_id):
         except Exception as e:
             messages.error(request, f'Error updating variant status: {str(e)}')
     return redirect('adminProducts')
+
+
+@login_required(login_url='adminLogin')
+def admin_wallet(request):
+    """View to display all wallet transactions for admin"""
+    try:
+        # Get all transactions with related wallets and users
+        transactions = WalletTransaction.objects.all()\
+            .select_related('wallet', 'wallet__user', 'order')\
+            .order_by('-created_at')
+        
+        # Pagination
+        paginator = Paginator(transactions, 20)  # Show 20 transactions per page
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+        
+        context = {
+            'transactions': page_obj,
+        }
+        
+        return render(request, 'admin_wallet.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in admin wallet view: {str(e)}")
+        messages.error(request, "An error occurred while loading wallet transactions.")
+        return redirect('customers')
+
+
+@login_required(login_url='adminLogin')
+def admin_wallet_transaction_detail(request, transaction_id):
+    """View to display detailed information about a specific wallet transaction"""
+    try:
+        # Get transaction with related wallet, user and order
+        transaction = get_object_or_404(
+            WalletTransaction.objects.select_related('wallet', 'wallet__user', 'order'),
+            id=transaction_id
+        )
+        
+        context = {
+            'transaction': transaction,
+        }
+        
+        return render(request, 'admin_wallet_transaction_detail.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in transaction detail view: {str(e)}")
+        messages.error(request, "An error occurred while loading transaction details.")
+        return redirect('admin_wallet')

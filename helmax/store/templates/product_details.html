@@ -1,6 +1,7 @@
 
 {% extends 'base.html' %}
 {% load static %}
+{% load offer_filters %}
 
 {% block content %}
 <div class="container mx-auto px-4 py-8">
@@ -76,12 +77,15 @@
             </div>
 
             <div class="flex items-center space-x-4">
-                <span id="current-price" class="text-2xl font-medium text-[#ff6b00]">
-                    ₹{{ primary_variant.discount_price|default:primary_variant.price }}
-                </span>
-                {% if primary_variant.discount_price %}
-                <span id="original-price" class="text-gray-500 line-through">₹{{ primary_variant.price }}</span>
-                {% endif %}
+                {% with best_offer=product.get_best_offer %}
+                    {% if best_offer %}
+                        <span id="current-price" class="text-2xl font-medium text-[#ff6b00]">
+                            ₹{{ primary_variant.price|calculate_offer_price:best_offer.discount_percentage|floatformat:2 }}
+                        </span>
+                        <span id="original-price" class="text-gray-500 line-through">₹{{ primary_variant.price|floatformat:2 }}</span>
+                        <span class="text-green-500 text-sm">({{ best_offer.discount_percentage|floatformat:2 }}% off)</span>
+                    {% endif %}
+                {% endwith %}
             </div>
 
             <p class="text-gray-400 text-sm leading-relaxed">
@@ -393,12 +397,11 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        if (data.special_price) {
-            currentPriceElement.textContent = `₹${data.special_price}`;
+        currentPriceElement.textContent = `₹${data.final_price}`;
+        if (data.discount_price) {
             originalPriceElement.textContent = `₹${data.price}`;
             originalPriceElement.classList.remove('hidden');
         } else {
-            currentPriceElement.textContent = `₹${data.price}`;
             originalPriceElement.classList.add('hidden');
         }
         
