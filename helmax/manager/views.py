@@ -771,7 +771,7 @@ def admin_orders(request):
 
     search_query = request.GET.get('search', '')
     if search_query:
-        orders = orders.filter(user__username__icontains=search_query)
+        orders = orders.filter(Q(user__username__icontains=search_query) | Q(order_id__icontains=search_query))
     
     paginator = Paginator(orders, 10)
     page_number = request.GET.get('page')
