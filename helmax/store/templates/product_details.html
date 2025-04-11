@@ -227,12 +227,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const zoomContainer = document.getElementById('zoom-container');
     const zoomLens = document.getElementById('zoom-lens');
 
-    let selectedVariantId = addToCartBtn.dataset.variantId;
+    // Initialize with the selected variant ID from the server
+    let selectedVariantId = {{ selected_variant_id|default:'null' }};
+    // Initialize with the default size name from the server
+    {% if default_size %}
+    let selectedSizeName = "{{ default_size }}";
+    {% else %}
     let selectedSizeName = null;
+    {% endif %}
     let isZooming = false;
     const zoomLevel = 2.5;
     let selectedSize = null;
     let currentSizes = [];
+    
+    // Store the default size ID for initial selection
+    const defaultSizeId = {{ default_size_id|default:'null' }};
 
     function initZoom() {
         let zoomResult = document.getElementById('zoom-result');
@@ -311,7 +320,54 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize zoom
     initZoom();
-
+    
+    // Auto-select the default variant when page loads
+    function selectDefaultVariant() {
+        if (selectedVariantId) {
+            // Find the variant button with the matching ID
+            const variantButton = colorOptions.querySelector(`button[data-variant-id="${selectedVariantId}"]`);
+            if (variantButton) {
+                // Add visual selection indicator
+                variantButton.classList.add('ring-2', 'ring-[#ff6b00]');
+            }
+        }
+    }
+    
+    // Auto-select the default size when page loads
+    function selectDefaultSize() {
+        if (defaultSizeId) {
+            // Find the size button with the default size name
+            const sizeButtons = document.querySelectorAll('#size-options button');
+            for (const button of sizeButtons) {
+                if (button.dataset.size === selectedSizeName) {
+                    // Trigger the size selection handler
+                    button.classList.add('ring-2', 'ring-[#ff6b00]');
+                    
+                    // Update stock status based on selected size
+                    const selectedSizeData = currentSizes.find(size => size.name === selectedSizeName);
+                    if (selectedSizeData) {
+                        const stockStatus = document.getElementById('stock-status');
+                        if (selectedSizeData.stock > 0) {
+                            stockStatus.textContent = `In Stock (${selectedSizeData.stock} available)`;
+                            stockStatus.classList.remove('text-red-500');
+                            stockStatus.classList.add('text-green-500');
+                            addToCartBtn.disabled = false;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Call the auto-select functions after the page is fully loaded
+    selectDefaultVariant();
+    
+    // Fetch the default variant details on page load
+    if (selectedVariantId) {
+        fetchVariantDetails(selectedVariantId);
+    }
+    
     // Handle thumbnail clicks
     const thumbnailsContainer = document.getElementById('thumbnails');
     if (thumbnailsContainer) {
@@ -361,6 +417,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Auto-select the default variant when page loads
+    function selectDefaultVariant() {
+        if (selectedVariantId) {
+            // Find the variant button with the matching ID
+            const variantButton = colorOptions.querySelector(`button[data-variant-id="${selectedVariantId}"]`);
+            if (variantButton) {
+                // Add visual selection indicator
+                variantButton.classList.add('ring-2', 'ring-[#ff6b00]');
+            }
+        }
+    }
+    
     // Color selection handling
     colorOptions.addEventListener('click', async function(e) {
         const button = e.target.closest('button');
@@ -538,6 +606,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 button.addEventListener('click', handleSizeSelection);
             }
         });
+        
+        // Select the default size if available
+        selectDefaultSize();
     }
 
     // Update handleSizeSelection to store selected size and update quantity limits

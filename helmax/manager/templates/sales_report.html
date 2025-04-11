@@ -97,7 +97,7 @@
                 <tbody class="divide-y divide-zinc-800">
                     {% for order in orders %}
                     <tr>
-                        <td class="px-6 py-4">{{ order.order_number }}</td>
+                        <td class="px-6 py-4">{{ order.order_id }}</td>
                         <td class="px-6 py-4">{{ order.created_at|date:"Y-m-d H:i" }}</td>
                         <td class="px-6 py-4">{{ order.user.username }}</td>
                         <td class="px-6 py-4">{{ order.order_items.count }}</td>

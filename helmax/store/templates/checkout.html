@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load custom_filters %}
 
 {% block content %}
 <!-- Notification Container -->
@@ -269,9 +270,9 @@
                 <p class="text-zinc-400 text-sm">Qty: {{ item.quantity }}</p>
               </div>
               <div class="text-right">
-                <p class="font-medium">₹{{ item.variant.price }}</p>
+                <p class="font-medium">₹{{ item.variant.final_price|floatformat:2 }}</p>
                 <p class="text-zinc-400 text-sm">
-                    Total: ₹{% widthratio item.variant.price 1 item.quantity %}
+                    Total: ₹{{ item.variant.final_price|multiply:item.quantity|floatformat:2 }}
                 </p>
               </div>
             </div>
@@ -372,7 +373,7 @@
               <div class="my-4 border-t border-zinc-800"></div>
               <div class="flex justify-between font-medium text-lg">
                 <span>Total Amount</span>
-                <span id="final-amount">₹{{ final_price }}</span>
+                <span id="final-amount">₹{{ final_price|floatformat:2 }}</span>
               </div>
             </div>
           </div>

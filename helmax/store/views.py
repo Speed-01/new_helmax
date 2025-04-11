@@ -668,7 +668,7 @@ def product_list(request):
         })
 
     # Pagination
-    paginator = Paginator(product_data, 12)  # 12 products per page
+    paginator = Paginator(product_data, 8)  # 12 products per page
     page = request.GET.get('page', 1)
     
     try:
@@ -720,8 +720,19 @@ def product_detail(request, product_id):
     
     # Size and stock handling for primary variant
     sizes = []
+    default_size = None
+    default_size_id = None
     if primary_variant:
-        sizes = primary_variant.sizes.all().values('name', 'stock')
+        sizes = list(primary_variant.sizes.all().values('id', 'name', 'stock'))
+        # Find first size with stock > 0 to set as default
+        for size in sizes:
+            if size['stock'] > 0:
+                default_size = size['name']
+                default_size_id = size['id']
+                break
+    
+    # Calculate total stock for the primary variant
+    total_stock = sum(size['stock'] for size in sizes) if sizes else 0
     
     context = {
         'product': product,
@@ -729,6 +740,10 @@ def product_detail(request, product_id):
         'primary_variant': primary_variant,
         'variants_with_images': variants_with_images,
         'sizes': sizes,
+        'default_size': default_size,
+        'default_size_id': default_size_id,
+        'total_stock': total_stock,
+        'selected_variant_id': primary_variant.id if primary_variant else None,
     }
     
     return render(request, 'product_details.html', context)

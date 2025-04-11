@@ -50,7 +50,7 @@
                         <div class="flex-grow">
                             <h3 class="text-lg font-semibold group-hover:text-[#ff6b00] transition-colors">{{ item.variant.product.name }}</h3>
                             <p class="text-gray-400">{{ item.variant.color }} - {{ item.size.get_name_display }}</p>
-                            <p class="text-[#ff6b00] font-medium mt-2">₹{{ item.variant.price }}</p>
+                            <p class="text-[#ff6b00] font-medium mt-2">₹{{ item.variant.final_price }}</p>
                             {% if item.size.stock > 0 %}
                                 <p class="text-green-500 text-sm mt-1">In stock ({{ item.size.stock }} available)</p>
                             {% else %}

@@ -232,15 +232,14 @@ class Cart(BaseModel):
     
     @property
     def total_price(self):
-        return sum(item.subtotal for item in self.items.all())
+        return sum(item.variant.final_price * item.quantity for item in self.items.all())
     
     @property
     def total_discount(self):
         # Product discounts (from variant discount_price)
         product_discount = sum(
-            (item.variant.price - item.variant.discount_price) * item.quantity
+            (item.variant.price - item.variant.final_price) * item.quantity
             for item in self.items.all()
-            if item.variant.discount_price
         )
         
         # Coupon discount
@@ -421,15 +420,11 @@ class Order(BaseModel):
     
     @property
     def total_discount(self):
-        # Calculate product discounts from order items
-        product_discount = sum(
-            (item.variant.price - item.variant.final_price) * item.quantity
-            for item in self.order_items.all()
-            if item.variant and hasattr(item.variant, 'final_price') 
-            and item.variant.final_price and item.variant.final_price < item.variant.price
-        )
-        
-        return product_discount
+        return self.product_discount + self.coupon_discount
+    
+    @property
+    def final_price(self):
+        return max(0, self.total_amount - self.total_discount)
         
     @property
     def subtotal(self):
@@ -455,8 +450,8 @@ class Order(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     order_id = models.CharField(max_length=25, unique=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
-    order_status = models.CharField(max_length=20, choices=ORDER_STATUSES, default='PENDING')
-    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUSES, default='PENDING')
+    order_status = models.CharField(max_length=30, choices=ORDER_STATUSES, default='PENDING')
+    payment_status = models.CharField(max_length=30, choices=PAYMENT_STATUSES, default='PENDING')
     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, related_name='orders')
     
     # Status timestamps

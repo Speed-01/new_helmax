@@ -8,7 +8,7 @@
     <div class="mb-8">
       <div class="flex items-center justify-between">
         <h1 class="text-3xl font-bold bg-gradient-to-r from-amber-400 via-orange-500 to-orange-600 bg-clip-text text-transparent">
-          Order #{{ order.order_number }}
+          Order #{{ order.order_id }}
         </h1>
         <span class="px-4 py-2 rounded-full text-sm font-medium
           {% if order.order_status == 'PROCESSING' %}
@@ -78,12 +78,12 @@
                   <div class="text-center px-4">
                     <p class="text-gray-400 text-xs">Price</p>
                     <div class="flex flex-col">
-                      {% if item.variant.price != item.variant.final_price %}
+                      <!-- {% if item.variant.price != item.variant.final_price %}
                       <p class="text-gray-400 line-through text-xs">₹{{ item.variant.price }}</p>
-                      {% endif %}
+                      {% endif %} -->
                       <p class="text-white font-medium">₹{{ item.variant.final_price }}</p>
                     </div>
-                  </div>
+                  </div> 
                   
                   <div class="text-center px-4">
                     <p class="text-gray-400 text-xs">Total</p>

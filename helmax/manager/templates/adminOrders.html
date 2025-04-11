@@ -2,190 +2,739 @@
 
 {% block content %}
 
-<div class="min-h-screen bg-black py-10">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <!-- Header with improved spacing and typography -->
-        <div class="mb-10">
-            <h1 class="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
+<div class="min-h-screen bg-black py-6 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
                 Order Management
             </h1>
             <p class="mt-2 text-sm text-gray-400">Manage and track all customer orders</p>
         </div>
 
-        <!-- Search and Filter Section with improved styling -->
-        <div class="mb-8">
-            <div class="max-w-lg">
-                <div class="relative">
-                    <input type="text" 
-                           id="searchInput"
-                           class="w-full pl-10 pr-4 py-3 rounded-lg bg-[#111111] border border-[#222222] text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-all duration-200"
-                           placeholder="Search by username...">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg class="h-5 w-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                        </svg>
+        <!-- Main Card -->
+        <div class="bg-[#0A0A0A] border border-[#222222] rounded-xl shadow-xl overflow-hidden">
+            <div class="p-6 pb-3 border-b border-[#222222]">
+                <h2 class="text-xl text-gray-200">Orders</h2>
+                <p class="text-sm text-gray-400">View and manage all customer orders in one place</p>
+            </div>
+            
+            <div class="p-6">
+                <!-- Search and Filter Section -->
+                <div class="mb-6 space-y-4">
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <div class="relative flex-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <input 
+                                type="text" 
+                                id="searchInput"
+                                placeholder="Search by username or order ID..." 
+                                class="w-full pl-9 pr-4 py-2 rounded-md bg-[#111111] border border-[#222222] text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-all duration-200"
+                            >
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="relative inline-block text-left" id="filterDropdown">
+                                <button type="button" id="filterButton" class="inline-flex items-center px-4 py-2 bg-[#111111] border border-[#222222] rounded-md text-gray-200 hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                                    </svg>
+                                    Filters
+                                </button>
+                                <div id="filterMenu" class="hidden absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-[#111111] border border-[#222222] z-10">
+                                    <div class="p-2">
+                                        <p class="text-xs font-medium text-gray-400 mb-2">Status</p>
+                                        <select id="statusFilter" class="w-full bg-[#0A0A0A] border border-[#222222] rounded-md p-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                            <option value="all">All Statuses</option>
+                                            <option value="pending">Pending</option>
+                                            <option value="processing">Processing</option>
+                                            <option value="shipped">Shipped</option>
+                                            <option value="delivered">Delivered</option>
+                                            <option value="cancelled">Cancelled</option>
+                                            <option value="returned">Returned</option>
+                                        </select>
+                                    </div>
+                                    <div class="p-2 pt-0">
+                                        <p class="text-xs font-medium text-gray-400 mb-2">Payment Method</p>
+                                        <select id="paymentFilter" class="w-full bg-[#0A0A0A] border border-[#222222] rounded-md p-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                            <option value="all">All Methods</option>
+                                            <option value="credit_card">Credit Card</option>
+                                            <option value="Razorpay">Razorpay</option>
+                                            <option value="bank_transfer">Bank Transfer</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Orders Table with improved styling -->
-        <div class="bg-[#0A0A0A] shadow-xl overflow-hidden rounded-xl border border-[#222222]">
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-[#222222]">
-                    <thead class="bg-[#111111]">
-                        <tr>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Order ID</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Username</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Payment Method</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Subtotal</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Discount</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Total Price</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ordersTableBody" class="bg-[#0A0A0A] divide-y divide-[#1A1A1A]">
-                        <!-- Table content will be populated by JavaScript -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
+                <!-- Loading Skeleton (shown while loading) -->
+                <div id="loadingSkeleton" class="rounded-md border border-[#222222] overflow-hidden">
+                    <table class="min-w-full divide-y divide-[#222222]">
+                        <thead class="bg-[#111111]">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Order ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Username</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Payment Method</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Subtotal</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Discount</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Skeleton rows -->
+                            <tr class="border-b border-[#222222]">
+                                <td class="px-6 py-4"><div class="h-4 w-16 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-24 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-28 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-6 w-20 bg-[#222222] rounded-full"></div></td>
+                                <td class="px-6 py-4 text-right"><div class="h-4 w-16 bg-[#222222] rounded ml-auto"></div></td>
+                                <td class="px-6 py-4 text-right"><div class="h-4 w-16 bg-[#222222] rounded ml-auto"></div></td>
+                                <td class="px-6 py-4 text-right"><div class="h-4 w-16 bg-[#222222] rounded ml-auto"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-32 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-20 bg-[#222222] rounded"></div></td>
+                            </tr>
+                            <tr class="border-b border-[#222222]">
+                                <td class="px-6 py-4"><div class="h-4 w-16 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-24 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-28 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-6 w-20 bg-[#222222] rounded-full"></div></td>
+                                <td class="px-6 py-4 text-right"><div class="h-4 w-16 bg-[#222222] rounded ml-auto"></div></td>
+                                <td class="px-6 py-4 text-right"><div class="h-4 w-16 bg-[#222222] rounded ml-auto"></div></td>
+                                <td class="px-6 py-4 text-right"><div class="h-4 w-16 bg-[#222222] rounded ml-auto"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-32 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-20 bg-[#222222] rounded"></div></td>
+                            </tr>
+                            <tr class="border-b border-[#222222]">
+                                <td class="px-6 py-4"><div class="h-4 w-16 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-24 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-28 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-6 w-20 bg-[#222222] rounded-full"></div></td>
+                                <td class="px-6 py-4 text-right"><div class="h-4 w-16 bg-[#222222] rounded ml-auto"></div></td>
+                                <td class="px-6 py-4 text-right"><div class="h-4 w-16 bg-[#222222] rounded ml-auto"></div></td>
+                                <td class="px-6 py-4 text-right"><div class="h-4 w-16 bg-[#222222] rounded ml-auto"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-32 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-20 bg-[#222222] rounded"></div></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-        <!-- Pagination with improved styling -->
-        <div class="mt-6 flex justify-between items-center text-gray-300">
-            <div class="text-sm">
-                Showing page <span id="currentPage" class="font-medium text-yellow-500">1</span> of <span id="totalPages" class="font-medium">1</span>
-            </div>
-            <div class="flex space-x-3">
-                <button id="prevPage" class="px-5 py-2.5 bg-[#111111] border border-[#222222] rounded-lg text-sm font-medium text-gray-200 hover:bg-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                    Previous
-                </button>
-                <button id="nextPage" class="px-5 py-2.5 bg-[#111111] border border-[#222222] rounded-lg text-sm font-medium text-gray-200 hover:bg-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                    Next
-                </button>
+                <!-- Desktop Table View -->
+                <div id="desktopTableView" class="rounded-md border border-[#222222] overflow-hidden hidden md:block">
+                    <table class="min-w-full divide-y divide-[#222222]">
+                        <thead class="bg-[#111111]">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer" data-sort="id">
+                                    <div class="flex items-center">
+                                        Order ID
+                                        <span class="sort-icon ml-1"></span>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer" data-sort="username">
+                                    <div class="flex items-center">
+                                        Username
+                                        <span class="sort-icon ml-1"></span>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                    Payment Method
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer" data-sort="status">
+                                    <div class="flex items-center">
+                                        Status
+                                        <span class="sort-icon ml-1"></span>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer" data-sort="subtotal">
+                                    <div class="flex items-center justify-end">
+                                        Subtotal
+                                        <span class="sort-icon ml-1"></span>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                    Discount
+                                </th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer" data-sort="total_price">
+                                    <div class="flex items-center justify-end">
+                                        Total
+                                        <span class="sort-icon ml-1"></span>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer" data-sort="created_at">
+                                    <div class="flex items-center">
+                                        Date
+                                        <span class="sort-icon ml-1"></span>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="ordersTableBody" class="bg-[#0A0A0A] divide-y divide-[#222222]">
+                            <!-- Table content will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Card View -->
+                <div id="mobileCardView" class="md:hidden space-y-4">
+                    <!-- Mobile cards will be populated by JavaScript -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="hidden py-10 text-center text-gray-400">
+                    No orders found
+                </div>
+
+                <!-- Enhanced Pagination -->
+                <div class="mt-6 flex flex-col sm:flex-row justify-between items-center text-gray-300 gap-4">
+                    <div class="text-sm">
+                        Showing <span id="itemsFrom" class="font-medium text-yellow-500">1</span> to 
+                        <span id="itemsTo" class="font-medium text-yellow-500">10</span> of 
+                        <span id="totalItems" class="font-medium">100</span> orders
+                    </div>
+                    <div class="flex flex-wrap justify-center gap-2">
+                        <button id="firstPage" class="pagination-btn" aria-label="Go to first page">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <button id="prevPage" class="pagination-btn" aria-label="Go to previous page">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <div id="paginationNumbers" class="flex gap-1">
+                            <!-- Page numbers will be populated by JavaScript -->
+                        </div>
+                        <button id="nextPage" class="pagination-btn" aria-label="Go to next page">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                        <button id="lastPage" class="pagination-btn" aria-label="Go to last page">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm">
+                        <label for="pageSizeSelect" class="text-gray-400">Show:</label>
+                        <select id="pageSizeSelect" class="bg-[#111111] border border-[#222222] rounded-md px-2 py-1 text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- JavaScript for handling dynamic content -->
-<script>
-let currentPage = 1;
-let totalPages = 1;
-
-function fetchOrders(page = 1, search = '') {
-    currentPage = page;
-    fetch(`/manager/admin_orders/api/?page=${page}&search=${encodeURIComponent(search)}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.orders && Array.isArray(data.orders)) {
-                totalPages = data.total_pages;
-                updateTable(data.orders);
-                updatePagination();
-            } else {
-                console.error('Invalid data format received:', data);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="9" class="px-6 py-8 text-center text-red-400">Error loading orders. Please try again.</td></tr>';
-        });
-}
-
-function updateTable(orders) {
-    const tbody = document.getElementById('ordersTableBody');
-    tbody.innerHTML = '';
+<style>
+    /* Pagination styles */
+    .pagination-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        background-color: #111111;
+        border: 1px solid #222222;
+        border-radius: 0.375rem;
+        color: #e5e7eb;
+        transition-property: background-color, border-color, color;
+        transition-duration: 200ms;
+    }
     
-    orders.forEach(order => {
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-[#111111] cursor-pointer transition-colors duration-200';
-        tr.innerHTML = `
-            <td class="px-6 py-5 whitespace-nowrap text-sm font-medium text-gray-200">#${order.id}</td>
-            <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-300">${order.username}</td>
-            <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-300">${order.payment_method.replace('_', ' ').charAt(0).toUpperCase() + order.payment_method.slice(1).toLowerCase()}</td>
-            <td class="px-6 py-5 whitespace-nowrap">
-                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                    ${getStatusColor(order.status)}">
-                    ${order.status.charAt(0).toUpperCase() + order.status.slice(1).toLowerCase()}
-                </span>
-            </td>
-            <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-300">$${order.subtotal.toFixed(2)}</td>
-            <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-300">$${order.total_discount.toFixed(2)}</td>
-            <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-300">$${order.total_price.toFixed(2)}</td>
-            <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-300">${order.created_at}</td>
-            <td class="px-6 py-5 whitespace-nowrap text-sm font-medium">
-                <a href="/manager/order-detail/${order.id}/" 
-                   class="text-yellow-500 hover:text-yellow-400 transition-colors duration-150">
-                    View Details
-                </a>
-            </td>
-        `;
-        tbody.appendChild(tr);
+    .pagination-btn:hover:not(:disabled) {
+        background-color: #1A1A1A;
+    }
+    
+    .pagination-btn:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.5);
+    }
+    
+    .pagination-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .page-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        background-color: #111111;
+        border: 1px solid #222222;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+        color: #e5e7eb;
+        transition-property: background-color, border-color, color;
+        transition-duration: 200ms;
+    }
+    
+    .page-number:hover:not(.active) {
+        background-color: #1A1A1A;
+    }
+    
+    .page-number:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.5);
+    }
+    
+    .page-number.active {
+        background-color: #eab308;
+        border-color: #ca8a04;
+        color: #000000;
+        font-weight: 500;
+    }
+    
+    .page-number.active:hover {
+        background-color: #facc15;
+    }
+    
+    .page-ellipsis {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        color: #9ca3af;
+    }
+</style>
+
+<script>
+    // State variables
+    let currentPage = 1;
+    let totalPages = 1;
+    let totalItems = 0;
+    let itemsPerPage = 10;
+    let searchQuery = "";
+    let statusFilter = "all";
+    let paymentFilter = "all";
+    let sortField = "created_at";
+    let sortDirection = "desc";
+    let isMobile = window.innerWidth < 768;
+    let isLoading = true;
+
+    // DOM Elements
+    const searchInput = document.getElementById('searchInput');
+    const statusFilterSelect = document.getElementById('statusFilter');
+    const paymentFilterSelect = document.getElementById('paymentFilter');
+    const filterButton = document.getElementById('filterButton');
+    const filterMenu = document.getElementById('filterMenu');
+    const loadingSkeleton = document.getElementById('loadingSkeleton');
+    const desktopTableView = document.getElementById('desktopTableView');
+    const mobileCardView = document.getElementById('mobileCardView');
+    const emptyState = document.getElementById('emptyState');
+    const ordersTableBody = document.getElementById('ordersTableBody');
+    const itemsFromEl = document.getElementById('itemsFrom');
+    const itemsToEl = document.getElementById('itemsTo');
+    const totalItemsEl = document.getElementById('totalItems');
+    const paginationNumbers = document.getElementById('paginationNumbers');
+    const firstPageBtn = document.getElementById('firstPage');
+    const prevPageBtn = document.getElementById('prevPage');
+    const nextPageBtn = document.getElementById('nextPage');
+    const lastPageBtn = document.getElementById('lastPage');
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
+
+    // Helper functions
+    function formatPaymentMethod(method) {
+        if (!method) return "Unknown";
+        
+        return method
+            .replace("_", " ")
+            .split(" ")
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(" ");
+    }
+
+    function getStatusStyles(status) {
+        if (!status) return "bg-[#1A1A1A] text-gray-400 border-gray-700";
+        
+        // Normalize status to uppercase for consistent comparison
+        const normalizedStatus = status.toUpperCase();
+        switch (normalizedStatus) {
+            case "PENDING":
+                return "bg-[#1A1500] text-yellow-400 border-yellow-800";
+            case "PROCESSING":
+                return "bg-[#1A1500] text-yellow-400 border-yellow-800";
+            case "SHIPPED":
+                return "bg-[#001A29] text-blue-400 border-blue-800";
+            case "DELIVERED":
+                return "bg-[#001A00] text-green-400 border-green-800";
+            case "CANCELLED":
+                return "bg-[#1A0000] text-red-400 border-red-800";
+            case "RETURNED":
+                return "bg-[#1A1A1A] text-gray-400 border-gray-700";
+            default:
+                return "bg-[#1A1A1A] text-gray-400 border-gray-700";
+        }
+    }
+
+    function getSortIcon(field) {
+        if (sortField !== field) return "";
+        return sortDirection === "asc" 
+            ? '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" /></svg>'
+            : '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>';
+    }
+
+    function updateSortIcons() {
+        document.querySelectorAll('.sort-icon').forEach(icon => {
+            const field = icon.closest('th').dataset.sort;
+            icon.innerHTML = getSortIcon(field);
+        });
+    }
+
+    // Main functions
+    function fetchOrders(page = 1, search = '') {
+        isLoading = true;
+        currentPage = page;
+        updateUI();
+
+        // Build the API URL with all filters
+        let apiUrl = `/manager/admin_orders/api/?page=${page}&search=${encodeURIComponent(search)}&per_page=${itemsPerPage}`;
+        
+        // Add status filter if not "all"
+        if (statusFilter !== "all") {
+            apiUrl += `&status=${encodeURIComponent(statusFilter)}`;
+        }
+        
+        // Add payment filter if not "all"
+        if (paymentFilter !== "all") {
+            apiUrl += `&payment_method=${encodeURIComponent(paymentFilter)}`;
+        }
+        
+        // Add sorting parameters
+        apiUrl += `&sort_field=${encodeURIComponent(sortField)}&sort_direction=${encodeURIComponent(sortDirection)}`;
+
+        fetch(apiUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                isLoading = false;
+                
+                if (data.orders && Array.isArray(data.orders)) {
+                    totalPages = data.total_pages || 1;
+                    totalItems = data.total_items || data.orders.length;
+                    updateTable(data.orders);
+                    updatePaginationInfo();
+                    updatePaginationControls();
+                    updateUI();
+                } else {
+                    console.error('Invalid data format received:', data);
+                    showError('Invalid data format received from server');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                isLoading = false;
+                showError('Error loading orders. Please try again.');
+                updateUI();
+            });
+    }
+
+    function showError(message) {
+        // Clear existing content
+        ordersTableBody.innerHTML = '';
+        mobileCardView.innerHTML = '';
+        
+        // Show error message
+        emptyState.textContent = message;
+        emptyState.classList.remove('hidden');
+    }
+
+    function updateTable(orders) {
+        // Update desktop table
+        ordersTableBody.innerHTML = '';
+        
+        // Update mobile cards
+        mobileCardView.innerHTML = '';
+
+        if (orders.length === 0) {
+            emptyState.classList.remove('hidden');
+            return;
+        }
+
+        emptyState.classList.add('hidden');
+
+        // Populate desktop table
+        orders.forEach(order => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-[#111111] cursor-pointer transition-colors duration-200';
+            tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">#${order.id}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.username || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatPaymentMethod(order.payment_method)}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getStatusStyles(order.status)}">
+                        ${order.status ? (order.status.charAt(0).toUpperCase() + order.status.slice(1).toLowerCase()) : 'Unknown'}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300 text-right">$${(order.subtotal || 0).toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300 text-right">$${(order.total_discount || 0).toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300 text-right font-medium">$${(order.total_price || 0).toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.created_at || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <a href="/manager/order-detail/${order.id}/" class="text-yellow-500 hover:text-yellow-400 transition-colors duration-150">
+                        View Details
+                    </a>
+                </td>
+            `;
+            ordersTableBody.appendChild(tr);
+        });
+
+        // Populate mobile cards
+        orders.forEach(order => {
+            const card = document.createElement('div');
+            card.className = 'bg-[#0F0F0F] border border-[#222222] rounded-lg overflow-hidden';
+            card.innerHTML = `
+                <div class="p-4 border-b border-[#222222] flex justify-between items-center">
+                    <div>
+                        <p class="text-sm font-medium text-gray-200">#${order.id}</p>
+                        <p class="text-xs text-gray-400">${order.created_at || 'N/A'}</p>
+                    </div>
+                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getStatusStyles(order.status)}">
+                        ${order.status ? (order.status.charAt(0).toUpperCase() + order.status.slice(1).toLowerCase()) : 'Unknown'}
+                    </span>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-400">Username:</span>
+                        <span class="text-sm text-gray-200 font-medium">${order.username || 'N/A'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-400">Payment:</span>
+                        <span class="text-sm text-gray-200">${formatPaymentMethod(order.payment_method)}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-400">Subtotal:</span>
+                        <span class="text-sm text-gray-200">$${(order.subtotal || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-400">Discount:</span>
+                        <span class="text-sm text-gray-200">$${(order.total_discount || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-400 font-medium">Total:</span>
+                        <span class="text-sm text-yellow-500 font-medium">$${(order.total_price || 0).toFixed(2)}</span>
+                    </div>
+                </div>
+                <div class="p-4 bg-[#0A0A0A] border-t border-[#222222]">
+                    <a href="/manager/order-detail/${order.id}/" 
+                       class="block w-full bg-[#111111] border border-[#222222] rounded-md py-2 text-center text-yellow-500 hover:text-yellow-400 hover:bg-[#1A1A1A] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50">
+                        View Details
+                    </a>
+                </div>
+            `;
+            mobileCardView.appendChild(card);
+        });
+    }
+
+    function updatePaginationInfo() {
+        const from = ((currentPage - 1) * itemsPerPage) + 1;
+        const to = Math.min(currentPage * itemsPerPage, totalItems);
+        
+        itemsFromEl.textContent = from;
+        itemsToEl.textContent = to;
+        totalItemsEl.textContent = totalItems;
+    }
+
+    function updatePaginationControls() {
+        // Clear existing page numbers
+        paginationNumbers.innerHTML = '';
+        
+        // Disable/enable first/last/prev/next buttons
+        firstPageBtn.disabled = currentPage === 1;
+        prevPageBtn.disabled = currentPage === 1;
+        nextPageBtn.disabled = currentPage === totalPages;
+        lastPageBtn.disabled = currentPage === totalPages;
+        
+        // Generate page numbers with ellipsis for large page counts
+        const maxVisiblePages = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+        
+        // Adjust start page if we're near the end
+        if (endPage - startPage + 1 < maxVisiblePages) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+        
+        // Add first page and ellipsis if needed
+        if (startPage > 1) {
+            addPageNumber(1);
+            if (startPage > 2) {
+                addEllipsis();
+            }
+        }
+        
+        // Add visible page numbers
+        for (let i = startPage; i <= endPage; i++) {
+            addPageNumber(i);
+        }
+        
+        // Add ellipsis and last page if needed
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                addEllipsis();
+            }
+            addPageNumber(totalPages);
+        }
+    }
+    
+    function addPageNumber(pageNum) {
+        const pageButton = document.createElement('button');
+        pageButton.className = `page-number ${pageNum === currentPage ? 'active' : ''}`;
+        pageButton.textContent = pageNum;
+        pageButton.addEventListener('click', () => {
+            if (pageNum !== currentPage) {
+                fetchOrders(pageNum, searchQuery);
+            }
+        });
+        paginationNumbers.appendChild(pageButton);
+    }
+    
+    function addEllipsis() {
+        const ellipsis = document.createElement('span');
+        ellipsis.className = 'page-ellipsis';
+        ellipsis.textContent = '...';
+        paginationNumbers.appendChild(ellipsis);
+    }
+
+    function updateUI() {
+        if (isLoading) {
+            loadingSkeleton.classList.remove('hidden');
+            desktopTableView.classList.add('hidden');
+            mobileCardView.classList.add('hidden');
+            emptyState.classList.add('hidden');
+        } else {
+            loadingSkeleton.classList.add('hidden');
+            
+            if (isMobile) {
+                desktopTableView.classList.add('hidden');
+                mobileCardView.classList.remove('hidden');
+            } else {
+                desktopTableView.classList.remove('hidden');
+                mobileCardView.classList.add('hidden');
+            }
+            
+            updateSortIcons();
+        }
+    }
+
+    function checkIfMobile() {
+        const wasMobile = isMobile;
+        isMobile = window.innerWidth < 768;
+        
+        if (wasMobile !== isMobile) {
+            updateUI();
+        }
+    }
+
+    // Event listeners
+    searchInput.addEventListener('input', debounce(() => {
+        searchQuery = searchInput.value;
+        fetchOrders(1, searchQuery);
+    }, 300));
+
+    statusFilterSelect.addEventListener('change', () => {
+        statusFilter = statusFilterSelect.value;
+        fetchOrders(1, searchQuery);
     });
-}
 
-function getStatusColor(status) {
-    // Normalize status to uppercase for consistent comparison
-    const normalizedStatus = status.toUpperCase();
-    const colors = {
-        'PENDING': 'bg-[#1A1500] text-yellow-400',
-        'PROCESSING': 'bg-[#1A1500] text-yellow-400',
-        'SHIPPED': 'bg-[#001A29] text-blue-400',
-        'DELIVERED': 'bg-[#001A00] text-green-400',
-        'CANCELLED': 'bg-[#1A0000] text-red-400',
-        'RETURNED': 'bg-[#1A1A1A] text-gray-400'
-    };
-    return colors[normalizedStatus] || 'bg-[#1A1A1A] text-gray-400';
-}
+    paymentFilterSelect.addEventListener('change', () => {
+        paymentFilter = paymentFilterSelect.value;
+        fetchOrders(1, searchQuery);
+    });
 
-function updatePagination() {
-    document.getElementById('currentPage').textContent = currentPage;
-    document.getElementById('totalPages').textContent = totalPages;
-    document.getElementById('prevPage').disabled = currentPage === 1;
-    document.getElementById('nextPage').disabled = currentPage === totalPages;
-}
+    filterButton.addEventListener('click', () => {
+        filterMenu.classList.toggle('hidden');
+    });
 
-// Event Listeners
-document.getElementById('prevPage').addEventListener('click', () => {
-    if (currentPage > 1) {
-        currentPage--;
-        fetchOrders(currentPage, document.getElementById('searchInput').value);
-    }
-});
+    // Close filter menu when clicking outside
+    document.addEventListener('click', (event) => {
+        const isClickInside = filterButton.contains(event.target) || filterMenu.contains(event.target);
+        if (!isClickInside && !filterMenu.classList.contains('hidden')) {
+            filterMenu.classList.add('hidden');
+        }
+    });
 
-document.getElementById('nextPage').addEventListener('click', () => {
-    if (currentPage < totalPages) {
-        currentPage++;
-        fetchOrders(currentPage, document.getElementById('searchInput').value);
-    }
-});
+    firstPageBtn.addEventListener('click', () => {
+        if (currentPage !== 1) {
+            fetchOrders(1, searchQuery);
+        }
+    });
 
-document.getElementById('searchInput').addEventListener('input', debounce((e) => {
-    currentPage = 1;
-    fetchOrders(1, e.target.value);
-}, 300));
+    prevPageBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+            fetchOrders(currentPage - 1, searchQuery);
+        }
+    });
 
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
+    nextPageBtn.addEventListener('click', () => {
+        if (currentPage < totalPages) {
+            fetchOrders(currentPage + 1, searchQuery);
+        }
+    });
+
+    lastPageBtn.addEventListener('click', () => {
+        if (currentPage !== totalPages) {
+            fetchOrders(totalPages, searchQuery);
+        }
+    });
+
+    pageSizeSelect.addEventListener('change', () => {
+        itemsPerPage = parseInt(pageSizeSelect.value);
+        fetchOrders(1, searchQuery);
+    });
+
+    // Sort columns
+    document.querySelectorAll('th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+            const field = th.dataset.sort;
+            if (sortField === field) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortDirection = 'asc';
+            }
+            fetchOrders(1, searchQuery);
+        });
+    });
+
+    window.addEventListener('resize', debounce(checkIfMobile, 100));
+
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
             clearTimeout(timeout);
-            func(...args);
+            timeout = setTimeout(later, wait);
         };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
+    }
 
-// Initial load
-fetchOrders();
+    // Initial load
+    fetchOrders();
 </script>
 
 {% endblock %}

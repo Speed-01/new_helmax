@@ -1,9 +1,9 @@
 # Import all views to make them available when importing from store.views
 
 # First import from the modular view files in the views package
-from .views import *
+from store.views import *
 from .delivery_views import *
-from .auth_views import *
+
 
 # To avoid circular imports, we'll directly import the main views.py file
 # and make its functions available in this namespace

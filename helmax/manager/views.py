@@ -20,8 +20,9 @@ import json
 from .models import Product,Category,ProductImage,User, Brand, Variant, Size, Coupon, CouponUsage, Order, ReturnRequest, Wallet, WalletTransaction, ProductOffer, CategoryOffer,OrderItem, OrderStatusHistory
 from django.utils import timezone
 from store.utils import send_order_status_notification
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+from django.db.models import Count, Sum
 
 
 
@@ -37,10 +38,51 @@ def search_products(request):
 
 
 
+@login_required(login_url='adminLogin')
+def get_top_categories(request):
+    top_categories = OrderItem.objects.filter(
+        order__order_status='DELIVERED'
+    ).values(
+        'product__category__name'
+    ).annotate(
+        total_sales=Sum('total_price'),
+        total_quantity=Sum('quantity')
+    ).order_by('-total_sales')[:5]
+    
+    return JsonResponse({'categories': list(top_categories)})
+
+@login_required(login_url='adminLogin')
+def get_top_products(request):
+    top_products = OrderItem.objects.filter(
+        order__order_status='DELIVERED'
+    ).values(
+        'product__name'
+    ).annotate(
+        total_sales=Sum('total_price'),
+        total_quantity=Sum('quantity')
+    ).order_by('-total_sales')[:5]
+    
+    return JsonResponse({'products': list(top_products)})
+
+@login_required(login_url='adminLogin')
+def get_top_brands(request):
+    top_brands = OrderItem.objects.filter(
+        order__order_status='DELIVERED'
+    ).values(
+        'product__brand__name'
+    ).annotate(
+        total_sales=Sum('total_price'),
+        total_quantity=Sum('quantity')
+    ).order_by('-total_sales')[:5]
+    
+    return JsonResponse({'brands': list(top_brands)})
+
+
+
 @never_cache
 def adminLogin(request):
     if request.user.is_authenticated:
-        return redirect("customers")
+        return redirect("admin_dashboard")
     if request.method == "POST":
         username = request.POST.get("username")
         password = request.POST.get("password")
@@ -50,7 +92,7 @@ def adminLogin(request):
             return redirect("adminLogin")
         elif user and user.is_superuser:
             login(request, user)
-            return redirect("customers")
+            return redirect("admin_dashboard")
         else:
             messages.error(request, f"{user} have no access to this page")
             return redirect("adminLogin")
@@ -267,7 +309,7 @@ def sales_report(request):
             ]
             for order in orders:
                 data.append([
-                    order.order_number,
+                    order.order_id,
                     order.created_at.strftime('%Y-%m-%d %H:%M'),
                     order.user.username,
                     order.order_items.count(),
@@ -315,7 +357,7 @@ def sales_report(request):
             # Add data
             for order in orders:
                 worksheet.append([
-                    order.order_number,
+                    order.order_id,
                     order.created_at.strftime('%Y-%m-%d %H:%M'),
                     order.user.username,
                     order.order_items.count(),
@@ -743,17 +785,46 @@ def admin_orders(request):
 def admin_orders_api(request):
     try:
         # Fetch orders with related user, paymentmethod, and order items
-
-        orders = Order.objects.select_related('user', 'payment_method').prefetch_related('order_items').order_by('-created_at')
-
+        orders = Order.objects.select_related('user', 'payment_method').prefetch_related('order_items')
         
         # Apply search filter
         search_query = request.GET.get('search', '')
         if search_query:
-            orders = orders.filter(user__username__icontains=search_query)
+            orders = orders.filter(Q(user__username__icontains=search_query) | Q(order_id__icontains=search_query))
+        
+        # Apply status filter
+        status_filter = request.GET.get('status', 'all')
+        if status_filter != 'all':
+            orders = orders.filter(order_status__iexact=status_filter)
+            
+        # Apply payment method filter
+        payment_filter = request.GET.get('payment_method', 'all')
+        if payment_filter != 'all':
+            orders = orders.filter(payment_method__name__iexact=payment_filter)
+            
+        # Apply sorting
+        sort_field = request.GET.get('sort_field', 'created_at')
+        sort_direction = request.GET.get('sort_direction', 'desc')
+        
+        # Map frontend sort fields to model fields if needed
+        field_mapping = {
+            'id': 'order_id',
+            'username': 'user__username',
+            'status': 'order_status',
+            'subtotal': 'subtotal',
+            'total_price': 'total_amount',
+            'created_at': 'created_at'
+        }
+        
+        db_sort_field = field_mapping.get(sort_field, 'created_at')
+        if sort_direction == 'desc':
+            db_sort_field = f'-{db_sort_field}'
+            
+        orders = orders.order_by(db_sort_field)
         
         # Paginate results
-        paginator = Paginator(orders, 10)
+        per_page = int(request.GET.get('per_page', 10))  # Get per_page from request, default to 10
+        paginator = Paginator(orders, per_page)
         page_number = request.GET.get('page', 1)
         page_obj = paginator.get_page(page_number)
         
@@ -979,7 +1050,7 @@ def add_coupon(request):
 
             # Check if coupon code already exists (case-sensitive)
             if Coupon.objects.filter(code=code).exists():
-                messages.error(request, 'Coupon code already exists.')
+                messages.error(request, 'Coupon code already exists. Note: Coupon codes are case-sensitive.')
                 return redirect('admin_coupons')
 
             # Create and save coupon
@@ -1590,7 +1661,7 @@ def sales_report(request):
             ]
             for order in orders:
                 data.append([
-                    order.order_number,
+                    order.order_id,
                     order.created_at.strftime('%Y-%m-%d %H:%M'),
                     order.user.username,
                     order.order_items.count(),
@@ -1638,7 +1709,7 @@ def sales_report(request):
             # Add data
             for order in orders:
                 worksheet.append([
-                    order.order_number,
+                    order.order_id,
                     order.created_at.strftime('%Y-%m-%d %H:%M'),
                     order.user.username,
                     order.order_items.count(),
@@ -2086,3 +2157,202 @@ def admin_wallet_transaction_detail(request, transaction_id):
         logger.error(f"Error in transaction detail view: {str(e)}")
         messages.error(request, "An error occurred while loading transaction details.")
         return redirect('admin_wallet')
+
+
+from django.db.models import Sum
+
+
+from manager.models import Order, OrderItem, Product, Category, Brand
+@login_required(login_url='adminLogin')
+def admin_dashboard(request):
+    # Get pending returns count for the sidebar notification
+    pending_returns_count = ReturnRequest.objects.filter(status='PENDING').count()
+    
+    # Get pending orders count
+    pending_orders_count = Order.objects.filter(order_status='PENDING').count()
+    
+    return render(request, 'admin_dashboard.html', {
+        'pending_returns_count': pending_returns_count,
+        'pending_orders_count': pending_orders_count
+    })
+@login_required(login_url='adminLogin')
+def dashboard_data(request):
+    try:
+        filter_type = request.GET.get('filter_type', 'monthly')
+        today = timezone.now()
+        
+        # Set time range based on filter
+        if filter_type == 'yearly':
+            start_date = today - timedelta(days=365)
+            date_format = '%Y-%m'
+        elif filter_type == 'monthly':
+            start_date = today - timedelta(days=30)
+            date_format = '%Y-%m-%d'
+        elif filter_type == 'weekly':
+            start_date = today - timedelta(days=7)
+            date_format = '%Y-%m-%d'
+        else:  # daily
+            start_date = today - timedelta(days=1)
+            date_format = '%Y-%m-%d %H:00'
+        
+        # Get metrics data
+        total_revenue = Order.objects.filter(
+            created_at__gte=start_date,
+            order_status='DELIVERED'
+        ).aggregate(total=Sum('total_amount'))['total'] or 0
+        
+        total_orders = Order.objects.filter(
+            created_at__gte=start_date
+        ).count()
+        
+        new_customers = User.objects.filter(
+            date_joined__gte=start_date
+        ).count()
+        
+        # Get sales data
+        sales_data = Order.objects.filter(
+            created_at__gte=start_date,
+            order_status='DELIVERED'
+        ).extra(
+            select={'date': f"to_char(created_at, '{date_format}')"}
+        ).values('date').annotate(
+            total=Sum('total_amount')
+        ).order_by('date')
+        
+        # Get top products
+        top_products = OrderItem.objects.filter(
+            order__order_status='DELIVERED',
+            order__created_at__gte=start_date
+        ).values(
+            'variant__product__name'
+        ).annotate(
+            units_sold=Sum('quantity'),
+            revenue=Sum('total_price')
+        ).order_by('-revenue')[:5]
+        
+        # Get top categories
+        top_categories = OrderItem.objects.filter(
+            order__order_status='DELIVERED',
+            order__created_at__gte=start_date
+        ).values(
+            'variant__product__category__name'
+        ).annotate(
+            units_sold=Sum('quantity'),
+            revenue=Sum('total_price')
+        ).order_by('-revenue')[:5]
+        
+        # Get top brands
+        top_brands = OrderItem.objects.filter(
+            order__order_status='DELIVERED',
+            order__created_at__gte=start_date
+        ).values(
+            'variant__product__brand__name'
+        ).annotate(
+            units_sold=Sum('quantity'),
+            revenue=Sum('total_price')
+        ).order_by('-revenue')[:5]
+        
+        # Prepare the response data
+        response_data = {
+            'metrics': {
+                'total_revenue': float(total_revenue),
+                'total_orders': total_orders,
+                'new_customers': new_customers
+            },
+            'sales_data': {
+                'labels': [item['date'] for item in sales_data],
+                'values': [float(item['total']) for item in sales_data]
+            },
+            'top_products': {
+                'products': [{
+                    'name': item['variant__product__name'],
+                    'units_sold': item['units_sold'],
+                    'revenue': float(item['revenue'])
+                } for item in top_products]
+            },
+            'top_categories': {
+                'categories': [{
+                    'name': item['variant__product__category__name'],
+                    'units_sold': item['units_sold'],
+                    'revenue': float(item['revenue'])
+                } for item in top_categories]
+            },
+            'top_brands': {
+                'labels': [item['variant__product__brand__name'] for item in top_brands],
+                'values': [float(item['revenue']) for item in top_brands],
+                'brands': [{
+                    'name': item['variant__product__brand__name'],
+                    'units_sold': item['units_sold'],
+                    'revenue': float(item['revenue'])
+                } for item in top_brands]
+            }
+        }
+        return JsonResponse(response_data)
+    except Exception as e:
+        logging.error(f"Error in dashboard_data: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+@login_required(login_url='adminLogin')
+def generate_ledger(request):
+    # Get filter parameters
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    # Convert string dates to datetime objects
+    if start_date and end_date:
+        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+    else:
+        # Default to current month
+        today = timezone.now().date()
+        start_date = today.replace(day=1)
+        end_date = today
+    
+    # Get all orders within date range
+    orders = Order.objects.filter(
+        created_at__date__gte=start_date,
+        created_at__date__lte=end_date
+    ).order_by('created_at')
+    
+    # Calculate summary statistics
+    total_sales = orders.filter(order_status='DELIVERED').aggregate(Sum('total_amount'))['total_amount__sum'] or 0
+    total_orders = orders.count()
+    delivered_orders = orders.filter(order_status='DELIVERED').count()
+    cancelled_orders = orders.filter(order_status='CANCELLED').count()
+    
+    # Prepare ledger entries
+    ledger_entries = []
+    running_balance = 0
+    
+    for order in orders:
+        entry = {
+            'date': order.created_at.strftime('%Y-%m-%d'),
+            'order_id': order.order_id,
+            'description': f"Order {order.order_id} - {order.order_status}",
+            'debit': 0,
+            'credit': 0,
+            'balance': 0
+        }
+        
+        # Add to credit if order is delivered (income)
+        if order.order_status == 'DELIVERED':
+            entry['credit'] = float(order.total_amount)
+            running_balance += float(order.total_amount)
+        # Add to debit if order is cancelled or returned (expense/refund)
+        elif order.order_status in ['CANCELLED', 'RETURNED']:
+            entry['debit'] = float(order.total_amount)
+            running_balance -= float(order.total_amount)
+        
+        entry['balance'] = running_balance
+        ledger_entries.append(entry)
+    
+    context = {
+        'ledger_entries': ledger_entries,
+        'total_sales': total_sales,
+        'total_orders': total_orders,
+        'delivered_orders': delivered_orders,
+        'cancelled_orders': cancelled_orders,
+        'start_date': start_date,
+        'end_date': end_date
+    }
+    
+    return render(request, 'admin_ledger.html', context)
