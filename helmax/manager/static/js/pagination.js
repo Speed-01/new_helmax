@@ -199,22 +199,44 @@ class AdminPagination {
                 sort_field: this.sortField,
                 sort_direction: this.sortDirection
             });
-
+    
             const response = await fetch(`${this.apiEndpoint}?${params}`);
+            
+            // Check if the response is ok before trying to parse JSON
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+            
             const data = await response.json();
-
+    
             this.totalItems = data.total;
             this.totalPages = Math.ceil(this.totalItems / this.itemsPerPage);
-
+    
             // Update UI elements
             this.updatePaginationUI();
-
+    
             // Call the provided callback with the data
             if (this.onDataLoaded) {
                 this.onDataLoaded(data);
             }
         } catch (error) {
             console.error('Error loading data:', error);
+            
+            // Call onDataLoaded with null to indicate an error occurred
+            if (this.onDataLoaded) {
+                this.onDataLoaded(null);
+            }
+            
+            // Show an error message to the user
+            const emptyState = document.getElementById('emptyState');
+            if (emptyState) {
+                const heading = emptyState.querySelector('h3');
+                const message = emptyState.querySelector('p');
+                
+                if (heading) heading.textContent = 'Error loading data';
+                if (message) message.textContent = 'There was a problem fetching the data. Please try again later.';
+                
+                emptyState.classList.remove('hidden');
+            }
         }
     }
-}

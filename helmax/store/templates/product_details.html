@@ -76,6 +76,7 @@
                 </div>
             </div>
 
+            
             <div class="flex items-center space-x-4">
                 {% with best_offer=product.get_best_offer %}
                     {% if best_offer %}
@@ -84,6 +85,10 @@
                         </span>
                         <span id="original-price" class="text-gray-500 line-through">₹{{ primary_variant.price|floatformat:2 }}</span>
                         <span class="text-green-500 text-sm">({{ best_offer.discount_percentage|floatformat:2 }}% off)</span>
+                    {% else %}
+                        <span id="current-price" class="text-2xl font-medium text-[#ff6b00]">
+                            ₹{{ primary_variant.price|floatformat:2 }}
+                        </span>
                     {% endif %}
                 {% endwith %}
             </div>

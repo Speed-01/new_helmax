@@ -5,6 +5,7 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from django.contrib.auth.decorators import login_required
 import logging
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from .models import Order, OrderItem, Product, Category, Brand, User
 
 # Configure logging
@@ -202,3 +203,63 @@ def get_top_brands(request):
     except Exception as e:
         logger.error(f'Error in get_top_brands: {str(e)}')
         return JsonResponse({'error': 'Failed to fetch top brands', 'details': str(e)}, status=500)
+
+@login_required(login_url='adminLogin')
+def get_products(request):
+    try:
+        search = request.GET.get('search', '')
+        page = request.GET.get('page', 1)
+        page_size = request.GET.get('per_page', 10)
+        
+        # Filter products based on search query if provided
+        products_query = Product.objects.all().order_by('id')
+        if search:
+            products_query = products_query.filter(name__icontains=search)
+        
+        # Set up pagination
+        paginator = Paginator(products_query, page_size)
+        try:
+            products_page = paginator.page(page)
+        except PageNotAnInteger:
+            products_page = paginator.page(1)
+        except EmptyPage:
+            products_page = paginator.page(paginator.num_pages)
+        
+        # Prepare data for JSON response
+        products_data = []
+        for product in products_page:
+            variants = product.variants.all()
+            
+            # Calculate total stock across all variants and sizes
+            total_stock = 0
+            price = 0
+            for variant in variants:
+                for size in variant.sizes.all():
+                    total_stock += size.stock
+                if variant.price and (price == 0 or variant.price < price):
+                    price = variant.price
+            
+            products_data.append({
+                'id': product.id,
+                'name': product.name,
+                'category': product.category.name if product.category else "N/A",
+                'brand': product.brand.name if product.brand else "N/A",
+                'price': float(price) if price else 0,
+                'stock': total_stock,
+                'is_active': product.is_active,
+            })
+        
+        # Create response with pagination metadata
+        response_data = {
+            'items': products_data,
+            'page': products_page.number,
+            'total_pages': paginator.num_pages,
+            'total': paginator.count,
+            'has_next': products_page.has_next(),
+            'has_previous': products_page.has_previous(),
+        }
+        
+        return JsonResponse(response_data)
+    except Exception as e:
+        logger.error(f'Error in get_products: {str(e)}')
+        return JsonResponse({'error': 'Failed to fetch products', 'details': str(e)}, status=500)

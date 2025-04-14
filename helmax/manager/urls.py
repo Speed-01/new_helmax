@@ -11,7 +11,6 @@ urlpatterns = [
     path('api/top-categories/', api.get_top_categories, name='api_top_categories'),
     path('api/top-products/', api.get_top_products, name='api_top_products'),
     path('api/top-brands/', api.get_top_brands, name='api_top_brands'),
-
     # Dashboard routes
     path('dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('dashboard/data/', views.dashboard_data, name='dashboard_data'),
@@ -33,6 +32,8 @@ urlpatterns = [
     
     path('adminProducts/', views.adminProducts, name='adminProducts'),
     path('addProducts/', views.addProducts, name='addProducts'),
+    path('api/products/', views.api_products, name='api_products'),
+    path('api/brands/', views.api_brands, name='api_brands'),
     path('delete-product/<int:product_id>/', views.deleteProduct, name='deleteProduct'),
     path('delete-variant/<int:variant_id>/', views.deleteVariant, name='deleteVariant'),
     path('edit-product/<int:product_id>/', views.editProduct, name='editProduct'),

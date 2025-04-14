@@ -99,14 +99,23 @@ function initAdminBrand() {
             const tableBody = document.getElementById('brandsTableBody');
             const mobileView = document.getElementById('mobileCardView');
             const emptyState = document.getElementById('emptyState');
-
+            
+            if (!data || !data.items) {
+                tableBody.innerHTML = '';
+                mobileView.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                emptyState.querySelector('h3').textContent = 'Error loading brands';
+                emptyState.querySelector('p').textContent = 'There was a problem fetching the brand data. Please try again later.';
+                return;
+            }
+            
             if (data.items.length === 0) {
                 tableBody.innerHTML = '';
                 mobileView.innerHTML = '';
                 emptyState.classList.remove('hidden');
                 return;
             }
-
+            
             emptyState.classList.add('hidden');
             
             // Update desktop view
@@ -151,15 +160,31 @@ function initAdminBrand() {
     });
     pagination.loadData();
 }
-// Initialize pagination for admin products page
+
 function initAdminProducts() {
     const pagination = new AdminPagination({
-        apiEndpoint: '/manager/api/products',
+        apiEndpoint: '/manager/api/products/',
         onDataLoaded: (data) => {
             const tableBody = document.getElementById('productsTableBody');
             const mobileView = document.getElementById('mobileCardView');
             const emptyState = document.getElementById('emptyState');
 
+            // Handle error case or empty data
+            if (!data || !data.items) {
+                tableBody.innerHTML = '';
+                mobileView.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                
+                // If we have access to these elements, update their text
+                const heading = emptyState.querySelector('h3');
+                const message = emptyState.querySelector('p');
+                
+                if (heading) heading.textContent = 'Error loading products';
+                if (message) message.textContent = 'There was a problem fetching the product data. Please try again later.';
+                return;
+            }
+
+            // Handle empty results case
             if (data.items.length === 0) {
                 tableBody.innerHTML = '';
                 mobileView.innerHTML = '';

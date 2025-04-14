@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.views.decorators.cache import never_cache
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q
-from django.core.paginator import Paginator
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
@@ -24,6 +24,8 @@ from datetime import datetime, timedelta
 import logging
 from django.db.models import Count, Sum
 
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 def search_products(request):
@@ -521,92 +523,188 @@ def addProducts(request):
 
     return render(request, 'addProducts.html', {'categories': categories, 'brands': brands})
 
+@login_required(login_url='adminLogin')
+def api_brands(request):
+    try:
+        # Get query parameters with defaults
+        search = request.GET.get('search', '')
+        page = int(request.GET.get('page', 1))
+        per_page = int(request.GET.get('per_page', 10))
+        sort_field = request.GET.get('sort_field', 'id')
+        sort_direction = request.GET.get('sort_direction', 'asc')
+        
+        # Define valid sort fields based on your model fields
+        valid_sort_fields = ['id', 'name', 'is_active']
+        
+        # Validate sort field to prevent error with non-existent fields
+        if sort_field not in valid_sort_fields:
+            # Log the invalid sort field attempt
+            logger.warning(f"Invalid sort field requested: {sort_field}")
+            # Default to id if invalid sort field is requested
+            sort_field = 'id'
+        
+        # Special handling for common sort fields that might be requested but don't exist directly
+        # For example, if 'created_at' is requested but doesn't exist, we can fall back to 'id'
+        if sort_field == 'created_at':
+            logger.info("Sorting by 'created_at' requested, falling back to 'id'")
+            sort_field = 'id'
+        
+        # Apply sorting direction
+        if sort_direction == 'desc':
+            sort_field = f'-{sort_field}'
+        
+        # Filter brands based on search query if provided
+        brands_query = Brand.objects.all()
+        if search:
+            brands_query = brands_query.filter(name__icontains=search)
+        
+        # Apply sorting
+        brands_query = brands_query.order_by(sort_field)
+        
+        # Set up pagination
+        paginator = Paginator(brands_query, per_page)
+        try:
+            brands_page = paginator.page(page)
+        except (PageNotAnInteger, EmptyPage):
+            # Default to first page if page number is invalid
+            brands_page = paginator.page(1)
+        
+        # Prepare data for JSON response
+        brands_data = []
+        for brand in brands_page:
+            # Count products associated with this brand
+            product_count = Product.objects.filter(brand=brand).count()
+            
+            # Create brand data dictionary
+            brands_data.append({
+                'id': brand.id,
+                'name': brand.name,
+                'is_active': brand.is_active,
+                'product_count': product_count
+            })
+        
+        # Create response with pagination metadata
+        response_data = {
+            'items': brands_data,
+            'page': brands_page.number,
+            'total_pages': paginator.num_pages,
+            'total': paginator.count,
+        }
+        
+        return JsonResponse(response_data)
+        
+    except Exception as e:
+        # Log the error for server-side debugging
+        logger.error(f"Error in api_brands view: {str(e)}")
+        # Return error response to client
+        return JsonResponse({
+            'error': 'An error occurred while fetching brands.',
+            'details': str(e)
+        }, status=500)
 
 @login_required(login_url='adminLogin')
 def api_products(request):
     try:
+        # Get query parameters with defaults
         search = request.GET.get('search', '')
-        page = request.GET.get('page', 1)
-        page_size = request.GET.get('page_size', 10)
+        page = int(request.GET.get('page', 1))
+        per_page = int(request.GET.get('per_page', 10))
+        sort_field = request.GET.get('sort_field', 'id')
+        sort_direction = request.GET.get('sort_direction', 'asc')
+        
+        # Special handling for common sort fields that might be requested but don't exist directly
+        if sort_field == 'created_at':
+            logger.info("Sorting by 'created_at' requested, falling back to 'id'")
+            sort_field = 'id'
+            
+        # Define valid sort fields based on your model fields
+        valid_sort_fields = ['id', 'name', 'brand', 'category', 'is_active']
+        
+        # Validate sort field to prevent error with non-existent fields
+        if sort_field not in valid_sort_fields:
+            # Log the invalid sort field attempt
+            logger.warning(f"Invalid sort field requested: {sort_field}")
+            # Default to id if invalid sort field is requested
+            sort_field = 'id'
+        
+        # Apply sorting direction
+        if sort_direction == 'desc':
+            sort_field = f'-{sort_field}'
         
         # Filter products based on search query if provided
-        products_query = Product.objects.all().order_by('id')
+        products_query = Product.objects.all()
         if search:
             products_query = products_query.filter(name__icontains=search)
         
+        # Apply sorting
+        products_query = products_query.order_by(sort_field)
+        
         # Set up pagination
-        paginator = Paginator(products_query, page_size)
+        paginator = Paginator(products_query, per_page)
         try:
             products_page = paginator.page(page)
-        except PageNotAnInteger:
+        except (PageNotAnInteger, EmptyPage):
+            # Default to first page if page number is invalid
             products_page = paginator.page(1)
-        except EmptyPage:
-            products_page = paginator.page(paginator.num_pages)
         
         # Prepare data for JSON response
         products_data = []
         for product in products_page:
-            variants_data = [{
-                'id': variant.id,
-                'color': variant.color,
-                'price': float(variant.price),
-                'discount_price': float(variant.discount_price) if variant.discount_price else None,
-                'is_active': variant.is_active,
-                'stock': variant.get_total_stock()
-            } for variant in product.variants.all()]
+            # Get product variants - handle possible related object errors
+            try:
+                variants = product.variants.all()
+                
+                # Calculate total stock across all variants and sizes
+                total_stock = 0
+                price = 0
+                for variant in variants:
+                    # Handle possible missing sizes relationship
+                    try:
+                        for size in variant.sizes.all():
+                            total_stock += size.stock
+                    except Exception as e:
+                        logger.error(f"Error processing sizes for variant {variant.id}: {str(e)}")
+                    
+                    # Get minimum price from variants
+                    if variant.price and (price == 0 or variant.price < price):
+                        price = variant.price
+            except Exception as e:
+                # Handle case where variants relationship might fail
+                logger.error(f"Error processing variants for product {product.id}: {str(e)}")
+                variants = []
+                total_stock = 0
+                price = 0
             
+            # Create product data dictionary with safe access to relations
             products_data.append({
                 'id': product.id,
                 'name': product.name,
-                'description': product.description,
-                'category': product.category.name,
-                'brand': product.brand.name if product.brand else None,
+                'category': product.category.name if hasattr(product, 'category') and product.category else "N/A",
+                'brand': product.brand.name if hasattr(product, 'brand') and product.brand else "N/A",
+                'price': float(price) if price else 0,
+                'stock': total_stock,
                 'is_active': product.is_active,
-                'variants': variants_data
             })
         
-        return JsonResponse({
-            'products': products_data,
+        # Create response with pagination metadata
+        response_data = {
+            'items': products_data,
+            'page': products_page.number,
             'total_pages': paginator.num_pages,
-            'current_page': products_page.number,
-            'has_next': products_page.has_next(),
-            'has_previous': products_page.has_previous()
-        })
+            'total': paginator.count,
+        }
+        
+        return JsonResponse(response_data)
+        
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        # Log the error for server-side debugging
+        logger.error(f"Error in api_products view: {str(e)}")
+        # Return error response to client
+        return JsonResponse({
+            'error': 'An error occurred while fetching products.',
+            'details': str(e)
+        }, status=500)
         
-        # Calculate total stock across all variants and sizes
-        total_stock = 0
-        price = 0
-        for variant in variants:
-            for size in variant.size_set.all():
-                total_stock += size.stock
-            if variant.price and (price == 0 or variant.price < price):
-                price = variant.price
-        
-        products_data.append({
-            'id': product.id,
-            'name': product.name,
-            'category': product.category.name if product.category else "N/A",
-            'brand': product.brand.name if product.brand else "N/A",
-            'price': price,
-            'stock': total_stock,
-            'is_active': product.is_active,
-        })
-    
-    # Create response with pagination metadata
-    response_data = {
-        'items': products_data,
-        'page': products_page.number,
-        'total_pages': paginator.num_pages,
-        'total_items': paginator.count,
-        'has_next': products_page.has_next(),
-        'has_previous': products_page.has_previous(),
-    }
-    
-    return JsonResponse(response_data)
-
-
 @login_required(login_url='adminLogin')
 def addVariant(request, product_id):
     product = get_object_or_404(Product, id=product_id)
