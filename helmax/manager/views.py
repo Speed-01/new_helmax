@@ -521,6 +521,92 @@ def addProducts(request):
 
     return render(request, 'addProducts.html', {'categories': categories, 'brands': brands})
 
+
+@login_required(login_url='adminLogin')
+def api_products(request):
+    try:
+        search = request.GET.get('search', '')
+        page = request.GET.get('page', 1)
+        page_size = request.GET.get('page_size', 10)
+        
+        # Filter products based on search query if provided
+        products_query = Product.objects.all().order_by('id')
+        if search:
+            products_query = products_query.filter(name__icontains=search)
+        
+        # Set up pagination
+        paginator = Paginator(products_query, page_size)
+        try:
+            products_page = paginator.page(page)
+        except PageNotAnInteger:
+            products_page = paginator.page(1)
+        except EmptyPage:
+            products_page = paginator.page(paginator.num_pages)
+        
+        # Prepare data for JSON response
+        products_data = []
+        for product in products_page:
+            variants_data = [{
+                'id': variant.id,
+                'color': variant.color,
+                'price': float(variant.price),
+                'discount_price': float(variant.discount_price) if variant.discount_price else None,
+                'is_active': variant.is_active,
+                'stock': variant.get_total_stock()
+            } for variant in product.variants.all()]
+            
+            products_data.append({
+                'id': product.id,
+                'name': product.name,
+                'description': product.description,
+                'category': product.category.name,
+                'brand': product.brand.name if product.brand else None,
+                'is_active': product.is_active,
+                'variants': variants_data
+            })
+        
+        return JsonResponse({
+            'products': products_data,
+            'total_pages': paginator.num_pages,
+            'current_page': products_page.number,
+            'has_next': products_page.has_next(),
+            'has_previous': products_page.has_previous()
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+        
+        # Calculate total stock across all variants and sizes
+        total_stock = 0
+        price = 0
+        for variant in variants:
+            for size in variant.size_set.all():
+                total_stock += size.stock
+            if variant.price and (price == 0 or variant.price < price):
+                price = variant.price
+        
+        products_data.append({
+            'id': product.id,
+            'name': product.name,
+            'category': product.category.name if product.category else "N/A",
+            'brand': product.brand.name if product.brand else "N/A",
+            'price': price,
+            'stock': total_stock,
+            'is_active': product.is_active,
+        })
+    
+    # Create response with pagination metadata
+    response_data = {
+        'items': products_data,
+        'page': products_page.number,
+        'total_pages': paginator.num_pages,
+        'total_items': paginator.count,
+        'has_next': products_page.has_next(),
+        'has_previous': products_page.has_previous(),
+    }
+    
+    return JsonResponse(response_data)
+
+
 @login_required(login_url='adminLogin')
 def addVariant(request, product_id):
     product = get_object_or_404(Product, id=product_id)
