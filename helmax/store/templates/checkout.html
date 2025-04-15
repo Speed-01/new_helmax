@@ -171,7 +171,20 @@
                     <label for="cod" class="flex-1 cursor-pointer">
                       <div class="font-medium">Cash on Delivery</div>
                       <div class="text-zinc-400 text-sm">Pay when your order is delivered</div>
+                      <div id="cod-warning" class="text-red-500 text-xs mt-1 hidden">Cash on Delivery not available for orders above ₹2,000</div>
                     </label>
+                  </div>
+
+                  <!-- Delivery Charge Section -->
+                  <div class="mt-6 p-4 bg-zinc-800 rounded-lg">
+                    <h3 class="font-medium mb-2">Delivery Charges</h3>
+                    <div class="flex justify-between items-center">
+                      <div class="text-zinc-400 text-sm">
+                        <p>Delivery to selected address</p>
+                        <p id="selected-location" class="text-xs mt-1"></p>
+                      </div>
+                      <div id="delivery-charge" class="font-medium">₹0.00</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -370,14 +383,18 @@
                 <span class="text-zinc-400">Coupon Discount</span>
                 <span id="coupon-discount" class="text-green-500">-₹{{ coupon_discount }}</span>
               </div>
+              <div class="flex justify-between">
+                <span class="text-zinc-400">Delivery Charges</span>
+                <span id="delivery-charge">₹0.00</span>
+              </div>
               <div class="my-4 border-t border-zinc-800"></div>
               <div class="flex justify-between font-medium text-lg">
                 <span>Total Amount</span>
                 <span id="final-amount">₹{{ final_price|floatformat:2 }}</span>
               </div>
+              <!-- Hidden field to keep track of final price without delivery -->
+              <input type="hidden" id="final-amount-value" value="{{ final_price|floatformat:2 }}">
             </div>
-          </div>
-        </div>
         
         <!-- Secure Checkout Notice -->
         <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
@@ -550,6 +567,8 @@
      data-validate-cart-url="{% url 'validate_cart' %}"
      data-view-cart-url="{% url 'view_cart' %}"
      data-manage-address-url="{% url 'userManageAddress' %}"
+     data-get-delivery-charge-url="{{ get_delivery_charge_url }}"
+     data-subtotal="{{ subtotal }}"
      style="display: none;">
 </div>
 
@@ -565,10 +584,72 @@ const placeOrderUrl = djangoData.dataset.placeOrderUrl;
 const validateCartUrl = djangoData.dataset.validateCartUrl;
 const viewCartUrl = djangoData.dataset.viewCartUrl;
 const manageAddressUrl = djangoData.dataset.manageAddressUrl;
+const getDeliveryChargeUrl = djangoData.dataset.getDeliveryChargeUrl;
 
 // Initialize variables
 let selectedAddressId = document.querySelector('input[name="selected_address"]:checked')?.value;
 let selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value;
+let currentSubtotal = parseFloat(djangoData.dataset.subtotal || 0);
+let deliveryCharge = 0;
+
+// Function to update COD visibility based on total amount
+function updateCODVisibility() {
+    const codOption = document.getElementById('cod').parentElement.parentElement;
+    const codWarning = document.getElementById('cod-warning');
+    const totalAmount = currentSubtotal + deliveryCharge;
+    
+    if (totalAmount > 2000) {
+        codOption.style.display = 'none';
+        document.getElementById('razorpay').checked = true;
+        codWarning.style.display = 'block';
+    } else {
+        codOption.style.display = 'flex';
+        codWarning.style.display = 'none';
+    }
+}
+
+// Function to fetch and update delivery charge
+async function updateDeliveryCharge() {
+    if (!selectedAddressId) return;
+    
+    try {
+        const response = await fetch(`${getDeliveryChargeUrl}${selectedAddressId}/`);
+        if (!response.ok) throw new Error('Failed to fetch delivery charge');
+        
+        const data = await response.json();
+        deliveryCharge = parseFloat(data.charge);
+        
+        // Update delivery charge display
+        document.getElementById('delivery-charge').textContent = `₹${deliveryCharge.toFixed(2)}`;
+        
+        // Update selected location display
+        const selectedAddress = document.querySelector('input[name="selected_address"]:checked');
+        if (selectedAddress) {
+            const addressDetails = selectedAddress.closest('.flex').querySelector('.text-zinc-400').textContent;
+            document.getElementById('selected-location').textContent = addressDetails;
+        }
+        
+        // Update COD visibility
+        updateCODVisibility();
+    } catch (error) {
+        console.error('Error fetching delivery charge:', error);
+        showNotification('error', 'Failed to calculate delivery charge');
+    }
+}
+
+// Add event listeners
+document.querySelectorAll('input[name="selected_address"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        selectedAddressId = e.target.value;
+        updateDeliveryCharge();
+    });
+});
+
+// Initialize on page load
+window.addEventListener('load', () => {
+    updateDeliveryCharge();
+    updateCODVisibility();
+});
 
 // Tab switching functionality
 function switchTab(tabName) {
@@ -589,6 +670,132 @@ function switchTab(tabName) {
   // Update review tab with selected address and payment method
   if (tabName === 'review') {
     updateReviewTab();
+  }
+
+  // Calculate delivery charge when switching to payment tab
+  if (tabName === 'payment') {
+    calculateDeliveryCharge();
+    updateCODAvailability();
+  }
+}
+
+// Calculate delivery charge based on selected address
+function calculateDeliveryCharge() {
+  const selectedAddress = document.querySelector('input[name="selected_address"]:checked');
+  if (!selectedAddress) {
+    showNotification('Please select a delivery address first', 'error');
+    return;
+  }
+
+  const addressId = selectedAddress.value;
+  const addressDetails = selectedAddress.nextElementSibling.querySelector('.text-zinc-400');
+  const cityState = addressDetails ? addressDetails.textContent.match(/([^,]+),\s*([^,]+),/) : null;
+  
+  // Show loading state
+  document.getElementById('delivery-charge').textContent = 'Calculating...';
+  document.getElementById('selected-location').textContent = cityState ? `${cityState[1]}, ${cityState[2]}` : '';
+  
+  fetch('/api/get-delivery-charge/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({ 
+      address_id: addressId,
+      city: cityState ? cityState[1].trim() : '',
+      state: cityState ? cityState[2].trim() : ''
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Update delivery charge
+      deliveryCharge = parseFloat(data.charge) || 0;
+      document.getElementById('delivery-charge').textContent = `₹${deliveryCharge.toFixed(2)}`;
+      
+      // Update final amount
+      updateTotalAmount();
+      
+      // Check if COD is available based on final amount
+      updateCODAvailability();
+      
+    } else {
+      document.getElementById('delivery-charge').textContent = '₹0.00';
+      showNotification(data.message || 'Error calculating delivery charge', 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    document.getElementById('delivery-charge').textContent = '₹0.00';
+    showNotification('Failed to calculate delivery charge', 'error');
+  });
+}
+
+// Update the total amount including delivery charge
+function updateTotalAmount() {
+  const finalPrice = parseFloat(document.getElementById('final-amount-value').value);
+  const totalWithDelivery = finalPrice + deliveryCharge;
+  document.getElementById('final-amount').innerHTML = `₹${totalWithDelivery.toFixed(2)}`;
+  
+  // Check COD availability after updating total
+  const codOption = document.getElementById('cod');
+  const codWarning = document.getElementById('cod-warning');
+  
+  if (totalWithDelivery > 2000) {
+    // Disable COD for orders above ₹2000
+    codOption.disabled = true;
+    codOption.checked = false;
+    codWarning.classList.remove('hidden');
+    
+    // Switch to Razorpay if COD was selected
+    if (document.querySelector('input[name="payment_method"]:checked')?.value === 'cod') {
+      document.getElementById('razorpay').checked = true;
+    }
+  } else {
+    // Enable COD for orders below ₹2000
+    codOption.disabled = false;
+    codWarning.classList.add('hidden');
+  }
+}
+
+// Check if COD is available based on total amount
+function updateCODAvailability() {
+  const finalPrice = document.getElementById('final-amount-value').value;
+  const totalWithDelivery = parseFloat(finalPrice) + deliveryCharge;
+  const codOption = document.getElementById('cod');
+  const codLabel = document.querySelector('label[for="cod"]');
+  const codWarning = document.getElementById('cod-warning');
+  
+  if (totalWithDelivery > 2000) {
+    // Disable COD
+    codOption.disabled = true;
+    codOption.checked = false;
+    codLabel.classList.add('opacity-50');
+    
+    // If COD was selected, switch to Razorpay
+    if (selectedPaymentMethod === 'cod') {
+      document.getElementById('razorpay').checked = true;
+      selectedPaymentMethod = 'razorpay';
+    }
+    
+    // Show warning
+    if (!codWarning) {
+      const warningDiv = document.createElement('div');
+      warningDiv.id = 'cod-warning';
+      warningDiv.className = 'text-red-500 text-xs mt-1';
+      warningDiv.textContent = 'Cash on Delivery not available for orders above ₹2,000';
+      codLabel.parentNode.appendChild(warningDiv);
+    }
+  } else {
+    // Enable COD
+    codOption.disabled = false;
+    codLabel.classList.remove('opacity-50');
+    
+    // Remove warning
+    if (codWarning) {
+      codWarning.remove();
+    }
   }
 }
 
@@ -666,7 +873,16 @@ function applyCoupon() {
       messageDiv.innerHTML = `Coupon applied! Discount: ₹${data.discount}`;
       messageDiv.className = "mt-2 text-sm text-green-500";
       document.getElementById('coupon-discount').innerHTML = `-₹${data.discount}`;
-      document.getElementById('final-amount').innerHTML = `₹${data.final_amount}`;
+      
+      // Update final price without delivery
+      document.getElementById('final-amount-value').value = data.final_amount;
+      
+      // Update final price with delivery
+      updateTotalAmount();
+      
+      // Check if COD is still available with new total
+      updateCODAvailability();
+      
       // Close the coupons section after successful application
       document.getElementById('coupon-section').classList.add('hidden');
       document.getElementById('coupon-chevron-down').classList.remove('hidden');
@@ -714,6 +930,8 @@ document.getElementById('addressForm').addEventListener('submit', async function
 document.querySelectorAll('input[name="selected_address"]').forEach(radio => {
   radio.addEventListener('change', function() {
     selectedAddressId = this.value;
+    // Recalculate delivery charge when address changes
+    calculateDeliveryCharge();
   });
 });
 
@@ -736,6 +954,7 @@ function placeOrder() {
   const formData = new FormData();
   formData.append('address_id', selectedAddressId);
   formData.append('payment_method', selectedPaymentMethod);
+  formData.append('delivery_charge', deliveryCharge);
   formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
 
   fetch(placeOrderUrl, {
@@ -916,6 +1135,12 @@ function showNotification(message, type = 'success') {
 document.addEventListener('DOMContentLoaded', function() {
   // Set initial tab
   switchTab('delivery');
+  
+  // Store initial amounts
+  currentSubtotal = parseFloat(document.getElementById('final-amount-value').value || 0);
+  
+  // Check if COD should be available
+  updateCODAvailability();
 });
 </script>
 {% endblock %}

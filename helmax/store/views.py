@@ -414,13 +414,21 @@ def login(request):
         
         user = authenticate(request, email=email, password=password)
         if user is not None:
-            auth_login(request, user,backend='django.contrib.auth.backends.ModelBackend')
+            # Check if user is admin/staff
+            if user.is_staff or user.is_superuser:
+                messages.error(request, "Admin users should use the admin login page.")
+                return redirect('adminLogin')
+            auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
             return redirect('home')
         else:
             messages.error(request, "Invalid email or password.")
             return render(request, 'login.html')
 
     if request.user.is_authenticated:
+        # Check if authenticated user is admin/staff
+        if request.user.is_staff or request.user.is_superuser:
+            messages.error(request, "Admin users should use the admin login page.")
+            return redirect('adminLogin')
         return redirect('home')
     
     return render(request, 'login.html')
@@ -1075,6 +1083,38 @@ def move_to_wishlist(request, variant_id):
 
 @login_required
 @require_POST
+def get_delivery_charge(request):
+    try:
+        data = json.loads(request.body)
+        city = data.get('city', '').lower()
+        state = data.get('state', '').lower()
+        
+        from .delivery_charges import delivery_charges
+        
+        # First try to find charge by city
+        charge = delivery_charges.get(city)
+        
+        # If city not found, try to find by state
+        if not charge:
+            charge = delivery_charges.get(state)
+        
+        # If neither found, use default charge
+        if not charge:
+            charge = 80  # Default delivery charge
+        
+        return JsonResponse({
+            'success': True,
+            'charge': charge
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'Error calculating delivery charge',
+            'charge': 80  # Default charge in case of error
+        })
+
+@login_required
+@require_POST
 def remove_from_wishlist(request, variant_id):
     """Remove item from wishlist"""
     try:
@@ -1555,128 +1595,105 @@ def user_checkout(request):
 logger = logging.getLogger(__name__)
 
 @login_required
+@require_http_methods(['POST'])
 def place_order(request):
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'Invalid request method'})
-        
     try:
-        # Get form data
         address_id = request.POST.get('address_id')
         payment_method = request.POST.get('payment_method')
+        delivery_charge = float(request.POST.get('delivery_charge', 0))
         
-        # Validate address
+        # Validate inputs
         if not address_id:
             return JsonResponse({'success': False, 'message': 'Please select a delivery address'})
+        
+        if not payment_method:
+            return JsonResponse({'success': False, 'message': 'Please select a payment method'})
             
+        # Get user cart
+        cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
+        if not cart or not cart.items.exists():
+            return JsonResponse({'success': False, 'message': 'Your cart is empty'})
+            
+        # Get delivery address
         try:
             address = Address.objects.get(id=address_id, user=request.user)
         except Address.DoesNotExist:
-            return JsonResponse({'success': False, 'message': 'Invalid address'})
+            return JsonResponse({'success': False, 'message': 'Invalid delivery address'})
             
-        # Get cart
-        try:
-            cart = Cart.objects.get(user=request.user, is_ordered=False)
-            if not cart.items.exists():
-                return JsonResponse({'success': False, 'message': 'Your cart is empty'})
-        except Cart.DoesNotExist:
-            return JsonResponse({'success': False, 'message': 'No active cart found'})
-            
-        # Get or create payment methods
-        cod_method, _ = PaymentMethod.objects.get_or_create(name='COD')
-        razorpay_method, _ = PaymentMethod.objects.get_or_create(name='Razorpay')
+        # Convert delivery charge to Decimal for consistent type handling
+        from decimal import Decimal
+        delivery_charge_decimal = Decimal(str(delivery_charge))
         
-        # Set payment method
-        payment_method_obj = razorpay_method if payment_method == 'razorpay' else cod_method
+        # Calculate total amount including delivery charge
+        amount = cart.final_price + delivery_charge_decimal
         
-        with transaction.atomic():
-            # Calculate discounts
-            product_discount = sum(
-                (item.variant.price - item.variant.discount_price) * item.quantity
-                for item in cart.items.all()
-                if item.variant.discount_price
-            )
-            coupon_discount = cart.calculate_coupon_discount() if cart.coupon else 0
-            total_discount = product_discount + coupon_discount
-            
-            order = Order.objects.create(
-                user=request.user,
-                total_amount=cart.final_price,
-                product_discount=product_discount,
-                coupon_discount=coupon_discount,
-                payment_method=payment_method_obj,
-                full_name=address.full_name,
-                email=address.email,
-                phone=address.phone,
-                address_line1=address.address_line1,
-                address_line2=address.address_line2,
-                city=address.city,
-                state=address.state,
-                pincode=address.pincode
+        # Validate if COD is allowed
+        if payment_method == 'cod' and amount > Decimal('2000'):
+            return JsonResponse({
+                'success': False, 
+                'message': 'Cash on Delivery is not available for orders above ₹2,000'
+            })
+        
+        # Create order
+        order = Order.objects.create(
+            user=request.user,
+            address=address,
+            payment_method=payment_method,
+            total_price=cart.total_price,
+            final_price=amount,  # Including delivery charge
+            discount=cart.total_discount,
+            delivery_charge=delivery_charge,
+            coupon=cart.applied_coupon
+        )
+        
+        # Create order items
+        for cart_item in cart.items.all():
+            OrderItem.objects.create(
+                order=order,
+                variant=cart_item.variant,
+                size=cart_item.size,
+                quantity=cart_item.quantity,
+                price=cart_item.variant.final_price,
+                total_price=cart_item.variant.final_price * cart_item.quantity
             )
             
-            # Create order items and update stock
-            for cart_item in cart.items.all():
-                # Create order item
-                OrderItem.objects.create(
-                    order=order,
-                    product=cart_item.variant.product,
-                    variant=cart_item.variant,
-                    size=cart_item.size,
-                    quantity=cart_item.quantity,
-                    price=cart_item.variant.discount_price or cart_item.variant.price
-                )
-                
-                # Update stock
-                size = cart_item.size
-                if size.stock < cart_item.quantity:
-                    raise ValueError(f'Insufficient stock for {cart_item.variant.product.name}')
-                size.stock -= cart_item.quantity
-                size.save()
+            # Update product stock
+            cart_item.size.stock -= cart_item.quantity
+            cart_item.size.save()
+        
+        # Handle payment based on payment method
+        if payment_method == 'razorpay':
+            # Create Razorpay order
+            razorpay_order = create_razorpay_order(order)
             
-            # IMPORTANT: Clear cart items - this is the key fix
-            CartItem.objects.filter(cart=cart).delete()
+            return JsonResponse({
+                'success': True,
+                'razorpay_order_id': razorpay_order.get('id'),
+                'amount': int(amount * 100),  # Convert to paisa
+                'order_id': order.id
+            })
+        else:
+            # For COD, mark order as placed
+            order.status = 'PLACED'
+            order.save()
             
-            # Mark cart as ordered
-            cart.is_ordered = True
+            # Clear cart
+            cart.items.all().delete()
+            cart.applied_coupon = None
             cart.save()
             
-            # Handle payment method specific logic
-            if payment_method == 'razorpay':
-                try:
-                    import razorpay
-                    
-                    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-                    amount_in_paise = int(float(order.total_amount) * 100)
-                    razorpay_order = client.order.create({
-                        "amount": amount_in_paise,
-                        "currency": "INR",
-                        "receipt": f"order_{order.id}",
-                        "payment_capture": "1"
-                    })
-                    order.razorpay_order_id = razorpay_order['id']
-                    order.save()
-                    
-                    return JsonResponse({
-                        'success': True,
-                        'razorpay_order_id': razorpay_order['id'],
-                        'amount': amount_in_paise,
-                        'key_id': settings.RAZORPAY_KEY_ID
-                    })
-                except Exception as e:
-                    logger.error(f"Razorpay error: {str(e)}")
-                    raise ValueError(f'Failed to create Razorpay order: {str(e)}')
-            else:
-                # For COD orders, just redirect to confirmation
-                return JsonResponse({
-                    'success': True,
-                    'redirect_url': reverse('order_details', args=[order.order_id])
-                })
-                
-    except ValueError as e:
-        return JsonResponse({'success': False, 'message': str(e)})
+            return JsonResponse({
+                'success': True,
+                'redirect_url': reverse('order_success', args=[order.id])
+            })
+            
     except Exception as e:
-        logger.error(f"Error in place_order: {str(e)}")
-        return JsonResponse({'success': False, 'message': f'An unexpected error occurred: {str(e)}'})
+        logger.error(f"Order placement error: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'message': 'An error occurred while placing your order. Please try again.'
+        })
+
 
 @csrf_exempt
 @login_required

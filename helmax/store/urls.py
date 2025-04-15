@@ -42,9 +42,9 @@ urlpatterns = [
     path('set_primary_address/', views.set_primary_address, name='set_primary_address'),
 
 
-    ######### cheout ########
+    ######### cheout ######## 
     path('checkout/', views.user_checkout, name='user_checkout'),
-
+    path('api/get-delivery-charge/', views.delivery_views.get_delivery_charge_api, name='get_delivery_charge'),
 
     path('place-order/', views.place_order, name='place_order'),
     path('my-orders/', views.my_orders, name='my_orders'),

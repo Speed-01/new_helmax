@@ -1,106 +1,956 @@
 {% extends 'base01.html' %}
 
 {% block content %}
-<style>
-    .hidden {
-        display: none;
-    }
+<div class="min-h-screen bg-black py-6 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-yellow-400 to-orange-600 bg-clip-text text-transparent">
+                Product Management
+            </h1>
+            <p class="mt-2 text-sm text-gray-400">Manage and track all products</p>
+        </div>
 
-    .highlight {
-        background-color: #2A2A2A;
-    }
-
-    .highlight:hover {
-        background-color: #333333;
-    }
-
-    /* Pagination styles moved to included template */
-</style>
-
-<div class="p-6 bg-[#0A0A0A]">
-    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-500 to-red-500 bg-clip-text text-transparent">Products</h1>
-        <div class="flex space-x-4">
-            <div class="relative">
-                <input 
-                    type="text"
-                    id="searchInput"
-                    placeholder="Search products" 
-                    class="pl-10 pr-4 py-2 rounded-lg bg-[#1A1A1A] border border-[#2A2A2A] text-gray-300 focus:ring-2 focus:ring-yellow-500 focus:border-transparent focus:outline-none transition-all duration-300"
-                >
-                <svg class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                </svg>
+        <!-- Main Card -->
+        <div class="bg-[#0A0A0A] border border-[#222222] rounded-xl shadow-xl overflow-hidden">
+            <div class="p-6 pb-3 border-b border-[#222222]">
+                <h2 class="text-xl text-gray-200">Products</h2>
+                <p class="text-sm text-gray-400">View and manage all products in one place</p>
             </div>
-            <a 
-                href="{% url 'addProducts' %}" 
-                class="px-6 py-2 bg-gradient-to-r from-yellow-500 to-red-500 text-white font-semibold rounded-lg hover:from-yellow-600 hover:to-red-600 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50"
-            >
-                Add new Product
-            </a>
+            
+            <div class="p-6">
+                <!-- Search and Filter Section -->
+                <div class="mb-6 space-y-4">
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <div class="relative flex-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <input 
+                                type="text" 
+                                id="searchInput"
+                                placeholder="Search by product name..." 
+                                class="w-full pl-9 pr-4 py-2 rounded-md bg-[#111111] border border-[#222222] text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-all duration-200"
+                            >
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="relative inline-block text-left" id="filterDropdown">
+                                <button type="button" id="filterButton" class="inline-flex items-center px-4 py-2 bg-[#111111] border border-[#222222] rounded-md text-gray-200 hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                                    </svg>
+                                    Filters
+                                </button>
+                                <div id="filterMenu" class="hidden absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-[#111111] border border-[#222222] z-10">
+                                    <div class="p-2">
+                                        <p class="text-xs font-medium text-gray-400 mb-2">Status</p>
+                                        <select id="statusFilter" class="w-full bg-[#0A0A0A] border border-[#222222] rounded-md p-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                            <option value="all">All Statuses</option>
+                                            <option value="active">Active</option>
+                                            <option value="blocked">Blocked</option>
+                                        </select>
+                                    </div>
+                                    <div class="p-2 pt-0">
+                                        <p class="text-xs font-medium text-gray-400 mb-2">Category</p>
+                                        <select id="categoryFilter" class="w-full bg-[#0A0A0A] border border-[#222222] rounded-md p-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                                            <option value="all">All Categories</option>
+                                            {% for category in categories %}
+                                            <option value="{{ category.id }}">{{ category.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <a 
+                                href="{% url 'addProducts' %}" 
+                                class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-yellow-500 to-red-500 text-white font-semibold rounded-md hover:from-yellow-600 hover:to-red-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50"
+                            >
+                                Add Product
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loading Skeleton (shown while loading) -->
+                <div id="loadingSkeleton" class="rounded-md border border-[#222222] overflow-hidden">
+                    <table class="min-w-full divide-y divide-[#222222]">
+                        <thead class="bg-[#111111]">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Category</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Brand</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Skeleton rows -->
+                            <tr class="border-b border-[#222222]">
+                                <td class="px-6 py-4"><div class="h-4 w-32 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-24 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-24 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-6 w-20 bg-[#222222] rounded-full"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-32 bg-[#222222] rounded"></div></td>
+                            </tr>
+                            <tr class="border-b border-[#222222]">
+                                <td class="px-6 py-4"><div class="h-4 w-32 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-24 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-24 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-6 w-20 bg-[#222222] rounded-full"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-32 bg-[#222222] rounded"></div></td>
+                            </tr>
+                            <tr class="border-b border-[#222222]">
+                                <td class="px-6 py-4"><div class="h-4 w-32 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-24 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-24 bg-[#222222] rounded"></div></td>
+                                <td class="px-6 py-4"><div class="h-6 w-20 bg-[#222222] rounded-full"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-32 bg-[#222222] rounded"></div></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Desktop Table View -->
+                <div id="desktopTableView" class="rounded-md border border-[#222222] overflow-hidden hidden md:block">
+                    <table class="min-w-full divide-y divide-[#222222]">
+                        <thead class="bg-[#111111]">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer" data-sort="name">
+                                    <div class="flex items-center">
+                                        Name
+                                        <span class="sort-icon ml-1"></span>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer" data-sort="category">
+                                    <div class="flex items-center">
+                                        Category
+                                        <span class="sort-icon ml-1"></span>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer" data-sort="brand">
+                                    <div class="flex items-center">
+                                        Brand
+                                        <span class="sort-icon ml-1"></span>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer" data-sort="status">
+                                    <div class="flex items-center">
+                                        Status
+                                        <span class="sort-icon ml-1"></span>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsTableBody" class="bg-[#0A0A0A] divide-y divide-[#222222]">
+                            <!-- Table content will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Card View -->
+                <div id="mobileCardView" class="md:hidden space-y-4">
+                    <!-- Mobile cards will be populated by JavaScript -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="hidden py-10 text-center text-gray-400">
+                    No products found
+                </div>
+
+                <!-- Enhanced Pagination -->
+                <div class="mt-6 flex flex-col sm:flex-row justify-between items-center text-gray-300 gap-4">
+                    <div class="text-sm">
+                        Showing <span id="itemsFrom" class="font-medium text-yellow-500">1</span> to 
+                        <span id="itemsTo" class="font-medium text-yellow-500">10</span> of 
+                        <span id="totalItems" class="font-medium">100</span> products
+                    </div>
+                    <div class="flex flex-wrap justify-center gap-2">
+                        <button id="firstPage" class="pagination-btn" aria-label="Go to first page">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <button id="prevPage" class="pagination-btn" aria-label="Go to previous page">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <div id="paginationNumbers" class="flex gap-1">
+                            <!-- Page numbers will be populated by JavaScript -->
+                        </div>
+                        <button id="nextPage" class="pagination-btn" aria-label="Go to next page">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                        <button id="lastPage" class="pagination-btn" aria-label="Go to last page">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm">
+                        <label for="pageSizeSelect" class="text-gray-400">Show:</label>
+                        <select id="pageSizeSelect" class="bg-[#111111] border border-[#222222] rounded-md px-2 py-1 text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-
-    <!-- Desktop View -->
-    <div class="overflow-hidden rounded-lg border border-[#2A2A2A] shadow-lg mb-6 hidden md:block">
-        <table class="min-w-full divide-y divide-[#2A2A2A]">
-            <thead class="bg-[#111111]">
-                <tr>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider" data-sort="name">Name</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider" data-sort="category">Category</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider" data-sort="brand">Brand</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider" data-sort="price">Price</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider" data-sort="stock">Stock</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider" data-sort="status">Status</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="productsTableBody" class="bg-[#0A0A0A] divide-y divide-[#2A2A2A]">
-                <!-- Table content will be populated by JavaScript -->
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Mobile View -->
-    <div class="md:hidden space-y-4 mb-6">
-        <div id="mobileCardView" class="space-y-4">
-            <!-- Mobile cards will be populated by JavaScript -->
-        </div>
-    </div>
-
-    <!-- Empty State -->
-    <div id="emptyState" class="hidden text-center py-10">
-        <svg class="mx-auto h-12 w-12 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 20a8 8 0 100-16 8 8 0 000 16z" />
-        </svg>
-        <h3 class="mt-2 text-lg font-medium text-gray-400">No products found</h3>
-        <p class="mt-1 text-sm text-gray-500">Get started by adding a new product or try a different search.</p>
-    </div>
-
-    <!-- Include pagination component -->
-    {% include 'includes/pagination.html' %}
 </div>
 
-{% load static %}
-<script src="{% static 'js/pagination.js' %}"></script>
-<script src="{% static 'js/admin-pages.js' %}"></script>
+<style>
+    /* Pagination styles */
+    .pagination-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        background-color: #111111;
+        border: 1px solid #222222;
+        border-radius: 0.375rem;
+        color: #e5e7eb;
+        transition-property: background-color, border-color, color;
+        transition-duration: 200ms;
+    }
+    
+    .pagination-btn:hover:not(:disabled) {
+        background-color: #1A1A1A;
+    }
+    
+    .pagination-btn:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.5);
+    }
+    
+    .pagination-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .page-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        background-color: #111111;
+        border: 1px solid #222222;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+        color: #e5e7eb;
+        transition-property: background-color, border-color, color;
+        transition-duration: 200ms;
+    }
+    
+    .page-number:hover:not(.active) {
+        background-color: #1A1A1A;
+    }
+    
+    .page-number:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.5);
+    }
+    
+    .page-number.active {
+        background-color: #eab308;
+        border-color: #ca8a04;
+        color: #000000;
+        font-weight: 500;
+    }
+    
+    .page-number.active:hover {
+        background-color: #facc15;
+    }
+    
+    .page-ellipsis {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        color: #9ca3af;
+    }
+</style>
+
 <script>
-    // Using the AdminPagination class from admin-pages.js
-    // No need to redefine initAdminProducts() here as it's already defined in admin-pages.js
-    // This script now uses the AdminPagination class from admin-pages.js
-    // All product loading, pagination, and data handling is managed by that class
+    // State variables
+    let currentPage = 1;
+    let totalPages = 1;
+    let totalItems = 0;
+    let itemsPerPage = 10;
+    let searchQuery = "";
+    let statusFilter = "all";
+    let categoryFilter = "all";
+    let sortField = "name";
+    let sortDirection = "asc";
+    let isMobile = window.innerWidth < 768;
+    let isLoading = true;
 
-    // This script now only initializes the admin products page
-    // All functionality is handled by the AdminPagination class in admin-pages.js
+    // DOM Elements
+    const searchInput = document.getElementById('searchInput');
+    const statusFilterSelect = document.getElementById('statusFilter');
+    const categoryFilterSelect = document.getElementById('categoryFilter');
+    const filterButton = document.getElementById('filterButton');
+    const filterMenu = document.getElementById('filterMenu');
+    const loadingSkeleton = document.getElementById('loadingSkeleton');
+    const desktopTableView = document.getElementById('desktopTableView');
+    const mobileCardView = document.getElementById('mobileCardView');
+    const emptyState = document.getElementById('emptyState');
+    const productsTableBody = document.getElementById('productsTableBody');
+    const itemsFromEl = document.getElementById('itemsFrom');
+    const itemsToEl = document.getElementById('itemsTo');
+    const totalItemsEl = document.getElementById('totalItems');
+    const paginationNumbers = document.getElementById('paginationNumbers');
+    const firstPageBtn = document.getElementById('firstPage');
+    const prevPageBtn = document.getElementById('prevPage');
+    const nextPageBtn = document.getElementById('nextPage');
+    const lastPageBtn = document.getElementById('lastPage');
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
 
-    // Run initialization when the DOM is fully loaded
-    document.addEventListener('DOMContentLoaded', function() {
-        // Check if we're on the admin products page
-        if (document.getElementById('productsTableBody')) {
-            initAdminProducts();
+    // Helper functions
+    function getStatusStyles(status) {
+        if (!status) return "bg-[#1A1A1A] text-gray-400 border-gray-700";
+        
+        // Normalize status to uppercase for consistent comparison
+        const normalizedStatus = status.toUpperCase();
+        switch (normalizedStatus) {
+            case "ACTIVE":
+                return "bg-[#001A00] text-green-400 border-green-800";
+            case "BLOCKED":
+                return "bg-[#1A0000] text-red-400 border-red-800";
+            default:
+                return "bg-[#1A1A1A] text-gray-400 border-gray-700";
         }
+    }
+
+    function getSortIcon(field) {
+        if (sortField !== field) return "";
+        return sortDirection === "asc" 
+            ? '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" /></svg>'
+            : '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>';
+    }
+
+    function updateSortIcons() {
+        document.querySelectorAll('.sort-icon').forEach(icon => {
+            const field = icon.closest('th').dataset.sort;
+            icon.innerHTML = getSortIcon(field);
+        });
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Main functions
+    function fetchProducts(page = 1, search = '') {
+        isLoading = true;
+        currentPage = page;
+        updateUI();
+
+        // Build the API URL with all filters
+        // Instead of using a custom API endpoint, we'll use the existing Django pagination structure
+        let apiUrl = `?page=${page}`;
+
+        // Add search parameter if provided
+        if (search) {
+            apiUrl += `&search=${encodeURIComponent(search)}`;
+        }
+
+        // Add items per page
+        apiUrl += `&per_page=${itemsPerPage}`;
+
+        // Add status filter if not "all"
+        if (statusFilter !== "all") {
+            apiUrl += `&status=${encodeURIComponent(statusFilter)}`;
+        }
+
+        // Add category filter if not "all"
+        if (categoryFilter !== "all") {
+            apiUrl += `&category=${encodeURIComponent(categoryFilter)}`;
+        }
+
+        // Add sorting parameters
+        if (sortField && sortDirection) {
+            apiUrl += `&sort_field=${encodeURIComponent(sortField)}&sort_direction=${encodeURIComponent(sortDirection)}`;
+        }
+
+        fetch(apiUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                isLoading = false;
+                
+                if (data.products) {
+                    // If API returns data in the expected format
+                    totalPages = data.total_pages || 1;
+                    totalItems = data.total_items || data.products.length;
+                    updateTable(data.products);
+                } else if (data.results) {
+                    // Django REST framework standard format
+                    totalPages = Math.ceil(data.count / itemsPerPage);
+                    totalItems = data.count;
+                    updateTable(data.results);
+                } else if (Array.isArray(data)) {
+                    // Simple array of products
+                    totalPages = 1;
+                    totalItems = data.length;
+                    updateTable(data);
+                } else {
+                    console.error('Invalid data format received:', data);
+                    showError('Invalid data format received from server');
+                }
+                
+                updatePaginationInfo();
+                updatePaginationControls();
+                updateUI();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                isLoading = false;
+                showError('Error loading products. Please try again.');
+                updateUI();
+            });
+    }
+
+    // Fallback function to handle client-side pagination if the API doesn't support it
+    function setupClientSidePagination() {
+        // Store all products
+        let allProducts = [];
+        
+        // Fetch all products once
+        fetch(window.location.pathname)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                isLoading = false;
+                
+                if (data.products) {
+                    allProducts = data.products;
+                } else if (data.results) {
+                    allProducts = data.results;
+                } else if (Array.isArray(data)) {
+                    allProducts = data;
+                } else {
+                    console.error('Invalid data format received:', data);
+                    showError('Invalid data format received from server');
+                    return;
+                }
+                
+                // Set up event handlers for client-side filtering and pagination
+                searchInput.addEventListener('input', performClientSideFiltering);
+                statusFilterSelect.addEventListener('change', performClientSideFiltering);
+                categoryFilterSelect.addEventListener('change', performClientSideFiltering);
+                
+                // Initial filtering and display
+                performClientSideFiltering();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                
+                // If we get a 404 on the JSON request, try to extract data from the page
+                extractProductsFromDOM();
+            });
+        
+        function performClientSideFiltering() {
+            // Apply filters
+            let filteredProducts = allProducts.filter(product => {
+                // Search filter
+                const matchesSearch = !searchQuery || 
+                    product.name.toLowerCase().includes(searchQuery.toLowerCase());
+                
+                // Status filter
+                const matchesStatus = statusFilter === 'all' || 
+                    (statusFilter === 'active' && product.is_active) ||
+                    (statusFilter === 'blocked' && !product.is_active);
+                
+                // Category filter
+                const matchesCategory = categoryFilter === 'all' || 
+                    (product.category && product.category.id.toString() === categoryFilter);
+                
+                return matchesSearch && matchesStatus && matchesCategory;
+            });
+            
+            // Apply sorting
+            filteredProducts.sort((a, b) => {
+                let valueA, valueB;
+                
+                // Extract the values to compare based on the sort field
+                switch(sortField) {
+                    case 'name':
+                        valueA = a.name.toLowerCase();
+                        valueB = b.name.toLowerCase();
+                        break;
+                    case 'category':
+                        valueA = (a.category && a.category.name || '').toLowerCase();
+                        valueB = (b.category && b.category.name || '').toLowerCase();
+                        break;
+                    case 'brand':
+                        valueA = (a.brand && a.brand.name || '').toLowerCase();
+                        valueB = (b.brand && b.brand.name || '').toLowerCase();
+                        break;
+                    case 'status':
+                        valueA = a.is_active ? 1 : 0;
+                        valueB = b.is_active ? 1 : 0;
+                        break;
+                    default:
+                        valueA = a.name.toLowerCase();
+                        valueB = b.name.toLowerCase();
+                }
+                
+                // Compare the values
+                if (valueA < valueB) return sortDirection === 'asc' ? -1 : 1;
+                if (valueA > valueB) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            // Calculate pagination
+            totalItems = filteredProducts.length;
+            totalPages = Math.ceil(totalItems / itemsPerPage);
+            
+            // Adjust current page if needed
+            if (currentPage > totalPages) {
+                currentPage = totalPages || 1;
+            }
+            
+            // Get current page items
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const currentPageItems = filteredProducts.slice(startIndex, endIndex);
+            
+            // Update the UI
+            updateTable(currentPageItems);
+            updatePaginationInfo();
+            updatePaginationControls();
+            updateUI();
+        }
+        
+        function extractProductsFromDOM() {
+            // As a last resort, try to extract product data from the DOM
+            const productRows = document.querySelectorAll('.product-row');
+            const extractedProducts = [];
+            
+            productRows.forEach(row => {
+                const id = row.dataset.id;
+                const name = row.dataset.name;
+                const categoryCell = row.querySelector('td:nth-child(2)');
+                const brandCell = row.querySelector('td:nth-child(3)');
+                const statusCell = row.querySelector('.status-indicator');
+                
+                extractedProducts.push({
+                    id: id,
+                    name: name || row.querySelector('td:nth-child(1)').textContent,
+                    category: { 
+                        name: categoryCell ? categoryCell.textContent : 'N/A' 
+                    },
+                    brand: { 
+                        name: brandCell ? brandCell.textContent : 'N/A' 
+                    },
+                    is_active: statusCell ? statusCell.textContent.trim() === 'Active' : true
+                });
+            });
+            
+            if (extractedProducts.length > 0) {
+                allProducts = extractedProducts;
+                performClientSideFiltering();
+            } else {
+                showError('Could not load products. Please refresh the page.');
+            }
+        }
+    }
+
+    function showError(message) {
+        // Clear existing content
+        productsTableBody.innerHTML = '';
+        mobileCardView.innerHTML = '';
+        
+        // Show error message
+        emptyState.textContent = message;
+        emptyState.classList.remove('hidden');
+    }
+
+    function updateTable(products) {
+        // Update desktop table
+        productsTableBody.innerHTML = '';
+        
+        // Update mobile cards
+        mobileCardView.innerHTML = '';
+
+        if (products.length === 0) {
+            emptyState.classList.remove('hidden');
+            return;
+        }
+
+        emptyState.classList.add('hidden');
+
+        // Populate desktop table
+        products.forEach(product => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-[#111111] cursor-pointer transition-colors duration-200';
+            tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">${product.name}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${product.category.name || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${product.brand.name || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getStatusStyles(product.is_active ? 'ACTIVE' : 'BLOCKED')}">
+                        ${product.is_active ? 'Active' : 'Blocked'}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <a href="{% url 'editProduct' 0 %}".replace('0', product.id) class="text-indigo-600 hover:text-indigo-900 mr-2 transition-colors duration-200">
+                        Edit
+                    </a>
+                    <a href="{% url 'addVariant' 0 %}".replace('0', product.id) class="text-green-600 hover:text-green-900 mr-2 transition-colors duration-200">
+                        Add Variant
+                    </a>
+                    <button onclick="toggleProductStatus(${product.id})" class="toggle-status text-red-600 hover:text-red-900 transition-colors duration-200">
+                        ${product.is_active ? 'Block' : 'Unblock'}
+                    </button>
+                </td>
+            `;
+            productsTableBody.appendChild(tr);
+        });
+
+        // Populate mobile cards
+        products.forEach(product => {
+            const card = document.createElement('div');
+            card.className = 'bg-[#0F0F0F] border border-[#222222] rounded-lg overflow-hidden';
+            card.innerHTML = `
+                <div class="p-4 border-b border-[#222222] flex justify-between items-center">
+                    <div>
+                        <p class="text-sm font-medium text-gray-200">${product.name}</p>
+                        <p class="text-xs text-gray-400">${product.category.name || 'N/A'}</p>
+                    </div>
+                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getStatusStyles(product.is_active ? 'ACTIVE' : 'BLOCKED')}">
+                        ${product.is_active ? 'Active' : 'Blocked'}
+                    </span>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-400">Brand:</span>
+                        <span class="text-sm text-gray-200">${product.brand.name || 'N/A'}</span>
+                    </div>
+                </div>
+                <div class="p-4 bg-[#0A0A0A] border-t border-[#222222] flex space-x-2">
+                    <a href="{% url 'editProduct' 0 %}".replace('0', product.id) 
+                       class="flex-1 bg-[#111111] border border-[#222222] rounded-md py-2 text-center text-indigo-600 hover:text-indigo-900 hover:bg-[#1A1A1A] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
+                        Edit
+                    </a>
+                    <a href="{% url 'addVariant' 0 %}".replace('0', product.id) 
+                       class="flex-1 bg-[#111111] border border-[#222222] rounded-md py-2 text-center text-green-600 hover:text-green-900 hover:bg-[#1A1A1A] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50">
+                        Add Variant
+                    </a>
+                    <button onclick="toggleProductStatus(${product.id})" 
+                       class="flex-1 bg-[#111111] border border-[#222222] rounded-md py-2 text-center text-red-600 hover:text-red-900 hover:bg-[#1A1A1A] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">
+                        ${product.is_active ? 'Block' : 'Unblock'}
+                    </button>
+                </div>
+            `;
+            mobileCardView.appendChild(card);
+        });
+    }
+
+    function updatePaginationInfo() {
+        const from = ((currentPage - 1) * itemsPerPage) + 1;
+        const to = Math.min(currentPage * itemsPerPage, totalItems);
+        
+        itemsFromEl.textContent = from;
+        itemsToEl.textContent = to;
+        totalItemsEl.textContent = totalItems;
+    }
+
+    function updatePaginationControls() {
+        // Clear existing page numbers
+        paginationNumbers.innerHTML = '';
+        
+        // Disable/enable first/last/prev/next buttons
+        firstPageBtn.disabled = currentPage === 1;
+        prevPageBtn.disabled = currentPage === 1;
+        nextPageBtn.disabled = currentPage === totalPages;
+        lastPageBtn.disabled = currentPage === totalPages;
+        
+        // Generate page numbers with ellipsis for large page counts
+        const maxVisiblePages = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+        
+        // Adjust start page if we're near the end
+        if (endPage - startPage + 1 < maxVisiblePages) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+        
+        // Add first page and ellipsis if needed
+        if (startPage > 1) {
+            addPageNumber(1);
+            if (startPage > 2) {
+                addEllipsis();
+            }
+        }
+        
+        // Add visible page numbers
+        for (let i = startPage; i <= endPage; i++) {
+            addPageNumber(i);
+        }
+        
+        // Add ellipsis and last page if needed
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                addEllipsis();
+            }
+            addPageNumber(totalPages);
+        }
+    }
+    
+    function addPageNumber(pageNum) {
+        const pageButton = document.createElement('button');
+        pageButton.className = `page-number ${pageNum === currentPage ? 'active' : ''}`;
+        pageButton.textContent = pageNum;
+        pageButton.addEventListener('click', () => {
+            if (pageNum !== currentPage) {
+                fetchProducts(pageNum, searchQuery);
+            }
+        });
+        paginationNumbers.appendChild(pageButton);
+    }
+    
+    function addEllipsis() {
+        const ellipsis = document.createElement('span');
+        ellipsis.className = 'page-ellipsis';
+        ellipsis.textContent = '...';
+        paginationNumbers.appendChild(ellipsis);
+    }
+
+    function updateUI() {
+        if (isLoading) {
+            loadingSkeleton.classList.remove('hidden');
+            desktopTableView.classList.add('hidden');
+            mobileCardView.classList.add('hidden');
+            emptyState.classList.add('hidden');
+        } else {
+            loadingSkeleton.classList.add('hidden');
+            
+            if (isMobile) {
+                desktopTableView.classList.add('hidden');
+                mobileCardView.classList.remove('hidden');
+            } else {
+                desktopTableView.classList.remove('hidden');
+                mobileCardView.classList.add('hidden');
+            }
+            
+            updateSortIcons();
+        }
+    }
+
+    function checkIfMobile() {
+        const wasMobile = isMobile;
+        isMobile = window.innerWidth < 768;
+        
+        if (wasMobile !== isMobile) {
+            updateUI();
+        }
+    }
+
+    function toggleProductStatus(productId) {
+        const csrftoken = getCookie('csrftoken');
+        
+        // Show loading state
+        isLoading = true;
+        updateUI();
+        
+        fetch(`{% url 'toggle_product_status' 0 %}`.replace('0', productId), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => { throw new Error(text) });
+            }
+            return response.json();
+        })
+        .then(data => {
+            isLoading = false;
+            if (data.success) {
+                // Refresh the product list to show updated status
+                fetchProducts(currentPage, searchQuery).catch(error => {
+                    console.error('API fetch failed after status toggle, falling back to page reload:', error);
+                    // If API fails, just reload the page
+                    window.location.reload();
+                });
+            } else {
+                alert('Failed to update product status: ' + (data.error || 'Unknown error'));
+                updateUI();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while updating the product status: ' + error.message);
+            isLoading = false;
+            updateUI();
+        });
+    }
+
+    // Event listeners
+    searchInput.addEventListener('input', debounce(() => {
+        searchQuery = searchInput.value;
+        fetchProducts(1, searchQuery);
+    }, 300));
+
+    statusFilterSelect.addEventListener('change', () => {
+        statusFilter = statusFilterSelect.value;
+        fetchProducts(1, searchQuery);
+    });
+
+    categoryFilterSelect.addEventListener('change', () => {
+        categoryFilter = categoryFilterSelect.value;
+        fetchProducts(1, searchQuery);
+    });
+
+    filterButton.addEventListener('click', () => {
+        filterMenu.classList.toggle('hidden');
+    });
+
+    // Close filter menu when clicking outside
+    document.addEventListener('click', (event) => {
+        const isClickInside = filterButton.contains(event.target) || filterMenu.contains(event.target);
+        if (!isClickInside && !filterMenu.classList.contains('hidden')) {
+            filterMenu.classList.add('hidden');
+        }
+    });
+
+    firstPageBtn.addEventListener('click', () => {
+        if (currentPage !== 1) {
+            fetchProducts(1, searchQuery);
+        }
+    });
+
+    prevPageBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+            fetchProducts(currentPage - 1, searchQuery);
+        }
+    });
+
+    nextPageBtn.addEventListener('click', () => {
+        if (currentPage < totalPages) {
+            fetchProducts(currentPage + 1, searchQuery);
+        }
+    });
+
+    lastPageBtn.addEventListener('click', () => {
+        if (currentPage !== totalPages) {
+            fetchProducts(totalPages, searchQuery);
+        }
+    });
+
+    pageSizeSelect.addEventListener('change', () => {
+        itemsPerPage = parseInt(pageSizeSelect.value);
+        fetchProducts(1, searchQuery);
+    });
+
+    // Sort columns
+    document.querySelectorAll('th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+            const field = th.dataset.sort;
+            if (sortField === field) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortDirection = 'asc';
+            }
+            fetchProducts(1, searchQuery);
+        });
+    });
+
+    window.addEventListener('resize', debounce(checkIfMobile, 100));
+
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    // Function to fetch products from the API
+    async function fetchProducts(page = 1, search = '') {
+        isLoading = true;
+        updateUI();
+
+        try {
+            const params = new URLSearchParams({
+                page: page,
+                per_page: itemsPerPage,
+                search: search,
+                sort_field: sortField,
+                sort_direction: sortDirection
+            });
+
+            const response = await fetch(`/manager/api/products/?${params}`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            // Update pagination state
+            currentPage = data.page;
+            totalPages = data.total_pages;
+            totalItems = data.total;
+
+            // Update the UI with the new data
+            updateTable(data.items);
+            updatePaginationInfo();
+            updatePaginationControls();
+
+        } catch (error) {
+            console.error('Error fetching products:', error);
+            showError('Failed to load products. Please try again.');
+        } finally {
+            isLoading = false;
+            updateUI();
+        }
+    }
+
+    // Initial load - try API first, fall back to client-side if needed
+    fetchProducts().catch(error => {
+        console.error('API fetch failed, falling back to client-side pagination:', error);
+        setupClientSidePagination();
     });
 </script>
 {% endblock %}

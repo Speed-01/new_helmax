@@ -1,50 +1,58 @@
-from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import ensure_csrf_cookie
-from ..delivery_charges import reverse_geocode, get_delivery_charge, calculate_distance_based_charge
 
-@ensure_csrf_cookie
+@login_required
 @require_http_methods(['POST'])
-def get_delivery_charge_view(request):
-    """Handle delivery charge calculation based on user location."""
+def get_delivery_charge_api(request):
+    """API endpoint to calculate delivery charge based on address."""
     try:
-        data = request.POST
-        latitude = float(data.get('latitude'))
-        longitude = float(data.get('longitude'))
+        data = json.loads(request.body)
+        address_id = data.get('address_id')
         
-        # Get location details from coordinates
-        location = reverse_geocode(latitude, longitude)
+        if not address_id:
+            return JsonResponse({
+                'success': False,
+                'message': 'Address ID is required'
+            })
+        
+        # Get the address
+        try:
+            address = Address.objects.get(id=address_id, user=request.user)
+        except Address.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Address not found'
+            })
         
         # Get cart total if available
-        cart = request.user.cart_set.filter(is_ordered=False).first() if request.user.is_authenticated else None
+        cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
         order_amount = cart.final_price if cart else 0
         
-        # Calculate delivery charge based on location
-        location_str = f"{location.city}, {location.state}" if location.city and location.state else \
-                      location.city or location.state or ''
+        # Create location dictionary from address
+        location = {
+            'city': address.city.lower() if address.city else '',
+            'state': address.state.lower() if address.state else '',
+            'country': 'india',  # Default for now
+        }
         
-        result = get_delivery_charge(location_str, order_amount)
-        
-        # Calculate distance-based charge as fallback
-        if not result.charge:
-            store_coords = (10.0261, 76.3125)  # Default store coordinates (Kaniyapuram)
-            distance_result = calculate_distance_based_charge((latitude, longitude), store_coords)
-            result.charge = distance_result['charge']
-            result.message = distance_result['message']
+        # Calculate delivery charge
+        from .delivery_charges import get_delivery_charge
+        charge = get_delivery_charge(location, order_amount)
         
         return JsonResponse({
             'success': True,
-            'charge': result.charge,
-            'message': result.message,
-            'location': {
-                'city': location.city,
-                'state': location.state,
-                'country': location.country
-            }
+            'charge': charge,
+            'message': 'Delivery charge calculated successfully'
         })
         
-    except Exception as e:
+    except json.JSONDecodeError:
         return JsonResponse({
             'success': False,
-            'message': f'Error calculating delivery charge: {str(e)}'
+            'message': 'Invalid JSON data'
         }, status=400)
+    except Exception as e:
+        logger.error(f"Error calculating delivery charge: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'message': 'Error calculating delivery charge'
+        }, status=500)

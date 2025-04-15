@@ -340,29 +340,61 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Auto-select the default size when page loads
     function selectDefaultSize() {
-        if (defaultSizeId) {
-            // Find the size button with the default size name
-            const sizeButtons = document.querySelectorAll('#size-options button');
-            for (const button of sizeButtons) {
-                if (button.dataset.size === selectedSizeName) {
-                    // Trigger the size selection handler
-                    button.classList.add('ring-2', 'ring-[#ff6b00]');
-                    
-                    // Update stock status based on selected size
-                    const selectedSizeData = currentSizes.find(size => size.name === selectedSizeName);
-                    if (selectedSizeData) {
-                        const stockStatus = document.getElementById('stock-status');
-                        if (selectedSizeData.stock > 0) {
-                            stockStatus.textContent = `In Stock (${selectedSizeData.stock} available)`;
-                            stockStatus.classList.remove('text-red-500');
-                            stockStatus.classList.add('text-green-500');
-                            addToCartBtn.disabled = false;
-                        }
-                    }
-                    break;
-                }
+        if (!currentSizes || currentSizes.length === 0) return;
+        
+        const sizeButtons = document.querySelectorAll('#size-options button');
+        let sizeToSelect = null;
+
+        // First try to use previously selected size if it's still available
+        if (selectedSizeName) {
+            sizeToSelect = Array.from(sizeButtons).find(button => {
+                const sizeName = button.dataset.size;
+                const sizeData = currentSizes.find(size => size.name === sizeName);
+                return sizeName === selectedSizeName && sizeData && sizeData.stock > 0;
+            });
+        }
+
+        // If no previous size or it's not available, find first available size
+        if (!sizeToSelect) {
+            sizeToSelect = Array.from(sizeButtons).find(button => {
+                const sizeName = button.dataset.size;
+                const sizeData = currentSizes.find(size => size.name === sizeName);
+                return sizeData && sizeData.stock > 0;
+            });
+        }
+
+        // If we found a size to select, select it
+        if (sizeToSelect) {
+            // Remove ring from all buttons
+            sizeButtons.forEach(btn => btn.classList.remove('ring-2', 'ring-[#ff6b00]'));
+            
+            // Add ring to selected button
+            sizeToSelect.classList.add('ring-2', 'ring-[#ff6b00]');
+            
+            // Update selected size name
+            selectedSizeName = sizeToSelect.dataset.size;
+            
+            // Update stock status and enable add to cart button
+            const selectedSizeData = currentSizes.find(size => size.name === selectedSizeName);
+            if (selectedSizeData) {
+                const stockStatus = document.getElementById('stock-status');
+                stockStatus.textContent = `In Stock (${selectedSizeData.stock} available)`;
+                stockStatus.classList.remove('text-red-500');
+                stockStatus.classList.add('text-green-500');
+                addToCartBtn.disabled = false;
+                
+                // Set max quantity based on stock
+                addToCartBtn.dataset.maxStock = selectedSizeData.stock;
+                quantityInput.max = Math.min(5, selectedSizeData.stock);
+                quantityInput.value = 1;
             }
         }
+    }
+
+    // Call selectDefaultSize after updating size options
+    function updateSizeOptions(sizes) {
+        currentSizes = sizes;
+        selectDefaultSize();
     }
     
     // Call the auto-select functions after the page is fully loaded
@@ -399,8 +431,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const data = await response.json();
             updateProductInfo(data);
+            
+            // Store current selected size before updating options
+            const previousSelectedSize = selectedSizeName;
+            
+            // Update size options and try to maintain selection
             updateSizeOptions(data.sizes);
-
+            
             // Update main image and thumbnails
             if (data.images && data.images.length > 0) {
                 updateImages(data.images);
@@ -412,9 +449,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     zoomResult.style.backgroundImage = `url(${primaryImage.image})`;
                 }
             }
-
-            selectedSizeName = null;
-            console.log('Selected size name reset:', selectedSizeName);
+            
+            // Try to select the same size if it exists in new variant
+            if (previousSelectedSize) {
+                selectedSizeName = previousSelectedSize;
+                selectDefaultSize();
+            }
 
         } catch (error) {
             console.error('Error fetching variant data:', error);
