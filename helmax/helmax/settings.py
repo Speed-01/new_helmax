@@ -153,7 +153,7 @@ STATICFILES_DIRS = [
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
-SESSION_COOKIE_AGE = 3600  # Session expires in 1 hour (adjust as needed)
+SESSION_COOKIE_AGE = 3600  # Session expires in 1 hour 
 SESSION_COOKIE_SECURE = True  # Enforce HTTPS
 SESSION_COOKIE_HTTPONLY = True  # Prevent JS from accessing session cookie
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Store sessions in DB

@@ -17,7 +17,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.models import AbstractUser
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
-
+from decimal import Decimal
 
 class library(models.Model):
   
@@ -222,6 +222,9 @@ class Review(models.Model):
 
 ########### Cart Models ####################
 
+from decimal import Decimal
+from django.core.exceptions import ValidationError
+
 class Cart(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='carts')
     is_ordered = models.BooleanField(default=False)
@@ -232,41 +235,85 @@ class Cart(BaseModel):
     
     @property
     def total_price(self):
-        return sum(item.variant.final_price * item.quantity for item in self.items.all())
+        """Calculate total price of active items only."""
+        total = Decimal('0.00')
+        for item in self.items.all():
+            try:
+                price = Decimal(str(item.variant.final_price or item.variant.price))
+                total += price * item.quantity
+            except (TypeError, ValueError):
+                continue  # Skip items with invalid prices
+        return total.quantize(Decimal('0.01'))
     
     @property
     def total_discount(self):
-        # Product discounts (from variant discount_price)
-        product_discount = sum(
-            (item.variant.price - item.variant.final_price) * item.quantity
-            for item in self.items.all()
-        )
+        """Calculate total discount including product and coupon discounts."""
+        product_discount = Decimal('0.00')
+        for item in self.items.all():
+            try:
+                if item.variant.discount_price and item.variant.price:
+                    discount = Decimal(str(item.variant.price - item.variant.discount_price)) * item.quantity
+                    product_discount += discount
+            except (TypeError, ValueError):
+                continue
         
-        # Coupon discount
         coupon_discount = self.calculate_coupon_discount()
-        
-        return product_discount + coupon_discount
+        return (product_discount + coupon_discount).quantize(Decimal('0.01'))
     
     def calculate_coupon_discount(self):
+        """Calculate coupon discount if applicable."""
         if not self.coupon:
-            return 0
-            
+            return Decimal('0.00')
+        
+        # Validate coupon is active
+        if not self.coupon.is_active:
+            self.coupon = None
+            self.save()
+            return Decimal('0.00')
+        
+        # Validate coupon date range
+        today = timezone.now().date()
+        if self.coupon.start_date > today or self.coupon.end_date < today:
+            self.coupon = None
+            self.save()
+            return Decimal('0.00')
+        
+        # Validate minimum purchase requirement
+        cart_total = self.total_price
+        min_purchase = Decimal(str(self.coupon.minimum_purchase))
+        if cart_total < min_purchase:
+            # Don't remove the coupon, just return 0 discount
+            # This allows the frontend to show appropriate messages
+            return Decimal('0.00')
+        
+        # Calculate discount based on coupon type
         if self.coupon.type == 'percentage':
-            return (self.total_price * self.coupon.value) / 100
-        else:
-            return min(self.coupon.value, self.total_price)  # Don't exceed cart total
+            discount = (cart_total * Decimal(str(self.coupon.value))) / Decimal('100')
+        else:  # flat amount
+            discount = Decimal(str(self.coupon.value))
+        
+        # Ensure discount doesn't exceed cart total
+        return min(discount, cart_total).quantize(Decimal('0.01'))
     
     @property
     def final_price(self):
-        return max(0, self.total_price - self.total_discount)
-
+        """Calculate final price after discounts."""
+        return max(Decimal('0.00'), self.total_price - self.total_discount).quantize(Decimal('0.01'))
+    
+    def update_totals(self):
+        """Update cart totals and validate items."""
+        with transaction.atomic():
+            self.refresh_from_db()
+            for item in self.items.all():
+                if not item.is_active or item.quantity > item.size.stock:
+                    item.delete()  # Remove invalid items
+            self.save()  # Save to trigger any signal handlers
+            
 class CartItem(BaseModel):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
     variant = models.ForeignKey(Variant, on_delete=models.CASCADE, null=False, blank=False)
     quantity = models.PositiveIntegerField(default=1)
     size = models.ForeignKey(Size, on_delete=models.CASCADE, null=True, blank=True)
- 
     
     class Meta:
         unique_together = ('cart', 'variant', 'size')
@@ -274,13 +321,8 @@ class CartItem(BaseModel):
     def __str__(self):
         return f"{self.quantity} x {self.variant} in {self.cart}"
     
-    def sm():
-        s = sum([quantity for quantity in CartItem])
-        return s
-    
     @property
     def is_active(self):
-       
         return (
             self.variant.is_active and
             self.variant.product.is_active and
@@ -290,34 +332,18 @@ class CartItem(BaseModel):
     
     @property
     def subtotal(self):
-        if self.variant.discount_price:
-            return self.variant.discount_price * self.quantity
-        return self.variant.price * self.quantity
+        price = Decimal(str(self.variant.final_price or self.variant.price))
+        return (price * self.quantity).quantize(Decimal('0.01'))
     
     def clean(self):
         if not self.size:
             raise ValidationError("Size must be specified")
-            
+        
         if self.quantity > self.size.stock:
             raise ValidationError(f"Quantity cannot exceed available stock ({self.size.stock} available)")
-            
-        if self.quantity > 5:  # Maximum quantity per item
-            raise ValidationError("Maximum quantity per item is 5")
-    
-    
-
-    @property
-    def subtotal(self):
-        if self.variant.discount_price:
-            return self.variant.discount_price * self.quantity
-        return self.variant.price * self.quantity
-    
-    def clean(self):
-        if self.quantity > self.variant.stock:
-            raise ValidationError("Quantity cannot exceed available stock")
-        if self.quantity > 5:  # Maximum quantity per item
-            raise ValidationError("Maximum quantity per item is 5")
         
+        if self.quantity > 5:
+            raise ValidationError("Maximum quantity per item is 5")       
 
 class Wishlist(BaseModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE)

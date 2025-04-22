@@ -72,9 +72,9 @@
                 <button class="p-2 hover:text-primary">
                     <a href="{% url 'wishlist' %}" class="relative">
                         <i class="fas fa-heart text-2xl"></i>
-                        {% if request.user.is_authenticated and request.user.wishlist.count > 0 %}
+                        {% if request.user.is_authenticated and wishlist_count > 0 %}
                             <span class="wishlist-count absolute -top-2 -right-2 bg-yellow-500 text-black text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                                {{ request.user.wishlist.count }}
+                                {{ wishlist_count }}
                             </span>
                         {% endif %}
                     </a>

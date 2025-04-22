@@ -1272,7 +1272,7 @@ def apply_coupon(request):
         
         try:
             coupon = Coupon.objects.get(
-                code=code,
+                code__iexact=code,
                 is_active=True,
                 start_date__lte=timezone.now().date(),
                 end_date__gte=timezone.now().date()
@@ -1310,6 +1310,24 @@ def apply_coupon(request):
             })
             
         except Coupon.DoesNotExist:
+            # Check if coupon exists but is expired or not active
+            if Coupon.objects.filter(code__iexact=code).exists():
+                coupon = Coupon.objects.get(code__iexact=code)
+                if not coupon.is_active:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'This coupon is no longer active'
+                    })
+                elif coupon.start_date > timezone.now().date():
+                    return JsonResponse({
+                        'success': False,
+                        'message': f'This coupon is not valid until {coupon.start_date}'
+                    })
+                elif coupon.end_date < timezone.now().date():
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'This coupon has expired'
+                    })
             return JsonResponse({
                 'success': False,
                 'message': 'Invalid coupon code'

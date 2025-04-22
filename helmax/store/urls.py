@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import invoice_views
 
 
 urlpatterns = [
@@ -32,6 +33,7 @@ urlpatterns = [
     path('cart/', views.view_cart, name='view_cart'),
     path('cart/add/', views.add_to_cart, name='add_to_cart'),
     path('cart/update/<int:item_id>/', views.update_quantity, name='update_quantity'),
+    path('cart/get-totals/', views.get_cart_totals, name='get_cart_totals'),
     path('remove-from-cart/<int:item_id>/', views.remove_from_cart, name='remove_from_cart'),
     path('validate-cart/', views.validate_cart, name='validate_cart'),
 
@@ -44,7 +46,6 @@ urlpatterns = [
 
     ######### cheout ######## 
     path('checkout/', views.user_checkout, name='user_checkout'),
-    path('api/get-delivery-charge/', views.delivery_views.get_delivery_charge_api, name='get_delivery_charge'),
 
     path('place-order/', views.place_order, name='place_order'),
     path('my-orders/', views.my_orders, name='my_orders'),
@@ -63,12 +64,15 @@ urlpatterns = [
     # urls.py
     
     path('coupons/', views.available_coupons, name='available_coupons'),
-    path('apply-coupon/', views.apply_coupon, name='apply_coupon'),
+    path('cart/apply-coupon/', views.apply_coupon, name='apply_coupon'),
+    path('cart/remove-coupon/', views.remove_coupon, name='remove_coupon'),
+    path('cart/check-coupon/', views.check_coupon, name='check_coupon'),
+    path('orders/create/', views.create_order, name='create_order'),
 
     # path('payment/callback/', views.payment_callback, name='payment_callback'),
     # path('payment/webhook/', views.payment_webhook, name='payment_webhook'),
     path('api/filter-products/', views.filter_products, name='filter_products'),
-    path('payment/success/', views.payment_success, name='payment_success'),
+    path('payment/success/<str:order_id>/', views.payment_success, name='payment_success'),
     path('payment/retry/<str:order_id>/', views.retry_payment, name='retry_payment'),
     path('wallet/', views.wallet_view, name='wallet'),
     path('api/order-items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),

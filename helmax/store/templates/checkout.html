@@ -2,6 +2,11 @@
 {% load static %}
 {% load custom_filters %}
 
+{% block scripts %}
+<!-- Razorpay SDK -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+{% endblock %}
+
 {% block content %}
 <!-- Notification Container -->
 <div id="notification-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
@@ -175,15 +180,13 @@
                     </label>
                   </div>
 
-                  <!-- Delivery Charge Section -->
+                  <!-- Free Delivery Banner -->
                   <div class="mt-6 p-4 bg-zinc-800 rounded-lg">
-                    <h3 class="font-medium mb-2">Delivery Charges</h3>
                     <div class="flex justify-between items-center">
                       <div class="text-zinc-400 text-sm">
-                        <p>Delivery to selected address</p>
-                        <p id="selected-location" class="text-xs mt-1"></p>
+                        <p>Delivery</p>
                       </div>
-                      <div id="delivery-charge" class="font-medium">₹0.00</div>
+                      <div class="font-medium text-[#ff6b00]">FREE</div>
                     </div>
                   </div>
                 </div>
@@ -308,23 +311,48 @@
               </button>
               
               <div id="coupon-section" class="space-y-4 mb-4 hidden">
-                <div class="flex gap-2">
-                  <input 
-                    type="text" 
-                    id="coupon-code"
-                    placeholder="Enter coupon code" 
-                    class="flex-1 bg-zinc-800 border border-zinc-700 rounded px-4 py-2 focus:outline-none focus:border-[#ff6b00]"
-                  >
-                  <button 
-                    id="apply-coupon-btn"
-                    class="bg-[#ff6b00] hover:bg-[#ff6b00]/90 px-4 py-2 rounded text-black transition-colors"
-                  >
-                    Apply
-                  </button>
+                <div class="mb-4">
+                  <label for="coupon-code" class="block text-sm font-medium mb-2">Have a coupon code?</label>
+                  <div class="flex gap-2">
+                    <input 
+                      type="text" 
+                      id="coupon-code" 
+                      name="coupon_code"
+                      class="flex-1 bg-zinc-800 border border-zinc-700 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#ff6b00] focus:border-transparent"
+                      placeholder="Enter coupon code"
+                    >
+                    <button 
+                      type="button"
+                      id="apply-coupon"
+                      class="px-4 py-2 bg-[#ff6b00] text-black rounded-md hover:bg-[#ff6b00]/90 transition-colors flex items-center gap-2"
+                    >
+                      <span class="coupon-btn-text">Apply</span>
+                      <div class="coupon-loading hidden">
+                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                    </button>
+                    <button 
+                      type="button"
+                      id="remove-coupon"
+                      class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors hidden"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <p id="coupon-message" class="mt-2 text-sm"></p>
+                  <div id="applied-coupon-details" class="mt-3 p-3 bg-zinc-800 rounded-md hidden">
+                    <div class="flex items-center justify-between">
+                      <div>
+                        <p class="font-medium" id="applied-coupon-code"></p>
+                        <p class="text-sm text-zinc-400" id="applied-coupon-description"></p>
+                      </div>
+                      <div class="text-[#ff6b00] font-medium" id="applied-coupon-discount"></div>
+                    </div>
+                  </div>
                 </div>
-                
-                <div id="coupon-message" class="text-sm"></div>
-                
                 <div class="space-y-3">
                   <h4 class="text-sm font-medium">Available Coupons</h4>
                   {% for coupon in coupons %}
@@ -381,19 +409,17 @@
               </div>
               <div class="flex justify-between">
                 <span class="text-zinc-400">Coupon Discount</span>
-                <span id="coupon-discount" class="text-green-500">-₹{{ coupon_discount }}</span>
+                <span id="coupon-discount-value" class="text-green-500">-₹{{ coupon_discount }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-zinc-400">Delivery Charges</span>
-                <span id="delivery-charge">₹0.00</span>
+                <span class="text-zinc-400">Delivery</span>
+                <span class="text-[#ff6b00]">FREE</span>
               </div>
-              <div class="my-4 border-t border-zinc-800"></div>
+              <!-- Final amount display -->
               <div class="flex justify-between font-medium text-lg">
                 <span>Total Amount</span>
                 <span id="final-amount">₹{{ final_price|floatformat:2 }}</span>
               </div>
-              <!-- Hidden field to keep track of final price without delivery -->
-              <input type="hidden" id="final-amount-value" value="{{ final_price|floatformat:2 }}">
             </div>
         
         <!-- Secure Checkout Notice -->
@@ -412,426 +438,289 @@
 
 <!-- Address Form Modal -->
 <div id="addressFormModal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center z-50 p-4">
-  <div class="bg-zinc-900 p-6 rounded-lg w-full max-w-md">
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-xl font-semibold">Add New Address</h2>
-      <button 
-        onclick="toggleAddressForm()"
-        class="text-zinc-400 hover:text-white"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-      </button>
-    </div>
-    
-    <form id="addressForm" class="space-y-4">
-      {% csrf_token %}
-      <div class="grid grid-cols-2 gap-4">
-        <div class="col-span-2">
-          <label for="address_type" class="block text-sm font-medium mb-1">Address Type</label>
-          <select 
-            id="address_type"
-            name="address_type"
-            required
-            class="w-full bg-zinc-800 rounded px-4 py-2 text-white focus:ring-[#ff6b00] focus:border-[#ff6b00]"
-          >
-            <option value="">Select Address Type</option>
-            <option value="HOME">Home</option>
-            <option value="WORK">Work</option>
-            <option value="OTHER">Other</option>
-          </select>
-        </div>
-        
-        <div class="col-span-2">
-          <label for="full_name" class="block text-sm font-medium mb-1">Full Name</label>
-          <input 
-            type="text"
-            id="full_name"
-            name="full_name"
-            required
-            placeholder="Enter your full name" 
-            class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
-          >
-        </div>
-        
-        <div class="col-span-1">
-          <label for="email" class="block text-sm font-medium mb-1">Email</label>
-          <input 
-            type="email"
-            id="email"
-            name="email"
-            required
-            placeholder="Enter your email" 
-            class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
-          >
-        </div>
-        
-        <div class="col-span-1">
-          <label for="phone" class="block text-sm font-medium mb-1">Phone</label>
-          <input 
-            type="tel"
-            id="phone"
-            name="phone"
-            required
-            placeholder="Enter your phone number" 
-            class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
-          >
-        </div>
-        
-        <div class="col-span-2">
-          <label for="address_line1" class="block text-sm font-medium mb-1">Address Line 1</label>
-          <input 
-            type="text"
-            id="address_line1"
-            name="address_line1"
-            required
-            placeholder="House/Flat number, Building name" 
-            class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
-          >
-        </div>
-        
-        <div class="col-span-2">
-          <label for="address_line2" class="block text-sm font-medium mb-1">Address Line 2 (Optional)</label>
-          <input 
-            type="text"
-            id="address_line2"
-            name="address_line2"
-            placeholder="Street name, Landmark" 
-            class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
-          >
-        </div>
-        
-        <div class="col-span-1">
-          <label for="pincode" class="block text-sm font-medium mb-1">Pincode</label>
-          <input 
-            type="text"
-            id="pincode"
-            name="pincode"
-            required
-            placeholder="Enter pincode" 
-            class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
-          >
-        </div>
-        
-        <div class="col-span-1">
-          <label for="city" class="block text-sm font-medium mb-1">City</label>
-          <input 
-            type="text"
-            id="city"
-            name="city"
-            required
-            placeholder="Enter city" 
-            class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
-          >
-        </div>
-        
-        <div class="col-span-2">
-          <label for="state" class="block text-sm font-medium mb-1">State</label>
-          <input 
-            type="text"
-            id="state"
-            name="state"
-            required
-            placeholder="Enter state" 
-            class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
-          >
-        </div>
-        
-        <div class="col-span-2 flex items-center space-x-2">
-          <input 
-            type="checkbox" 
-            id="is_default"
-            name="is_default"
-            class="rounded bg-zinc-800 text-[#ff6b00] focus:ring-[#ff6b00]"
-          >
-          <label for="is_default">Set as Default Address</label>
-        </div>
+<div class="bg-zinc-900 p-6 rounded-lg w-full max-w-md">
+  <div class="flex justify-between items-center mb-6">
+    <h2 class="text-xl font-semibold">Add New Address</h2>
+    <button 
+      onclick="toggleAddressForm()"
+      class="text-zinc-400 hover:text-white"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+  </div>
+  
+  <form id="addressForm" class="space-y-4">
+    {% csrf_token %}
+    <div class="grid grid-cols-2 gap-4">
+      <div class="col-span-2">
+        <label for="address_type" class="block text-sm font-medium mb-1">Address Type</label>
+        <select 
+          id="address_type"
+          name="address_type"
+          required
+          class="w-full bg-zinc-800 rounded px-4 py-2 text-white focus:ring-[#ff6b00] focus:border-[#ff6b00]"
+        >
+          <option value="">Select Address Type</option>
+          <option value="HOME">Home</option>
+          <option value="WORK">Work</option>
+          <option value="OTHER">Other</option>
+        </select>
       </div>
       
+      <div class="col-span-2">
+        <label for="full_name" class="block text-sm font-medium mb-1">Full Name</label>
+        <input 
+          type="text"
+          id="full_name"
+          name="full_name"
+          required
+          placeholder="Enter your full name" 
+          class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
+        >
+      </div>
+      
+      <div class="col-span-1">
+        <label for="email" class="block text-sm font-medium mb-1">Email</label>
+        <input 
+          type="email"
+          id="email"
+          name="email"
+          required
+          placeholder="Enter your email" 
+          class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
+        >
+      </div>
+      
+      <div class="col-span-1">
+        <label for="phone" class="block text-sm font-medium mb-1">Phone</label>
+        <input 
+          type="tel"
+          id="phone"
+          name="phone"
+          required
+          placeholder="Enter your phone number" 
+          class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
+        >
+      </div>
+      
+      <div class="col-span-2">
+        <label for="address_line1" class="block text-sm font-medium mb-1">Address Line 1</label>
+        <input 
+          type="text"
+          id="address_line1"
+          name="address_line1"
+          required
+          placeholder="House/Flat number, Building name" 
+          class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
+        >
+      </div>
+      
+      <div class="col-span-2">
+        <label for="address_line2" class="block text-sm font-medium mb-1">Address Line 2 (Optional)</label>
+        <input 
+          type="text"
+          id="address_line2"
+          name="address_line2"
+          placeholder="Street name, Landmark" 
+          class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
+        >
+      </div>
+      
+      <div class="col-span-1">
+        <label for="city" class="block text-sm font-medium mb-1">City</label>
+        <input 
+          type="text"
+          id="city"
+          name="city"
+          required
+          placeholder="City" 
+          class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
+        >
+      </div>
+      
+      <div class="col-span-1">
+        <label for="state" class="block text-sm font-medium mb-1">State</label>
+        <input 
+          type="text"
+          id="state"
+          name="state"
+          required
+          placeholder="State" 
+          class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
+        >
+      </div>
+      
+      <div class="col-span-1">
+        <label for="pincode" class="block text-sm font-medium mb-1">Pincode</label>
+        <input 
+          type="text"
+          id="pincode"
+          name="pincode"
+          required
+          placeholder="Pincode" 
+          class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
+        >
+      </div>
+      
+      <div class="col-span-1">
+        <label for="country" class="block text-sm font-medium mb-1">Country</label>
+        <input 
+          type="text"
+          id="country"
+          name="country"
+          required
+          placeholder="Country" 
+          value="India"
+          readonly
+          class="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 text-white placeholder-zinc-400 focus:ring-[#ff6b00] focus:border-[#ff6b00]"
+        >
+      </div>
+    </div>
+    
+    <div class="flex justify-end space-x-3 mt-6">
       <button 
-        type="submit" 
-        class="w-full bg-[#ff6b00] text-black hover:bg-[#ff6b00]/90 py-2 rounded-lg transition-colors mt-4"
+        type="button"
+        onclick="toggleAddressForm()"
+        class="px-4 py-2 border border-zinc-700 rounded-md hover:bg-zinc-800 transition-colors"
+      >
+        Cancel
+      </button>
+      <button 
+        type="submit"
+        class="px-4 py-2 bg-[#ff6b00] text-black rounded-md hover:bg-[#ff6b00]/90 transition-colors"
       >
         Save Address
       </button>
-    </form>
-  </div>
+    </div>
+  </form>
+</div>
 </div>
 
-<!-- Hidden data for JavaScript -->
-<div id="django-data" 
-     data-razorpay-key="{{ razorpay_key_id }}"
-     data-user-name="{{ request.user.username }}"
-     data-user-email="{{ request.user.email }}"
-     data-user-phone="{{ request.user.phone|default:'' }}"
-     data-place-order-url="{% url 'place_order' %}"
-     data-validate-cart-url="{% url 'validate_cart' %}"
-     data-view-cart-url="{% url 'view_cart' %}"
-     data-manage-address-url="{% url 'userManageAddress' %}"
-     data-get-delivery-charge-url="{{ get_delivery_charge_url }}"
-     data-subtotal="{{ subtotal }}"
-     style="display: none;">
-</div>
-
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
-// Get data from Django
-const djangoData = document.getElementById('django-data');
-const razorpayKey = djangoData.dataset.razorpayKey || djangoData.getAttribute('data-razorpay-key');
-const userName = djangoData.dataset.userName;
-const userEmail = djangoData.dataset.userEmail;
-const userPhone = djangoData.dataset.userPhone;
-const placeOrderUrl = djangoData.dataset.placeOrderUrl;
-const validateCartUrl = djangoData.dataset.validateCartUrl;
-const viewCartUrl = djangoData.dataset.viewCartUrl;
-const manageAddressUrl = djangoData.dataset.manageAddressUrl;
-const getDeliveryChargeUrl = djangoData.dataset.getDeliveryChargeUrl;
-
-// Initialize variables
-let selectedAddressId = document.querySelector('input[name="selected_address"]:checked')?.value;
-let selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value;
-let currentSubtotal = parseFloat(djangoData.dataset.subtotal || 0);
-let deliveryCharge = 0;
-
-// Function to update COD visibility based on total amount
-function updateCODVisibility() {
-    const codOption = document.getElementById('cod').parentElement.parentElement;
-    const codWarning = document.getElementById('cod-warning');
-    const totalAmount = currentSubtotal + deliveryCharge;
-    
-    if (totalAmount > 2000) {
-        codOption.style.display = 'none';
-        document.getElementById('razorpay').checked = true;
-        codWarning.style.display = 'block';
-    } else {
-        codOption.style.display = 'flex';
-        codWarning.style.display = 'none';
-    }
+// Function to show notification
+function showNotification(message, type = 'success') {
+  const container = document.getElementById('notification-container');
+  const notification = document.createElement('div');
+  
+  notification.className = `py-2 px-4 rounded-md text-sm flex items-center justify-between ${
+    type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+  }`;
+  
+  notification.innerHTML = `
+    <div class="flex items-center">
+      ${type === 'success' 
+        ? '<svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' 
+        : '<svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'}
+      <span>${message}</span>
+    </div>
+    <button onclick="this.parentElement.remove()" class="ml-4">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  `;
+  
+  container.appendChild(notification);
+  
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    notification.remove();
+  }, 5000);
 }
 
-// Function to fetch and update delivery charge
-async function updateDeliveryCharge() {
-    if (!selectedAddressId) return;
-    
-    try {
-        const response = await fetch(`${getDeliveryChargeUrl}${selectedAddressId}/`);
-        if (!response.ok) throw new Error('Failed to fetch delivery charge');
-        
-        const data = await response.json();
-        deliveryCharge = parseFloat(data.charge);
-        
-        // Update delivery charge display
-        document.getElementById('delivery-charge').textContent = `₹${deliveryCharge.toFixed(2)}`;
-        
-        // Update selected location display
-        const selectedAddress = document.querySelector('input[name="selected_address"]:checked');
-        if (selectedAddress) {
-            const addressDetails = selectedAddress.closest('.flex').querySelector('.text-zinc-400').textContent;
-            document.getElementById('selected-location').textContent = addressDetails;
-        }
-        
-        // Update COD visibility
-        updateCODVisibility();
-    } catch (error) {
-        console.error('Error fetching delivery charge:', error);
-        showNotification('error', 'Failed to calculate delivery charge');
-    }
-}
-
-// Add event listeners
-document.querySelectorAll('input[name="selected_address"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-        selectedAddressId = e.target.value;
-        updateDeliveryCharge();
-    });
-});
-
-// Initialize on page load
-window.addEventListener('load', () => {
-    updateDeliveryCharge();
-    updateCODVisibility();
-});
-
-// Tab switching functionality
+// Function to switch between tabs
 function switchTab(tabName) {
   // Hide all tab contents
   document.querySelectorAll('.tab-content').forEach(content => {
     content.classList.add('hidden');
   });
   
-  // Show selected tab content
-  document.getElementById(`content-${tabName}`).classList.remove('hidden');
-  
-  // Update tab buttons
+  // Remove active state from all tab buttons
   document.querySelectorAll('[id^="tab-"]').forEach(tab => {
     tab.classList.remove('bg-[#ff6b00]', 'text-black');
   });
-  document.getElementById(`tab-${tabName}`).classList.add('bg-[#ff6b00]', 'text-black');
   
-  // Update review tab with selected address and payment method
+  // Show the selected tab content
+  const tabContent = document.getElementById(`content-${tabName}`);
+  if (tabContent) {
+    tabContent.classList.remove('hidden');
+  }
+  
+  // Set active state on the selected tab button
+  const tabButton = document.getElementById(`tab-${tabName}`);
+  if (tabButton) {
+    tabButton.classList.add('bg-[#ff6b00]', 'text-black');
+  }
+  
+  // Special handling for review tab
   if (tabName === 'review') {
-    updateReviewTab();
+    if (typeof updateReviewTabContent === 'function') {
+      updateReviewTabContent();
+    }
   }
-
-  // Calculate delivery charge when switching to payment tab
-  if (tabName === 'payment') {
-    calculateDeliveryCharge();
-    updateCODAvailability();
-  }
-}
-
-// Calculate delivery charge based on selected address
-function calculateDeliveryCharge() {
-  const selectedAddress = document.querySelector('input[name="selected_address"]:checked');
-  if (!selectedAddress) {
-    showNotification('Please select a delivery address first', 'error');
-    return;
-  }
-
-  const addressId = selectedAddress.value;
-  const addressDetails = selectedAddress.nextElementSibling.querySelector('.text-zinc-400');
-  const cityState = addressDetails ? addressDetails.textContent.match(/([^,]+),\s*([^,]+),/) : null;
   
-  // Show loading state
-  document.getElementById('delivery-charge').textContent = 'Calculating...';
-  document.getElementById('selected-location').textContent = cityState ? `${cityState[1]}, ${cityState[2]}` : '';
-  
-  fetch('/api/get-delivery-charge/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': getCookie('csrftoken')
-    },
-    body: JSON.stringify({ 
-      address_id: addressId,
-      city: cityState ? cityState[1].trim() : '',
-      state: cityState ? cityState[2].trim() : ''
-    })
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      // Update delivery charge
-      deliveryCharge = parseFloat(data.charge) || 0;
-      document.getElementById('delivery-charge').textContent = `₹${deliveryCharge.toFixed(2)}`;
-      
-      // Update final amount
-      updateTotalAmount();
-      
-      // Check if COD is available based on final amount
+  // Only check COD availability if we're on the payment tab
+  // This ensures all necessary elements are loaded
+  if (tabName === 'payment' || tabName === 'review') {
+    // Delay slightly to ensure DOM is updated
+    setTimeout(() => {
       updateCODAvailability();
-      
-    } else {
-      document.getElementById('delivery-charge').textContent = '₹0.00';
-      showNotification(data.message || 'Error calculating delivery charge', 'error');
-    }
-  })
-  .catch(error => {
-    console.error('Error:', error);
-    document.getElementById('delivery-charge').textContent = '₹0.00';
-    showNotification('Failed to calculate delivery charge', 'error');
-  });
-}
-
-// Update the total amount including delivery charge
-function updateTotalAmount() {
-  const finalPrice = parseFloat(document.getElementById('final-amount-value').value);
-  const totalWithDelivery = finalPrice + deliveryCharge;
-  document.getElementById('final-amount').innerHTML = `₹${totalWithDelivery.toFixed(2)}`;
-  
-  // Check COD availability after updating total
-  const codOption = document.getElementById('cod');
-  const codWarning = document.getElementById('cod-warning');
-  
-  if (totalWithDelivery > 2000) {
-    // Disable COD for orders above ₹2000
-    codOption.disabled = true;
-    codOption.checked = false;
-    codWarning.classList.remove('hidden');
-    
-    // Switch to Razorpay if COD was selected
-    if (document.querySelector('input[name="payment_method"]:checked')?.value === 'cod') {
-      document.getElementById('razorpay').checked = true;
-    }
-  } else {
-    // Enable COD for orders below ₹2000
-    codOption.disabled = false;
-    codWarning.classList.add('hidden');
+    }, 100);
   }
 }
 
-// Check if COD is available based on total amount
-function updateCODAvailability() {
-  const finalPrice = document.getElementById('final-amount-value').value;
-  const totalWithDelivery = parseFloat(finalPrice) + deliveryCharge;
-  const codOption = document.getElementById('cod');
-  const codLabel = document.querySelector('label[for="cod"]');
-  const codWarning = document.getElementById('cod-warning');
+// Function to update the content in the review tab
+function updateReviewTabContent() {
+  // Update selected address
+  const selectedAddressRadio = document.querySelector('input[name="selected_address"]:checked');
+  const selectedAddressDetails = document.getElementById('selected-address-details');
   
-  if (totalWithDelivery > 2000) {
-    // Disable COD
-    codOption.disabled = true;
-    codOption.checked = false;
-    codLabel.classList.add('opacity-50');
+  if (selectedAddressRadio) {
+    const addressDiv = selectedAddressRadio.nextElementSibling;
+    const name = addressDiv.querySelector('.font-medium').textContent;
+    const addressType = addressDiv.querySelector('.text-xs').textContent.trim();
+    const addressLines = Array.from(addressDiv.querySelectorAll('.text-zinc-400 p')).map(p => p.textContent.trim());
     
-    // If COD was selected, switch to Razorpay
-    if (selectedPaymentMethod === 'cod') {
-      document.getElementById('razorpay').checked = true;
-      selectedPaymentMethod = 'razorpay';
-    }
-    
-    // Show warning
-    if (!codWarning) {
-      const warningDiv = document.createElement('div');
-      warningDiv.id = 'cod-warning';
-      warningDiv.className = 'text-red-500 text-xs mt-1';
-      warningDiv.textContent = 'Cash on Delivery not available for orders above ₹2,000';
-      codLabel.parentNode.appendChild(warningDiv);
-    }
+    selectedAddressDetails.innerHTML = `
+      <div class="font-medium">${name}</div>
+      <span class="text-xs px-2 py-1 bg-zinc-700 rounded-full inline-block mb-2">${addressType}</span>
+      <div class="text-zinc-400">
+        ${addressLines.map(line => `<p>${line}</p>`).join('')}
+      </div>
+    `;
   } else {
-    // Enable COD
-    codOption.disabled = false;
-    codLabel.classList.remove('opacity-50');
-    
-    // Remove warning
-    if (codWarning) {
-      codWarning.remove();
-    }
-  }
-}
-
-// Update review tab with selected data
-function updateReviewTab() {
-  // Update selected address details
-  const selectedAddress = document.querySelector('input[name="selected_address"]:checked');
-  if (selectedAddress) {
-    const addressBlock = selectedAddress.nextElementSibling;
-    const addressDetails = document.getElementById('selected-address-details');
-    addressDetails.innerHTML = addressBlock.innerHTML;
+    selectedAddressDetails.textContent = 'No address selected';
   }
   
   // Update selected payment method
-  const paymentMethod = document.querySelector('input[name="payment_method"]:checked');
-  if (paymentMethod) {
-    const paymentMethodText = paymentMethod.value === 'razorpay' 
-      ? 'Razorpay (Cards/UPI/Netbanking)' 
-      : 'Cash on Delivery';
-    document.getElementById('selected-payment-method').textContent = paymentMethodText;
+  const selectedPaymentRadio = document.querySelector('input[name="payment_method"]:checked');
+  const selectedPaymentMethod = document.getElementById('selected-payment-method');
+  
+  if (selectedPaymentRadio) {
+    if (selectedPaymentRadio.value === 'razorpay') {
+      selectedPaymentMethod.textContent = 'Razorpay (Credit/Debit Card, UPI, Net Banking)';
+    } else if (selectedPaymentRadio.value === 'cod') {
+      selectedPaymentMethod.textContent = 'Cash on Delivery';
+    }
+  } else {
+    selectedPaymentMethod.textContent = 'No payment method selected';
   }
 }
 
-// Toggle address form modal
+// Function to toggle the address form modal
 function toggleAddressForm() {
   const modal = document.getElementById('addressFormModal');
+  
   if (modal.classList.contains('hidden')) {
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    document.body.style.overflow = 'hidden'; // Prevent scrolling
   } else {
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+    document.body.style.overflow = ''; // Allow scrolling
   }
 }
 
-// Toggle coupon section
+// Function to toggle the coupon section
 document.getElementById('toggle-coupons-btn').addEventListener('click', function() {
   const couponSection = document.getElementById('coupon-section');
   const chevronDown = document.getElementById('coupon-chevron-down');
@@ -848,299 +737,568 @@ document.getElementById('toggle-coupons-btn').addEventListener('click', function
   }
 });
 
-// Apply coupon code from available coupons
+// Function to directly apply a coupon code from the available coupons list
 function applyCouponCode(code) {
-  document.getElementById('coupon-code').value = code;
-  applyCoupon();
+  // Apply the coupon directly using the API
+  applyCouponDirectly(code);
 }
 
-// Apply coupon
-function applyCoupon() {
-  const code = document.getElementById('coupon-code').value;
-  const messageDiv = document.getElementById('coupon-message');
-  
-  fetch('/apply-coupon/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': getCookie('csrftoken')
-    },
-    body: JSON.stringify({ coupon_code: code })
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      messageDiv.innerHTML = `Coupon applied! Discount: ₹${data.discount}`;
-      messageDiv.className = "mt-2 text-sm text-green-500";
-      document.getElementById('coupon-discount').innerHTML = `-₹${data.discount}`;
-      
-      // Update final price without delivery
-      document.getElementById('final-amount-value').value = data.final_amount;
-      
-      // Update final price with delivery
-      updateTotalAmount();
-      
-      // Check if COD is still available with new total
-      updateCODAvailability();
-      
-      // Close the coupons section after successful application
-      document.getElementById('coupon-section').classList.add('hidden');
-      document.getElementById('coupon-chevron-down').classList.remove('hidden');
-      document.getElementById('coupon-chevron-up').classList.add('hidden');
-    } else {
-      messageDiv.innerHTML = data.message;
-      messageDiv.className = "mt-2 text-sm text-red-500";
-    }
-  })
-  .catch(error => {
-    messageDiv.innerHTML = 'Error applying coupon';
-    messageDiv.className = "mt-2 text-sm text-red-500";
-  });
-}
-
-// Handle address form submission
-document.getElementById('addressForm').addEventListener('submit', async function(e) {
-  e.preventDefault();
-  const formData = new FormData(this);
-  
+// Function to apply a coupon directly through the API
+async function applyCouponDirectly(code) {
   try {
-    const response = await fetch(manageAddressUrl, {
+    if (!code || code.trim() === '') {
+      showNotification('Please enter a valid coupon code', 'error');
+      return;
+    }
+    
+    // Show notification
+    showNotification(`Applying coupon: ${code}...`, 'success');
+    
+    // Update coupon message
+    const couponMessage = document.getElementById('coupon-message');
+    if (couponMessage) {
+      couponMessage.textContent = 'Applying coupon...';
+      couponMessage.className = 'mt-2 text-sm text-zinc-400';
+    }
+    
+    // Make the API call
+    const response = await fetch('/cart/apply-coupon/', {
       method: 'POST',
       headers: {
-        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        'X-Requested-With': 'XMLHttpRequest'
       },
-      body: formData
+      body: JSON.stringify({ code: code })
     });
-
-    if (response.ok) {
-      const data = await response.json();
-      showNotification('Address added successfully!', 'success');
-      toggleAddressForm();
-      location.reload();
+    
+    const data = await response.json();
+    
+    // Handle the response
+    if (data.success) {
+      // Update the coupon input field
+      const couponInput = document.getElementById('coupon-code');
+      if (couponInput) {
+        couponInput.value = code;
+        couponInput.disabled = true;
+      }
+      
+      // Show success message
+      if (couponMessage) {
+        couponMessage.textContent = 'Coupon applied successfully!';
+        couponMessage.className = 'mt-2 text-sm text-green-500';
+      }
+      
+      // Update coupon details
+      updateAppliedCouponDetails(data);
+      
+      // Show/hide appropriate buttons
+      const applyButton = document.getElementById('apply-coupon');
+      const removeButton = document.getElementById('remove-coupon');
+      if (applyButton && removeButton) {
+        applyButton.classList.add('hidden');
+        removeButton.classList.remove('hidden');
+      }
+      
+      // Update price information
+      updatePriceElements(
+        data.subtotal,
+        data.discount,
+        data.delivery_charge,
+        data.final_amount
+      );
+      
+      // Success notification
+      showNotification('Coupon applied successfully!', 'success');
     } else {
-      throw new Error('Failed to add address');
+      // Show error message
+      if (couponMessage) {
+        couponMessage.textContent = data.message || 'Failed to apply coupon';
+        couponMessage.className = 'mt-2 text-sm text-red-500';
+      }
+      
+      // Error notification
+      showNotification(data.message || 'Failed to apply coupon', 'error');
     }
   } catch (error) {
-    console.error('Error:', error);
-    showNotification('Failed to add address. Please try again.', 'error');
+    console.error('Error applying coupon:', error);
+    showNotification('Error applying coupon. Please try again.', 'error');
+    
+    // Update error message
+    const couponMessage = document.getElementById('coupon-message');
+    if (couponMessage) {
+      couponMessage.textContent = 'An error occurred while applying the coupon';
+      couponMessage.className = 'mt-2 text-sm text-red-500';
+    }
   }
-});
+}
 
-// Handle address selection
-document.querySelectorAll('input[name="selected_address"]').forEach(radio => {
-  radio.addEventListener('change', function() {
-    selectedAddressId = this.value;
-    // Recalculate delivery charge when address changes
-    calculateDeliveryCharge();
-  });
-});
-
-// Handle payment method selection
-document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
-  radio.addEventListener('change', function() {
-    selectedPaymentMethod = this.value;
-  });
-});
-
-// Place order button
-document.getElementById('place-order-btn').addEventListener('click', placeOrder);
-
-function placeOrder() {
-  if (!selectedAddressId) {
-    showNotification('Please select a delivery address', 'error');
+// Function to update applied coupon details
+function updateAppliedCouponDetails(data) {
+  // Safety check - if data is invalid, don't proceed
+  if (!data || !data.success) {
+    console.error('Cannot update coupon details with invalid data:', data);
     return;
   }
-
-  const formData = new FormData();
-  formData.append('address_id', selectedAddressId);
-  formData.append('payment_method', selectedPaymentMethod);
-  formData.append('delivery_charge', deliveryCharge);
-  formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-
-  fetch(placeOrderUrl, {
-    method: 'POST',
-    body: formData,
-    headers: {
-      "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
-    }
-  })
-  .then(response => response.json())
-  .then(data => {
-    console.log('Response data:', data);
-
-    if (data.success) {
-      if (selectedPaymentMethod === 'razorpay') {
-        // Initialize Razorpay
-        initializeRazorpay(data.razorpay_order_id, data.amount);
-      } else {
-        // COD or other payment methods
-        window.location.href = data.redirect_url;
-      }
-    } else {
-      showNotification(data.message || 'Error placing order', 'error');
-    }
-  })
-  .catch(error => {
-    console.error('Error:', error);
-    showNotification('Error placing order. Please try again.', 'error');
-  });
-}
-
-function initializeRazorpay(orderId, amount) {
-  const options = {
-    "key": razorpayKey, 
-    "amount": amount,
-    "currency": "INR",
-    "name": "Helmax",
-    "description": "Order Payment",
-    "order_id": orderId,
-    "handler": function (response) {
-      verifyPayment(response);
-    },
-    "prefill": {
-      "name": userName,
-      "email": userEmail,
-      "contact": userPhone
-    },
-    "theme": {
-      "color": "#ff6b00"
-    }
-  };
-  const rzp1 = new Razorpay(options);
-  rzp1.open();
-}
-
-function verifyPayment(response) {
-  fetch('/payment/success/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-    },
-    body: JSON.stringify({
-      razorpay_payment_id: response.razorpay_payment_id,
-      razorpay_order_id: response.razorpay_order_id,
-      razorpay_signature: response.razorpay_signature
-    })
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.status === 'success') {
-      window.location.href = data.redirect_url;
-    } else {
-      showNotification(data.message || 'Payment verification failed', 'error');
-    }
-  })
-  .catch(error => {
-    console.error('Error:', error);
-    showNotification('Payment verification failed', 'error');
-  });
-}
-
-// Validate cart every 10 seconds
-setInterval(validateCart, 10000);
-
-function validateCart() {
-  fetch('/validate-cart/', {
-    method: 'GET',
-    headers: {
-      'X-Requested-With': 'XMLHttpRequest',
-      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-    }
-  })
-  .then(response => {
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-    return response.json();
-  })
-  .then(data => {
-    if (!data.is_valid) {
-      showNotification(data.errors.join('\n'), 'error');
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
-    }
-  })
-  .catch(error => {
-    console.error('Error validating cart:', error);
-    showNotification('Failed to validate cart. Please refresh the page.', 'error');
-  });
-}
-
-// Helper function to get CSRF token
-function getCookie(name) {
-  let cookieValue = null;
-  if (document.cookie && document.cookie !== '') {
-    const cookies = document.cookie.split(';');
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i].trim();
-      if (cookie.substring(0, name.length + 1) === (name + '=')) {
-        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-        break;
-      }
-    }
-  }
-  return cookieValue;
-}
-
-// Show notification
-function showNotification(message, type = 'success') {
-  // Create notification container if it doesn't exist
-  let notificationContainer = document.getElementById('notification-container');
-  if (!notificationContainer) {
-    notificationContainer = document.createElement('div');
-    notificationContainer.id = 'notification-container';
-    notificationContainer.className = 'fixed top-4 right-4 z-50 space-y-2';
-    document.body.appendChild(notificationContainer);
-  }
-
-  // Create new notification
-  const notification = document.createElement('div');
-  notification.className = `transform transition-all duration-300 ease-in-out
-      ${type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-yellow-500'}
-      text-white px-6 py-3 rounded-lg shadow-lg flex items-center`;
   
-  // Add icon based on type
-  const icon = document.createElement('span');
-  icon.className = 'mr-2';
-  icon.innerHTML = type === 'success' ? '✓' : type === 'error' ? '✕' : '⚠';
-  notification.appendChild(icon);
-
-  // Add message
-  const text = document.createElement('span');
-  text.textContent = message;
-  notification.appendChild(text);
-
-  // Add to container
-  notificationContainer.appendChild(notification);
-
-  // Animate in
-  notification.style.transform = 'translateX(100%)';
-  setTimeout(() => {
-    notification.style.transform = 'translateX(0)';
-  }, 100);
-
-  // Remove after delay
-  setTimeout(() => {
-    notification.style.transform = 'translateX(100%)';
-    notification.style.opacity = '0';
-    setTimeout(() => {
-      notification.remove();
-    }, 300);
-  }, 5000);
+  const couponDetails = document.getElementById('applied-coupon-details');
+  if (!couponDetails) return;
+  
+  // Update coupon details
+  const codeElement = document.getElementById('applied-coupon-code');
+  const descriptionElement = document.getElementById('applied-coupon-description');
+  const discountElement = document.getElementById('applied-coupon-discount');
+  
+  if (codeElement && data.coupon && data.coupon.code) {
+    codeElement.textContent = data.coupon.code.toUpperCase();
+  } else if (codeElement) {
+    // Fallback if coupon details are missing but we have a code
+    const code = document.getElementById('coupon-code')?.value;
+    if (code) {
+      codeElement.textContent = code.toUpperCase();
+    }
+  }
+  
+  if (descriptionElement && data.coupon && data.coupon.description) {
+    descriptionElement.textContent = data.coupon.description;
+  } else if (descriptionElement) {
+    descriptionElement.textContent = 'Discount applied';
+  }
+  
+  if (discountElement && typeof data.discount === 'number') {
+    discountElement.textContent = `-₹${data.discount.toFixed(2)}`;
+  } else if (discountElement) {
+    discountElement.textContent = `-₹${(0).toFixed(2)}`;
+  }
+  
+  // Show the details box
+  couponDetails.classList.remove('hidden');
 }
 
-// Initialize the page
+// Function to check if COD is available based on order amount
+function updateCODAvailability() {
+  // Get the final amount from the text content if the value element doesn't exist
+  let finalAmount = 0;
+  
+  // First try to get it from the hidden input value
+  const finalAmountElement = document.getElementById('final-amount-value');
+  if (finalAmountElement) {
+    finalAmount = parseFloat(finalAmountElement.value) || 0;
+  } else {
+    // Fall back to getting it from the displayed text
+    const finalAmountText = document.getElementById('final-amount');
+    if (finalAmountText) {
+      // Extract number from format like '₹1234.56'
+      const match = finalAmountText.textContent.match(/[\d.]+/);
+      if (match) {
+        finalAmount = parseFloat(match[0]) || 0;
+      }
+    }
+  }
+  
+  const codRadio = document.getElementById('cod');
+  const codWarning = document.getElementById('cod-warning');
+  
+  // Only proceed if we have both COD elements
+  if (!codRadio || !codWarning) {
+    return;
+  }
+  
+  if (finalAmount > 2000) {
+    codRadio.disabled = true;
+    codWarning.classList.remove('hidden');
+    
+    // If COD was selected, switch to Razorpay
+    if (codRadio.checked) {
+      const razorpayRadio = document.getElementById('razorpay');
+      if (razorpayRadio) {
+        razorpayRadio.checked = true;
+      }
+    }
+  } else {
+    codRadio.disabled = false;
+    codWarning.classList.add('hidden');
+  }
+}
+
+// Function to update all price elements
+function updatePriceElements(subtotal, discount, delivery, final) {
+  // Update subtotal
+  const subtotalElement = document.getElementById('subtotal-amount');
+  if (subtotalElement) {
+    subtotalElement.textContent = `₹${subtotal.toFixed(2)}`;
+  }
+  
+  // Update coupon discount
+  const discountElement = document.getElementById('coupon-discount-value');
+  if (discountElement) {
+    discountElement.textContent = `-₹${discount.toFixed(2)}`;
+  }
+  
+  // Update delivery charge
+  const deliveryElement = document.getElementById('delivery-charge-value');
+  if (deliveryElement) {
+    deliveryElement.textContent = `₹${delivery.toFixed(2)}`;
+  }
+  
+  // Update final amount
+  const finalElement = document.getElementById('final-amount');
+  if (finalElement) {
+    finalElement.textContent = `₹${final.toFixed(2)}`;
+  }
+  
+  const finalValueElement = document.getElementById('final-amount-value');
+  if (finalValueElement) {
+    finalValueElement.value = final.toFixed(2);
+  }
+  
+  // Update any other price elements if needed
+  updateCODAvailability();
+}
+
+// Function to fetch updated cart totals
+async function fetchCartTotals() {
+    try {
+      const response = await fetch('/cart/get-totals/', {
+        method: 'GET',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        updatePriceElements(
+          data.subtotal,
+          data.coupon_discount || 0,
+          data.delivery_charge || 0,
+          data.final_amount
+        );
+      }
+    } catch (error) {
+      console.error('Error fetching cart totals:', error);
+    }
+  }
+
+// Set the first tab as active when document is loaded
 document.addEventListener('DOMContentLoaded', function() {
-  // Set initial tab
+  // All DOM-ready code is inside this listener
   switchTab('delivery');
   
-  // Store initial amounts
-  currentSubtotal = parseFloat(document.getElementById('final-amount-value').value || 0);
+  // Handle address form submission
+  document.getElementById('addressForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    fetch('/accounts/address/add/', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showNotification('Address added successfully');
+        toggleAddressForm();
+        // Reload the page to show the new address
+        window.location.reload();
+      } else {
+        showNotification(data.message || 'Failed to add address', 'error');
+      }
+    })
+    .catch(error => {
+      showNotification('An error occurred', 'error');
+      console.error('Error:', error);
+    });
+  });
   
-  // Check if COD should be available
-  updateCODAvailability();
+  // Coupon handling
+  let currentCoupon = null;
+
+  // Initial load of cart totals
+fetchCartTotals();
+
+// Check if there's an active coupon on page load
+async function checkExistingCoupon() {
+  try {
+    const response = await fetch('/cart/check-coupon/', {
+      method: 'GET',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    
+    const data = await response.json();
+    if (data.success && data.has_coupon) {
+      // Update the UI with the existing coupon
+      updateAppliedCouponDetails(data);
+      
+      // Update UI elements
+      const removeCouponBtn = document.getElementById('remove-coupon');
+      const applyBtn = document.getElementById('apply-coupon');
+      const couponInput = document.getElementById('coupon-code');
+      
+      if (removeCouponBtn && applyBtn && couponInput) {
+        // Show remove button and hide apply button
+        removeCouponBtn.classList.remove('hidden');
+        couponInput.disabled = true;
+        couponInput.value = data.coupon_code;
+        applyBtn.classList.add('hidden');
+      }
+      
+      // Update the price elements with the current values
+      updatePriceElements(
+        data.subtotal,
+        data.discount,
+        data.delivery_charge,
+        data.final_amount
+      );
+      
+      // Expand the coupon section to show the applied coupon
+      const couponSection = document.getElementById('coupon-section');
+      const chevronDown = document.getElementById('coupon-chevron-down');
+      const chevronUp = document.getElementById('coupon-chevron-up');
+      
+      if (couponSection && chevronDown && chevronUp) {
+        couponSection.classList.remove('hidden');
+        chevronDown.classList.add('hidden');
+        chevronUp.classList.remove('hidden');
+      }
+    }
+  } catch (error) {
+    console.error('Error checking existing coupon:', error);
+  }
+}
+
+// Check for existing coupon on page load
+checkExistingCoupon();
+
+document.getElementById('apply-coupon').addEventListener('click', async function() {
+    const couponBtn = this;
+    const couponCode = document.getElementById('coupon-code').value.trim();
+    const couponMessage = document.getElementById('coupon-message');
+    
+    if (!couponCode) {
+      couponMessage.textContent = 'Please enter a coupon code';
+      couponMessage.className = 'mt-2 text-sm text-red-500';
+      return;
+    }
+    
+    // Show loading state
+    couponBtn.disabled = true;
+    couponBtn.querySelector('.coupon-btn-text').textContent = 'Applying...';
+    couponBtn.querySelector('.coupon-loading').classList.remove('hidden');
+    couponMessage.textContent = 'Checking coupon...';
+    couponMessage.className = 'mt-2 text-sm text-zinc-400';
+    
+    try {
+      // Apply the coupon using the applyCouponDirectly function
+      await applyCouponDirectly(couponCode);
+    } catch (error) {
+      console.error('Error:', error);
+      couponMessage.textContent = 'An error occurred while applying the coupon';
+      couponMessage.className = 'mt-2 text-sm text-red-500';
+    } finally {
+      // Reset button state
+      couponBtn.disabled = false;
+      couponBtn.querySelector('.coupon-btn-text').textContent = 'Apply';
+      couponBtn.querySelector('.coupon-loading').classList.add('hidden');
+    }
+  });
+
+  // Remove coupon handler
+  document.getElementById('remove-coupon').addEventListener('click', async function() {
+    const removeCouponBtn = this;
+    const couponMessage = document.getElementById('coupon-message');
+    const couponDetails = document.getElementById('applied-coupon-details');
+    const applyBtn = document.getElementById('apply-coupon');
+    const couponInput = document.getElementById('coupon-code');
+    
+    // Disable button during operation
+    removeCouponBtn.disabled = true;
+    
+    // Show notification
+    showNotification('Removing coupon...', 'success');
+    
+    try {
+      const response = await fetch('/cart/remove-coupon/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Reset UI
+        if (couponInput) {
+          couponInput.value = '';
+          couponInput.disabled = false;
+        }
+        
+        if (couponMessage) {
+          couponMessage.textContent = 'Coupon removed successfully';
+          couponMessage.className = 'mt-2 text-sm text-green-500';
+        }
+        
+        if (couponDetails) {
+          couponDetails.classList.add('hidden');
+        }
+        
+        // Update price elements
+        updatePriceElements(
+          data.subtotal,
+          0, // No discount
+          data.delivery_charge,
+          data.final_amount
+        );
+        
+        // Toggle buttons
+        if (applyBtn) {
+          applyBtn.classList.remove('hidden');
+        }
+        
+        if (removeCouponBtn) {
+          removeCouponBtn.classList.add('hidden');
+        }
+        
+        // Success notification
+        showNotification('Coupon removed successfully', 'success');
+        
+        // Update COD availability
+        updateCODAvailability();
+      } else {
+        // Show error message
+        if (couponMessage) {
+          couponMessage.textContent = data.message || 'Failed to remove coupon';
+          couponMessage.className = 'mt-2 text-sm text-red-500';
+        }
+        
+        // Error notification
+        showNotification(data.message || 'Failed to remove coupon', 'error');
+      }
+    } catch (error) {
+      console.error('Error removing coupon:', error);
+      
+      // Show error message
+      if (couponMessage) {
+        couponMessage.textContent = 'An error occurred while removing the coupon';
+        couponMessage.className = 'mt-2 text-sm text-red-500';
+      }
+      
+      // Error notification
+      showNotification('Error removing coupon. Please try again.', 'error');
+    } finally {
+      // Re-enable the button
+      removeCouponBtn.disabled = false;
+    }
+  });
+  
+  // Place order button
+  document.getElementById('place-order-btn').addEventListener('click', function() {
+    const selectedAddressId = document.querySelector('input[name="selected_address"]:checked')?.value;
+    const selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value;
+    
+    if (!selectedAddressId) {
+      showNotification('Please select a delivery address', 'error');
+      switchTab('delivery');
+      return;
+    }
+    
+    if (!selectedPaymentMethod) {
+      showNotification('Please select a payment method', 'error');
+      switchTab('payment');
+      return;
+    }
+    
+    // Create order data
+    const orderData = {
+      address_id: selectedAddressId,
+      payment_method: selectedPaymentMethod
+    };
+    
+    // Send order data to server
+    fetch('/orders/create/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify(orderData)
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        if (selectedPaymentMethod === 'razorpay') {
+          // Initialize Razorpay payment
+          const options = {
+            key: data.key_id,
+            amount: data.amount,
+            currency: data.currency,
+            name: 'Your Shop Name',
+            description: 'Order Payment',
+            order_id: data.razorpay_order_id,
+            handler: function(response) {
+              // Handle successful payment
+              // Send the payment verification data to the server
+              fetch('/payment/success/' + data.order_id + '/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature
+                })
+              })
+              .then(response => response.json())
+              .then(data => {
+                if (data.status === 'success') {
+                  window.location.href = data.redirect_url;
+                } else {
+                  showNotification(data.message || 'Payment verification failed', 'error');
+                  window.location.href = data.redirect_url;
+                }
+              })
+              .catch(error => {
+                console.error('Error:', error);
+                window.location.href = '/my-orders/';
+              });
+            },
+            prefill: {
+              name: data.customer_name,
+              email: data.customer_email,
+              contact: data.customer_phone
+            },
+            theme: {
+              color: '#ff6b00'
+            }
+          };
+          
+          const rzp = new Razorpay(options);
+          rzp.open();
+        } else {
+          // For COD, redirect to order details page
+          window.location.href = data.redirect_url;
+        }
+      } else {
+        showNotification(data.message || 'Failed to create order', 'error');
+      }
+    })
+    .catch(error => {
+      showNotification('An error occurred', 'error');
+      console.error('Error:', error);
+    });
+  });
 });
 </script>
 {% endblock %}

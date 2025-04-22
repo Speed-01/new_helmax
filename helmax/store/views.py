@@ -7,12 +7,19 @@ from .forms import AddressForm
 from django.http import Http404
 from django.conf import settings
 import os
+import random
+from decimal import Decimal
 from .invoice_generator import generate_invoice_pdf
 from manager.models import (
-    OTP, User, Category, Brand, Size, Product, Variant, ProductImage, 
-    Review, Address, Cart, CartItem, PaymentMethod, Coupon, CouponUsage, 
+    OTP, User, Category, Brand, Size, Product, Variant, ProductImage,   
+    Review, Address, Cart, CartItem, Coupon, CouponUsage, PaymentMethod,
     Order, OrderItem, Wishlist, ReturnRequest, Wallet, WalletTransaction
 )
+
+PAYMENT_METHODS = [
+    {'id': 'razorpay', 'name': 'Razorpay', 'description': 'Pay using Credit/Debit Card, UPI, or Net Banking'},
+    {'id': 'cod', 'name': 'Cash on Delivery', 'description': 'Pay when your order is delivered'}
+]
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.cache import never_cache
 from django.shortcuts import render, redirect
@@ -765,6 +772,8 @@ def view_cart(request):
         messages.warning(request, "Login to access Cart")
         return redirect('Login')  # Redirect to login page if user is not authenticated
  
+    # Clean up any duplicate carts first
+    cleanup_carts(request.user)
 
     # Get or create the user's cart
     cart, created = Cart.objects.get_or_create(
@@ -968,7 +977,7 @@ def update_quantity(request, item_id):
 def wishlist_view(request):
     try:
         # Get or create single wishlist for user
-        wishlist = Wishlist.get_or_create_wishlist(request.user)
+        wishlist, created = Wishlist.objects.get_or_create(user=request.user)
         
         # Get all active variants in wishlist
         wishlist_items = wishlist.variants.filter(
@@ -983,20 +992,34 @@ def wishlist_view(request):
         product_ids = set()  # To exclude wishlist products from similar products
         
         for variant in wishlist_items:
-            # Get primary image or first image
-            primary_image = variant.images.filter(is_primary=True).first()
-            if not primary_image:
-                primary_image = variant.images.first()
-
-            items_data.append({
-                'id': variant.id,
-                'product_name': variant.product.name,
-                'color': variant.color,
-                'price': variant.price,
-                'discount_price': variant.discount_price,
-                'image_url': primary_image.image.url if primary_image else None,
-                'stock': sum(size.stock for size in variant.sizes.all())
-            })
+            try:
+                # Get primary image or first image
+                primary_image = variant.images.filter(is_primary=True).first()
+                if not primary_image:
+                    primary_image = variant.images.first()
+                
+                # Get image URL safely
+                image_url = None
+                if primary_image and hasattr(primary_image, 'image'):
+                    image_url = primary_image.image.url
+                
+                # Calculate stock safely
+                try:
+                    stock = sum(size.stock for size in variant.sizes.all())
+                except Exception:
+                    stock = 0
+                
+                items_data.append({
+                    'id': variant.id,
+                    'product_name': variant.product.name if variant.product else 'Unknown Product',
+                    'color': variant.color or 'No Color',
+                    'price': variant.price or 0,
+                    'discount_price': variant.discount_price or variant.price or 0,
+                    'image_url': image_url,
+                    'stock': stock
+                })
+            except Exception as item_error:
+                print(f"Error processing wishlist item: {str(item_error)}")
             
             # Collect category and product ID for similar products
             if variant.product.category:
@@ -1018,21 +1041,29 @@ def wishlist_view(request):
             
             # Prepare similar products data
             for product in similar_products_query:
-                # Get first active variant
-                first_variant = product.variants.filter(is_active=True).first()
-                if first_variant:
-                    # Get primary image or first image
-                    primary_image = first_variant.images.filter(is_primary=True).first()
-                    if not primary_image:
-                        primary_image = first_variant.images.first()
-                    
-                    similar_products.append({
-                        'id': product.id,
-                        'name': product.name,
-                        'price': first_variant.price,
-                        'discount_price': first_variant.discount_price,
-                        'image_url': primary_image.image.url if primary_image else None
-                    })
+                try:
+                    # Get first active variant
+                    first_variant = product.variants.filter(is_active=True).first()
+                    if first_variant:
+                        # Get primary image or first image
+                        primary_image = first_variant.images.filter(is_primary=True).first()
+                        if not primary_image:
+                            primary_image = first_variant.images.first()
+                        
+                        # Get image URL safely
+                        image_url = None
+                        if primary_image and hasattr(primary_image, 'image'):
+                            image_url = primary_image.image.url
+                        
+                        similar_products.append({
+                            'id': product.id,
+                            'name': product.name if product.name else 'Unknown Product',
+                            'price': first_variant.price or 0,
+                            'discount_price': first_variant.discount_price or first_variant.price or 0,
+                            'image_url': image_url
+                        })
+                except Exception as product_error:
+                    print(f"Error processing similar product: {str(product_error)}")
 
         return render(request, 'wishlist.html', {
             'wishlist_items': items_data,
@@ -1040,7 +1071,10 @@ def wishlist_view(request):
         })
         
     except Exception as e:
-        messages.error(request, "Error loading wishlist")
+        import traceback
+        print(f"Wishlist error: {str(e)}")
+        print(traceback.format_exc())
+        messages.error(request, f"Error loading wishlist: {str(e)}")
         return redirect('home')
 
 @login_required
@@ -1088,8 +1122,16 @@ def get_delivery_charge(request):
         data = json.loads(request.body)
         city = data.get('city', '').lower()
         state = data.get('state', '').lower()
+        order_amount = float(data.get('order_amount', 0))
         
-        from .delivery_charges import delivery_charges
+        from .delivery_charges import delivery_charges, FREE_SHIPPING_THRESHOLD
+        
+        # Check for free shipping
+        if order_amount >= FREE_SHIPPING_THRESHOLD:
+            return JsonResponse({
+                'success': True,
+                'charge': 0
+            })
         
         # First try to find charge by city
         charge = delivery_charges.get(city)
@@ -1104,7 +1146,7 @@ def get_delivery_charge(request):
         
         return JsonResponse({
             'success': True,
-            'charge': charge
+            'charge': float(charge)
         })
     except Exception as e:
         return JsonResponse({
@@ -1118,7 +1160,7 @@ def get_delivery_charge(request):
 def remove_from_wishlist(request, variant_id):
     """Remove item from wishlist"""
     try:
-        wishlist = Wishlist.get_or_create_wishlist(request.user)
+        wishlist, created = Wishlist.objects.get_or_create(user=request.user)
         variant = Variant.objects.get(id=variant_id)
         
         if variant in wishlist.variants.all():
@@ -1142,7 +1184,7 @@ def add_to_wishlist(request, variant_id):
     """Add item directly to wishlist"""
     try:
         variant = get_object_or_404(Variant, id=variant_id)
-        wishlist = Wishlist.get_or_create_wishlist(request.user)
+        wishlist, created = Wishlist.objects.get_or_create(user=request.user)
         wishlist.variants.add(variant)
         return JsonResponse({'success': True, 'message': 'Added to wishlist!'})
     except Exception as e:
@@ -1152,7 +1194,7 @@ def add_to_wishlist(request, variant_id):
 def sort_wishlist(request, sort_by):
     """Sort wishlist items"""
     try:
-        wishlist = Wishlist.get_or_create_wishlist(request.user)
+        wishlist, created = Wishlist.objects.get_or_create(user=request.user)
         items = wishlist.variants.filter(
             is_active=True,
             product__is_active=True
@@ -1176,7 +1218,7 @@ def sort_wishlist(request, sort_by):
         
         items_data = [{
             'id': item.id,
-            'product_name': item.product.name,
+            'product_name': item.product.name if item.product else 'Product Unavailable',
             'color': item.color,
             'price': item.price,
             'discount_price': item.discount_price,
@@ -1198,7 +1240,7 @@ def sort_wishlist(request, sort_by):
 def load_similar_products(request):
     """Load similar products based on wishlist items"""
     try:
-        wishlist = Wishlist.get_or_create_wishlist(request.user)
+        wishlist, created = Wishlist.objects.get_or_create(user=request.user)
         wishlist_items = wishlist.variants.filter(
             is_active=True,
             product__is_active=True
@@ -1252,7 +1294,7 @@ def load_similar_products(request):
 def clear_wishlist(request):
     """Clear all items from wishlist"""
     try:
-        wishlist = Wishlist.get_or_create_wishlist(request.user)
+        wishlist, created = Wishlist.objects.get_or_create(user=request.user)
         wishlist.variants.clear()
         return JsonResponse({'success': True, 'message': 'Wishlist cleared successfully'})
     except Exception as e:
@@ -1309,7 +1351,7 @@ def add_multiple_to_cart(request):
 
 import re
 ####### profile ##########
-@login_required(login_url='userlogin')
+@login_required(login_url='Login')
 def user_profile(request, user_id):
     # Ensure user can only access their own profile
     if request.user.id != user_id:
@@ -1367,7 +1409,7 @@ def user_profile(request, user_id):
 
 
 @never_cache
-@login_required(login_url='userlogin')
+@login_required(login_url='Login')
 def userManageAddress(request):
     user_addresses = Address.objects.filter(user=request.user, is_deleted=False)
     
@@ -1405,7 +1447,7 @@ def userManageAddress(request):
     }
     return render(request, 'usermanageaddress.html', context)
 
-@login_required(login_url='userlogin')
+@login_required(login_url='Login')
 @never_cache
 def editAddress(request, address_id):
     address = get_object_or_404(Address, id=address_id, user=request.user, is_deleted=False)
@@ -1427,7 +1469,7 @@ def editAddress(request, address_id):
     
     return render(request, 'usereditaddress.html', {'form': form, 'address': address})
 
-@login_required(login_url='userlogin')
+@login_required(login_url='Login')
 @never_cache
 def deleteAddress(request, address_id):
     address = get_object_or_404(Address, id=address_id, user=request.user)
@@ -1435,7 +1477,7 @@ def deleteAddress(request, address_id):
     address.save()
     return JsonResponse({'success': True, 'message': 'Address deleted successfully'})
 
-@login_required(login_url='userlogin')
+@login_required(login_url='Login')
 @csrf_exempt
 def set_primary_address(request):
     if request.method == 'POST':
@@ -1493,103 +1535,114 @@ def validate_cart(request):
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
-@login_required(login_url='userlogin')
+@login_required(login_url='Login')
 @never_cache
 def user_checkout(request):
     try:
-        # Get cart and related items
-        cart = Cart.objects.filter(
-            user=request.user, 
-            is_ordered=False
-        ).prefetch_related(
-            'items__variant__product',
-            'items__size'
-        ).first()
-
-        if not cart or not cart.items.exists():
-            messages.warning(request, "Your cart is empty")
-            return redirect('view_cart')
-
-        # Validate cart items
-        cart_items = []
-        total_quantity = 0
-        for item in cart.items.all():
-            if not item.is_active:
-                messages.warning(request, f"{item.variant.product.name} is no longer available")
-                item.delete()
-                continue
-                
-            if item.quantity > item.size.stock:
-                messages.warning(request, f"Only {item.size.stock} units available for {item.variant.product.name}")
-                continue
-                
-            cart_items.append(item)
-            total_quantity += item.quantity
-
-        if not cart_items:
-            messages.warning(request, "No valid items in cart")
-            return redirect('view_cart')
-
-        # Get addresses and payment methods
-        user_addresses = Address.objects.filter(user=request.user, is_deleted=False)
-        payment_methods = PaymentMethod.objects.all()
-
-        # Calculate totals
-        subtotal = cart.total_price
-        product_discount = sum(
-            (item.variant.price - item.variant.discount_price) * item.quantity
-            for item in cart_items
-            if item.variant.discount_price
-        )
-        coupon_discount = cart.calculate_coupon_discount()
-        total_discount = product_discount + coupon_discount
-        final_price = cart.final_price
-
-        # Get available coupons
-        today = timezone.now().date()
-        coupons = Coupon.objects.filter(
-            is_active=True,
-            start_date__lte=today,
-            end_date__gte=today
-        )
-        
-        coupon_data = []
-        for coupon in coupons:
-            is_applicable = cart.total_price >= coupon.minimum_purchase
-            amount_needed = coupon.minimum_purchase - cart.total_price if cart.total_price < coupon.minimum_purchase else 0
+        with transaction.atomic():
+            # Get cart and related items
+            cart = Cart.objects.filter(
+                user=request.user, 
+                is_ordered=False
+            ).prefetch_related(
+                'items__variant__product',
+                'items__size'
+            ).first()
             
-            coupon_data.append({
-                'code': coupon.code,
-                'type': coupon.type,
-                'value': coupon.value,
-                'minimum_purchase': coupon.minimum_purchase,
-                'is_applicable': is_applicable,
-                'expiry_date': coupon.end_date,
-                'amount_needed': amount_needed
-            })
-
-        context = {
-            'user_addresses': user_addresses,
-            'cart_items': cart_items,
-            'payment_methods': payment_methods,
-            'total_quantity': total_quantity,
-            'subtotal': subtotal,
-            'product_discount': product_discount,
-            'coupon_discount': coupon_discount,
-            'total_discount': total_discount,
-            'final_price': final_price,
-            'cart': cart,
-            'coupons': coupon_data
-        }
-
-        return render(request, 'checkout.html', context)
-
+            if not cart or not cart.items.exists():
+                messages.warning(request, "Your cart is empty")
+                return redirect('view_cart')
+            
+            # Update and validate cart totals
+            cart.update_totals()
+            
+            # Validate cart items
+            cart_items = []
+            total_quantity = 0
+            for item in cart.items.all():
+                if not item.is_active:
+                    messages.warning(request, f"{item.variant.product.name} is no longer available")
+                    item.delete()
+                    continue
+                
+                if item.quantity > item.size.stock:
+                    messages.warning(request, f"Only {item.size.stock} units available for {item.variant.product.name}")
+                    item.quantity = item.size.stock
+                    item.save()
+                    if item.quantity == 0:
+                        item.delete()
+                        continue
+                
+                cart_items.append(item)
+                total_quantity += item.quantity
+            
+            if not cart_items:
+                messages.warning(request, "No valid items in cart")
+                return redirect('view_cart')
+            
+            # Get addresses and payment methods
+            user_addresses = Address.objects.filter(user=request.user, is_deleted=False)
+            payment_methods = PAYMENT_METHODS
+            
+            # Calculate totals using Decimal
+            subtotal = cart.total_price
+            product_discount = Decimal(str(sum(
+                (item.variant.price - item.variant.discount_price) * item.quantity
+                for item in cart_items
+                if item.variant.discount_price
+            )))
+            coupon_discount = cart.calculate_coupon_discount()
+            total_discount = product_discount + coupon_discount
+            final_price = cart.final_price
+            delivery_charge = Decimal('0.00')  # Free delivery
+            final_amount = final_price
+            
+            # Get available coupons
+            today = timezone.now().date()
+            coupons = Coupon.objects.filter(
+                is_active=True,
+                start_date__lte=today,
+                end_date__gte=today
+            )
+            
+            coupon_data = []
+            for coupon in coupons:
+                coupon_min_purchase = Decimal(str(coupon.minimum_purchase))
+                is_applicable = subtotal >= coupon_min_purchase
+                amount_needed = coupon_min_purchase - subtotal if subtotal < coupon_min_purchase else Decimal('0')
+                
+                coupon_data.append({
+                    'code': coupon.code,
+                    'type': coupon.type,
+                    'value': float(coupon.value),
+                    'minimum_purchase': float(coupon.minimum_purchase),
+                    'is_applicable': is_applicable,
+                    'expiry_date': coupon.end_date,
+                    'amount_needed': float(amount_needed)
+                })
+            
+            context = {
+                'user_addresses': user_addresses,
+                'cart_items': cart_items,
+                'payment_methods': payment_methods,
+                'total_quantity': total_quantity,
+                'subtotal': float(subtotal),
+                'product_discount': float(product_discount),
+                'coupon_discount': float(coupon_discount),
+                'total_discount': float(total_discount),
+                'final_price': float(final_price),
+                'delivery_charge': float(delivery_charge),
+                'final_amount': float(final_amount),
+                'cart': cart,
+                'coupons': coupon_data
+            }
+            
+            return render(request, 'checkout.html', context)
+    
     except Exception as e:
         logger.error(f"Checkout error for user {request.user.id}: {str(e)}", exc_info=True)
         messages.error(request, "An unexpected error occurred. Please try again.")
         return redirect('view_cart')
-    
     
 
 logger = logging.getLogger(__name__)
@@ -1628,11 +1681,20 @@ def place_order(request):
         amount = cart.final_price + delivery_charge_decimal
         
         # Validate if COD is allowed
-        if payment_method == 'cod' and amount > Decimal('2000'):
-            return JsonResponse({
-                'success': False, 
-                'message': 'Cash on Delivery is not available for orders above ₹2,000'
-            })
+        if payment_method == 'cod':
+            if amount > Decimal('2000'):
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'Cash on Delivery is not available for orders above ₹2,000'
+                })
+            # Additional COD validation
+            if not address.city or not address.state:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Complete address details required for Cash on Delivery'
+                })
+            # Free delivery - no validation needed
+            delivery_charge_decimal = Decimal('0')
         
         # Create order
         order = Order.objects.create(
@@ -1643,7 +1705,7 @@ def place_order(request):
             final_price=amount,  # Including delivery charge
             discount=cart.total_discount,
             delivery_charge=delivery_charge,
-            coupon=cart.applied_coupon
+            coupon=cart.coupon
         )
         
         # Create order items
@@ -1670,7 +1732,7 @@ def place_order(request):
                 'success': True,
                 'razorpay_order_id': razorpay_order.get('id'),
                 'amount': int(amount * 100),  # Convert to paisa
-                'order_id': order.id
+                'order_id': order.order_id  # Use the formatted order_id instead of numeric ID
             })
         else:
             # For COD, mark order as placed
@@ -1684,7 +1746,7 @@ def place_order(request):
             
             return JsonResponse({
                 'success': True,
-                'redirect_url': reverse('order_success', args=[order.id])
+                'redirect_url': reverse('order_success', args=[order.order_id])
             })
             
     except Exception as e:
@@ -1719,16 +1781,51 @@ def download_invoice(request, order_id):
     except Exception as e:
         raise Http404(str(e))
 
-def payment_success(request):
+def payment_success(request, order_id=None):
     if request.method == "POST":
         try:
+            # Log the incoming request for debugging
+            logger.info(f"Payment success request received with order_id={order_id}")
+            
             data = json.loads(request.body)
             razorpay_payment_id = data.get('razorpay_payment_id')
             razorpay_order_id = data.get('razorpay_order_id')
             razorpay_signature = data.get('razorpay_signature')
+            
+            logger.info(f"Payment data: razorpay_order_id={razorpay_order_id}, razorpay_payment_id={razorpay_payment_id}")
 
             client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-            order = Order.objects.get(razorpay_order_id=razorpay_order_id)
+            
+            # First, try to find the order by razorpay_order_id
+            order = None
+            try:
+                order = Order.objects.get(razorpay_order_id=razorpay_order_id)
+                logger.info(f"Found order by razorpay_order_id: {order.order_id} (ID: {order.id})")
+            except Order.DoesNotExist:
+                logger.warning(f"Order not found by razorpay_order_id: {razorpay_order_id}")
+                
+                # If not found, try by the provided order_id parameter
+                if order_id:
+                    logger.info(f"Trying to find order by order_id parameter: {order_id}")
+                    
+                    # First, try exact match on order_id field
+                    try:
+                        order = Order.objects.get(order_id=order_id)
+                        logger.info(f"Found order by exact order_id match: {order.order_id} (ID: {order.id})")
+                    except Order.DoesNotExist:
+                        # Try to find by numeric ID or partial match
+                        try:
+                            # Try numeric ID first
+                            order = Order.objects.get(id=int(order_id))
+                            logger.info(f"Found order by numeric ID: {order.order_id} (ID: {order.id})")
+                        except (ValueError, Order.DoesNotExist):
+                            # Try partial match on order_id
+                            order = Order.objects.filter(order_id__icontains=str(order_id)).first()
+                            if order:
+                                logger.info(f"Found order by partial order_id match: {order.order_id} (ID: {order.id})")
+                            else:
+                                logger.error(f"Order not found by any method with order_id: {order_id}")
+                                raise Order.DoesNotExist("Order not found")
 
             try:
                 # Verify payment signature
@@ -1742,12 +1839,30 @@ def payment_success(request):
                 order.payment_status = 'PAID'
                 order.razorpay_payment_id = razorpay_payment_id
                 order.save()
-
-                return JsonResponse({
-                    'status': 'success',
-                    'message': 'Payment successful',
-                    'redirect_url': reverse('order_details', args=[order.order_id])
-                })
+                
+                # Verify the order exists in the database again before redirecting
+                try:
+                    # Double-check that the order exists and can be accessed
+                    check_order = Order.objects.get(order_id=order.order_id)
+                    logger.info(f"Verified order exists with order_id={order.order_id}")
+                    
+                    # Get the URL for the order details page
+                    redirect_url = reverse('order_details', args=[order.order_id])
+                    logger.info(f"Generated redirect URL: {redirect_url}")
+                    
+                    return JsonResponse({
+                        'status': 'success',
+                        'message': 'Payment successful',
+                        'redirect_url': redirect_url
+                    })
+                except Order.DoesNotExist:
+                    logger.error(f"Critical error: Order {order.order_id} exists during payment but not during redirect")
+                    # Fallback to my-orders page
+                    return JsonResponse({
+                        'status': 'success',
+                        'message': 'Payment successful, but order details not found',
+                        'redirect_url': reverse('my_orders')
+                    })
 
             except Exception as e:
                 # Payment verification failed - update order status
@@ -1871,7 +1986,7 @@ def my_orders(request):
     context = {'orders': orders}
     return render(request, 'my_orders.html', context)
 
-@login_required(login_url='userlogin')
+@login_required(login_url='Login')
 def order_details(request, order_id):
     try:
         order = get_object_or_404(
@@ -1880,8 +1995,8 @@ def order_details(request, order_id):
                 'order_items__product',
                 'order_items__variant',
                 'order_items__variant__images',
-                'order_items__size' 
-                'admin_responses' 
+                'order_items__size',
+                'admin_responses'
             ),
             order_id=order_id,
             user=request.user
@@ -2213,15 +2328,15 @@ def order_detail(request, order_id):
     for item in order.order_items.all():
         item_data = {
             'id': item.id,
-            'product_name': item.product.name,
-            'variant_color': item.variant.color,
+            'product_name': item.product.name if item.product else 'Product Unavailable',
+            'variant_color': item.variant.color if item.variant else 'Color Unavailable',
             'size': item.size.name if item.size else None,
             'quantity': item.quantity,
             'price': item.price,
             'status': item.status,
             'return_status': item.return_status,
-            'can_return': item.can_return(),
-            'image_url': item.variant.images.first().image.url if item.variant.images.exists() else None,
+            'can_return': item.can_return() if hasattr(item, 'can_return') else False,
+            'image_url': item.variant.images.first().image.url if (item.variant and item.variant.images.exists()) else None,
             'tracking_number': order.tracking_number if item.status == 'SHIPPED' else None,
             'delivered_at': item.delivered_at,
         }
@@ -2290,15 +2405,15 @@ def order_details(request, order_id):
     for item in order.order_items.all():
         item_data = {
             'id': item.id,
-            'product_name': item.product.name,
-            'variant_color': item.variant.color,
+            'product_name': item.product.name if item.product else 'Product Unavailable',
+            'variant_color': item.variant.color if item.variant else 'Color Unavailable',
             'size': item.size.name if item.size else None,
             'quantity': item.quantity,
             'price': item.price,
             'status': item.status,
             'return_status': item.return_status,
-            'can_return': item.can_return(),
-            'image_url': item.variant.images.first().image.url if item.variant.images.exists() else None,
+            'can_return': item.can_return() if hasattr(item, 'can_return') else False,
+            'image_url': item.variant.images.first().image.url if (item.variant and item.variant.images.exists()) else None,
             'tracking_number': order.tracking_number if item.status == 'SHIPPED' else None,
             'delivered_at': item.delivered_at,
         }
@@ -2357,66 +2472,431 @@ def available_coupons(request):
         'coupons': coupon_data,
         'cart_total': cart_total
     })
-
 @login_required
+@require_POST
 def apply_coupon(request):
+    """Apply a coupon to the cart with improved validation and error handling"""
     if request.method == 'POST':
         try:
+            # Get the coupon code from the request
             data = json.loads(request.body)
-            code = data.get('coupon_code')
+            code = data.get('code', '').strip()
             
-            cart = Cart.objects.get(user=request.user, is_ordered=False)
+            # Log the received data for debugging
+            logger.debug(f"Coupon code received: {code}")
             
-            try:
-                coupon = Coupon.objects.get(
-                    code=code,
-                    is_active=True,
-                    start_date__lte=timezone.now().date(),
-                    end_date__gte=timezone.now().date()
-                )
-                
-                # Check minimum purchase
-                if cart.total_price < coupon.minimum_purchase:
-                    return JsonResponse({
-                        'success': False,
-                        'message': f'Minimum purchase amount of ₹{coupon.minimum_purchase} required'
-                    })
-                
-                # Check usage limit
-                usage_count = CouponUsage.objects.filter(coupon=coupon, user=request.user).count()
-                if usage_count >= coupon.usage_limit:
-                    return JsonResponse({
-                        'success': False,
-                        'message': 'Coupon usage limit exceeded'
-                    })
-                
-                # Apply coupon to cart
-                cart.coupon = coupon
-                cart.save()
-                
+            if not code:
                 return JsonResponse({
-                    'success': True,
-                    'discount': float(cart.calculate_coupon_discount()),
-                    'final_amount': float(cart.final_price),
-                    'message': 'Coupon applied successfully!'
+                    'success': False,
+                    'message': 'Please provide a coupon code'
                 })
-                
-            except Coupon.DoesNotExist:
+            
+            # Get the user's active cart
+            cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
+            if not cart:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'No active cart found'
+                })
+            
+            # Check if cart has items
+            if not cart.items.exists():
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Your cart is empty'
+                })
+            
+            # Check if coupon exists and is valid - case insensitive search
+            try:
+                # Try to find the coupon with case-insensitive search
+                coupon = Coupon.objects.filter(code__iexact=code, is_active=True).first()
+                if not coupon:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Invalid coupon code'
+                    })
+            except Exception as e:
+                logger.error(f"Error finding coupon: {str(e)}", exc_info=True)
                 return JsonResponse({
                     'success': False,
                     'message': 'Invalid coupon code'
                 })
+            
+            # Check if coupon is expired
+            today = timezone.now().date()
+            if coupon.end_date and coupon.end_date < today:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'This coupon has expired'
+                })
                 
-        except Exception as e:
-
-            print(f"Payment verification failed with error: {str(e)}")
-
+            # Check if coupon is not yet valid
+            if coupon.start_date and coupon.start_date > today:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'This coupon is valid from {coupon.start_date.strftime("%d %b %Y")}'
+                })
+            
+            # Check how many times the user has used this coupon
+            user_usage_count = CouponUsage.objects.filter(user=request.user, coupon=coupon).count()
+            
+            # Check if user has reached their personal usage limit for this coupon
+            if user_usage_count >= coupon.usage_limit:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'You have already used this coupon {user_usage_count} times (maximum: {coupon.usage_limit})'
+                })
+                
+            # Log the usage count for debugging
+            logger.info(f"User {request.user.id} has used coupon {coupon.code} {user_usage_count} times out of {coupon.usage_limit}")
+            
+            # Check minimum cart value if applicable
+            cart_total = cart.total_price
+            if coupon.minimum_purchase and cart_total < coupon.minimum_purchase:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Minimum cart value of ₹{coupon.minimum_purchase} required (current: ₹{cart_total})'
+                })
+            
+            # Check total usage limit across all users if applicable
+            total_usage_count = CouponUsage.objects.filter(coupon=coupon).count()
+            
+            # Log the total usage count for debugging
+            logger.info(f"Coupon {coupon.code} has been used {total_usage_count} times in total")
+            
+            # This check is for a global usage limit, which we'll keep separate from per-user limit
+            # We're assuming the usage_limit field is for per-user limit as per your requirement
+                
+            # Remove any existing coupon before applying new one
+            if cart.coupon:
+                cart.coupon = None
+                cart.save()
+            
+            # Apply coupon to cart
+            cart.coupon = coupon
+            cart.save()
+            
+            # Note: We don't create a CouponUsage record here because that should only happen
+            # when the order is actually placed, not just when applying to the cart
+            
+            # Calculate all totals
+            subtotal = cart.total_price
+            coupon_discount = cart.calculate_coupon_discount()
+            delivery_charge = 0.00  # Free delivery
+            final_price = cart.final_price
+            
+            coupon_description = ''
+            if coupon.type == 'percentage':
+                coupon_description = f'{coupon.value}% off on your order'
+            else:
+                coupon_description = f'₹{coupon.value} off on your order'
+            
             return JsonResponse({
-                'success': False,
-                'message': str(e)
+                'success': True,
+                'coupon': {
+                    'code': coupon.code,
+                    'type': coupon.type,
+                    'value': float(coupon.value),
+                    'description': coupon_description
+                },
+                'subtotal': float(subtotal),
+                'discount': float(coupon_discount),
+                'delivery_charge': float(delivery_charge),
+                'final_amount': float(final_price),
+                'message': 'Coupon applied successfully!'
             })
             
+        except Exception as e:
+            logger.error(f"Error applying coupon: {str(e)}", exc_info=True)
+            return JsonResponse({
+                'success': False,
+                'message': 'Failed to apply coupon. Please try again.'
+            })
+    
     return JsonResponse({'success': False, 'message': 'Invalid request method'})
+
+@login_required
+def check_coupon(request):
+    """Check if the user has an active coupon applied to their cart"""
+    if request.method == 'GET':
+        try:
+            # Get the user's active cart
+            cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
+            
+            if not cart or not cart.coupon:
+                return JsonResponse({
+                    'success': True,
+                    'has_coupon': False
+                })
+            
+            # Get coupon details
+            coupon = cart.coupon
+            coupon_discount = cart.calculate_coupon_discount()
+            
+            return JsonResponse({
+                'success': True,
+                'has_coupon': True,
+                'coupon_code': coupon.code,
+                'description': f'{coupon.value}% off on your order',
+                'discount': float(coupon_discount)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error checking coupon: {str(e)}", exc_info=True)
+            return JsonResponse({
+                'success': False,
+                'message': 'Failed to check coupon status'
+            })
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+
+@login_required
+def get_cart_totals(request):
+    """Get updated cart totals including subtotal, discounts, and final amount"""
+    if request.method == 'GET':
+        try:
+            # Get the user's active cart
+            cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
+            
+            if not cart:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'No active cart found'
+                })
+            
+            # Calculate all totals
+            subtotal = cart.total_price
+            coupon_discount = cart.calculate_coupon_discount() if cart.coupon else 0
+            delivery_charge = 0.00  # Free delivery
+            final_amount = cart.final_price
+            
+            return JsonResponse({
+                'success': True,
+                'subtotal': float(subtotal),
+                'coupon_discount': float(coupon_discount),
+                'delivery_charge': float(delivery_charge),
+                'final_amount': float(final_amount)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting cart totals: {str(e)}", exc_info=True)
+            return JsonResponse({
+                'success': False,
+                'message': 'Failed to get cart totals'
+            })
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+
+@login_required
+def remove_coupon(request):
+    """Remove coupon from the cart"""
+    if request.method == 'POST':
+        try:
+            # Get the user's active cart
+            cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
+            
+            if not cart:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'No active cart found'
+                })
+            
+            # Check if cart has a coupon
+            if not cart.coupon:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'No coupon applied to remove'
+                })
+            
+            # Remove coupon
+            cart.coupon = None
+            cart.save()
+            
+            # Calculate updated totals
+            subtotal = cart.total_price
+            delivery_charge = 0.00  # Free delivery
+            final_price = cart.final_price
+            
+            return JsonResponse({
+                'success': True,
+                'subtotal': float(subtotal),
+                'delivery_charge': float(delivery_charge),
+                'final_amount': float(final_price),
+                'message': 'Coupon removed successfully'
+            })
+            
+        except Exception as e:
+            logger.error(f"Error removing coupon: {str(e)}", exc_info=True)
+            return JsonResponse({
+                'success': False,
+                'message': 'Failed to remove coupon. Please try again.'
+            })
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+
+@login_required
+@require_POST
+def create_order(request):
+    """Create a new order from the checkout page"""
+    try:
+        # Parse request data
+        data = json.loads(request.body)
+        address_id = data.get('address_id')
+        payment_method = data.get('payment_method')
+        
+        # Validate input
+        if not address_id:
+            return JsonResponse({
+                'success': False,
+                'message': 'Please select a delivery address'
+            })
+            
+        if not payment_method:
+            return JsonResponse({
+                'success': False,
+                'message': 'Please select a payment method'
+            })
+            
+        # Get user's active cart
+        cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
+        if not cart or not cart.items.exists():
+            return JsonResponse({
+                'success': False,
+                'message': 'Your cart is empty'
+            })
+            
+        # Get the selected address
+        try:
+            address = Address.objects.get(id=address_id, user=request.user)
+        except Address.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Selected address not found'
+            })
+            
+        # Create the order
+        with transaction.atomic():
+            # Generate order number
+            order_number = f'ORD-{timezone.now().strftime('%Y%m%d')}-{random.randint(1000, 9999)}'
+            
+            # Calculate totals
+            subtotal = cart.total_price
+            discount = cart.calculate_coupon_discount() if cart.coupon else 0
+            delivery_charge = 0  # Free delivery
+            final_amount = cart.final_price
+            
+            # Get or create payment method
+            payment_method_obj, _ = PaymentMethod.objects.get_or_create(name=payment_method)
+
+            # Create order object
+            order = Order.objects.create(
+                user=request.user,
+                # Use address fields from the address object
+                full_name=address.full_name,
+                email=address.email,
+                phone=address.phone,
+                address_line1=address.address_line1,
+                address_line2=address.address_line2,
+                city=address.city,
+                state=address.state,
+                pincode=address.pincode,
+                # Other order fields
+                payment_method=payment_method_obj,
+                total_amount=subtotal,
+                coupon_discount=discount,
+                order_status='PENDING',
+                payment_status='PENDING'
+            )
+            
+            # Create order items
+            for cart_item in cart.items.all():
+                OrderItem.objects.create(
+                    order=order,
+                    variant=cart_item.variant,
+                    quantity=cart_item.quantity,
+                    price=cart_item.variant.final_price or cart_item.variant.price,
+                    size=cart_item.size
+                )
+                
+                # Reduce inventory
+                size = cart_item.size
+                if size:
+                    # Ensure stock doesn't go below zero
+                    if size.stock >= cart_item.quantity:
+                        size.stock -= cart_item.quantity
+                        size.save()
+                    else:
+                        # Handle insufficient stock
+                        return JsonResponse({
+                            'success': False,
+                            'message': f'Insufficient stock for {cart_item.variant.product.name} in size {size.name}. Only {size.stock} available.'
+                        })
+            
+            # If there was a coupon, record its usage
+            if cart.coupon:
+                CouponUsage.objects.create(
+                    coupon=cart.coupon,
+                    user=request.user,
+                    order=order
+                )
+            
+            # Mark cart as ordered
+            cart.is_ordered = True
+            cart.save()
+            
+            # Create new empty cart for user
+            new_cart = Cart.objects.create(user=request.user)
+            
+            # Return appropriate response based on payment method
+            if payment_method == 'razorpay':
+                # Create Razorpay order
+                client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+                payment_data = {
+                    'amount': int(final_amount * 100),  # Amount in paise
+                    'currency': 'INR',
+                    'receipt': order_number,
+                    'payment_capture': 1  # Auto-capture
+                }
+                
+                try:
+                    razorpay_order = client.order.create(payment_data)
+                    
+                    # Update order with Razorpay order ID
+                    order.payment_id = razorpay_order['id']
+                    order.save()
+                    
+                    return JsonResponse({
+                        'success': True,
+                        'payment_required': True,
+                        'order_id': order.id,
+                        'razorpay_order_id': razorpay_order['id'],
+                        'amount': final_amount,
+                        'key_id': settings.RAZORPAY_KEY_ID,
+                        'customer_name': f'{request.user.first_name} {request.user.last_name}'.strip() or request.user.username,
+                        'customer_email': request.user.email,
+                        'customer_phone': request.user.phone or ''
+                    })
+                except Exception as e:
+                    logger.error(f'Razorpay error: {str(e)}', exc_info=True)
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Payment gateway error. Please try again.'
+                    })
+            else:
+                # COD order - no payment gateway needed
+                return JsonResponse({
+                    'success': True,
+                    'payment_required': False,
+                    'order_id': order.id,
+                    'message': 'Order placed successfully!'
+                })
+                
+    except Exception as e:
+        logger.error(f'Error creating order: {str(e)}', exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'message': 'An error occurred while processing your order. Please try again.'
+        })
 
 @login_required
 def wallet_view(request):

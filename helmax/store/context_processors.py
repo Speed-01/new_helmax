@@ -9,7 +9,7 @@ def payment_context(request):
     
     if request.user.is_authenticated:
         try:
-            wishlist = Wishlist.get_or_create_wishlist(request.user)
+            wishlist, created = Wishlist.objects.get_or_create(user=request.user)
             context['wishlist_count'] = wishlist.variants.filter(
                 is_active=True,
                 product__is_active=True
