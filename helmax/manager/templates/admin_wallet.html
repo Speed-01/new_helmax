@@ -2,8 +2,8 @@
 {% load static %}
 
 {% block content %}
-<div class="bg-dark-200 rounded-lg shadow-lg border border-dark-100 overflow-hidden">
-    <div class="p-6 border-b border-dark-100">
+<div class="bg-[#0A0A0A] rounded-lg shadow-lg border border-[#222222] overflow-hidden">
+    <div class="p-6 border-b border-[#222222]">
         <h1 class="text-2xl font-bold text-white">Wallet Management</h1>
         <p class="text-gray-400 mt-1">View and manage all wallet transactions</p>
     </div>
@@ -14,19 +14,20 @@
             <div class="flex-1">
                 <div class="relative">
                     <input type="text" id="searchInput" placeholder="Search by transaction ID, user..." 
-                           class="w-full bg-dark-300 border border-dark-100 rounded-lg px-4 py-2 pl-10 text-gray-200 focus:outline-none focus:border-accent-primary">
+                           class="w-full bg-[#111111] border border-[#222222] rounded-lg px-4 py-2 pl-10 text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                           value="{{ search_query }}">
                     <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
                 </div>
             </div>
             <div class="flex gap-4">
-                <select id="typeFilter" class="bg-dark-300 border border-dark-100 rounded-lg px-4 py-2 text-gray-200 focus:outline-none focus:border-accent-primary">
-                    <option value="">All Types</option>
-                    <option value="CREDIT">Credit</option>
-                    <option value="DEBIT">Debit</option>
-                    <option value="REFUND">Refund</option>
-                    <option value="RETURN_REFUND">Return Refund</option>
+                <select id="typeFilter" class="bg-[#111111] border border-[#222222] rounded-lg px-4 py-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent">
+                    <option value="" {% if type_filter == '' %}selected{% endif %}>All Types</option>
+                    <option value="CREDIT" {% if type_filter == 'CREDIT' %}selected{% endif %}>Credit</option>
+                    <option value="DEBIT" {% if type_filter == 'DEBIT' %}selected{% endif %}>Debit</option>
+                    <option value="REFUND" {% if type_filter == 'REFUND' %}selected{% endif %}>Refund</option>
+                    <option value="RETURN_REFUND" {% if type_filter == 'RETURN_REFUND' %}selected{% endif %}>Return Refund</option>
                 </select>
-                <button id="resetFilters" class="px-4 py-2 bg-dark-100 text-gray-300 rounded-lg hover:bg-dark-100 hover:text-white transition-colors">
+                <button id="resetFilters" class="px-4 py-2 bg-[#111111] text-gray-300 rounded-lg hover:bg-[#222222] hover:text-white transition-colors">
                     <i class="fas fa-sync-alt mr-2"></i>Reset
                 </button>
             </div>
@@ -34,9 +35,9 @@
 
         <!-- Transactions Table -->
         <div class="overflow-x-auto">
-            <table class="min-w-full bg-dark-300 rounded-lg overflow-hidden">
+            <table class="min-w-full bg-[#111111] rounded-lg overflow-hidden">
                 <thead>
-                    <tr class="bg-dark-100 text-gray-300 text-left">
+                    <tr class="bg-[#111111] text-gray-300 text-left">
                         <th class="px-6 py-3 text-xs font-medium uppercase tracking-wider">Transaction ID</th>
                         <th class="px-6 py-3 text-xs font-medium uppercase tracking-wider">Date</th>
                         <th class="px-6 py-3 text-xs font-medium uppercase tracking-wider">User</th>
@@ -46,14 +47,14 @@
                         <th class="px-6 py-3 text-xs font-medium uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-dark-100">
+                <tbody class="divide-y divide-[#222222]">
                     {% for transaction in transactions %}
-                    <tr class="text-gray-200 hover:bg-dark-200 transition-colors">
+                    <tr class="text-gray-200 hover:bg-[#1A1A1A] transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap">#{{ transaction.id }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">{{ transaction.created_at|date:"d M Y, h:i A" }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">{{ transaction.wallet.user.username }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2 py-1 text-xs rounded-full {% if transaction.transaction_type == 'CREDIT' or transaction.transaction_type == 'REFUND' or transaction.transaction_type == 'RETURN_REFUND' %}bg-green-900 text-green-300{% else %}bg-red-900 text-red-300{% endif %}">
+                            <span class="px-2 py-1 text-xs rounded-full {% if transaction.transaction_type == 'CREDIT' or transaction.transaction_type == 'REFUND' or transaction.transaction_type == 'RETURN_REFUND' %}bg-green-500/20 text-green-500{% else %}bg-red-500/20 text-red-500{% endif %}">
                                 {{ transaction.get_transaction_type_display }}
                             </span>
                         </td>
@@ -61,12 +62,12 @@
                             {% if transaction.transaction_type == 'CREDIT' or transaction.transaction_type == 'REFUND' or transaction.transaction_type == 'RETURN_REFUND' %}+{% else %}-{% endif %}₹{{ transaction.amount }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2 py-1 text-xs rounded-full {% if transaction.status == 'SUCCESS' %}bg-green-900 text-green-300{% else %}bg-yellow-900 text-yellow-300{% endif %}">
+                            <span class="px-2 py-1 text-xs rounded-full {% if transaction.status == 'SUCCESS' %}bg-green-500/20 text-green-500{% else %}bg-yellow-500/20 text-yellow-500{% endif %}">
                                 {{ transaction.status }}
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <a href="{% url 'admin_wallet_transaction_detail' transaction.id %}" class="text-accent-primary hover:text-accent-secondary transition-colors">
+                            <a href="{% url 'admin_wallet_transaction_detail' transaction.id %}" class="text-yellow-500 hover:text-yellow-400 transition-colors">
                                 <i class="fas fa-eye mr-1"></i> View
                             </a>
                         </td>
@@ -88,25 +89,25 @@
         <div class="flex justify-center mt-6">
             <nav class="flex space-x-2">
                 {% if transactions.has_previous %}
-                <a href="?page={{ transactions.previous_page_number }}" class="px-3 py-2 bg-dark-100 text-gray-300 rounded-md hover:bg-dark-100 hover:text-white transition-colors">
+                <a href="?page={{ transactions.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}" class="px-3 py-2 bg-[#111111] text-gray-300 rounded-md hover:bg-[#222222] hover:text-white transition-colors">
                     <i class="fas fa-chevron-left"></i>
                 </a>
                 {% endif %}
                 
                 {% for i in transactions.paginator.page_range %}
                     {% if transactions.number == i %}
-                    <a href="?page={{ i }}" class="px-3 py-2 bg-accent-primary text-white rounded-md">
+                    <a href="?page={{ i }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}" class="px-3 py-2 bg-yellow-500 text-white rounded-md">
                         {{ i }}
                     </a>
                     {% elif i > transactions.number|add:'-3' and i < transactions.number|add:'3' %}
-                    <a href="?page={{ i }}" class="px-3 py-2 bg-dark-100 text-gray-300 rounded-md hover:bg-dark-100 hover:text-white transition-colors">
+                    <a href="?page={{ i }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}" class="px-3 py-2 bg-[#111111] text-gray-300 rounded-md hover:bg-[#222222] hover:text-white transition-colors">
                         {{ i }}
                     </a>
                     {% endif %}
                 {% endfor %}
                 
                 {% if transactions.has_next %}
-                <a href="?page={{ transactions.next_page_number }}" class="px-3 py-2 bg-dark-100 text-gray-300 rounded-md hover:bg-dark-100 hover:text-white transition-colors">
+                <a href="?page={{ transactions.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}" class="px-3 py-2 bg-[#111111] text-gray-300 rounded-md hover:bg-[#222222] hover:text-white transition-colors">
                     <i class="fas fa-chevron-right"></i>
                 </a>
                 {% endif %}
@@ -124,31 +125,44 @@
         
         // Function to apply filters
         function applyFilters() {
-            const searchTerm = searchInput.value.toLowerCase();
+            // Instead of client-side filtering, we'll redirect to the same page with filter parameters
+            const searchTerm = searchInput.value.trim();
             const selectedType = typeFilter.value;
             
-            const rows = document.querySelectorAll('tbody tr');
+            // Build the URL with query parameters
+            let url = window.location.pathname + '?';
+            if (searchTerm) {
+                url += `search=${encodeURIComponent(searchTerm)}&`;
+            }
+            if (selectedType) {
+                url += `type=${encodeURIComponent(selectedType)}&`;
+            }
             
-            rows.forEach(row => {
-                const transactionId = row.cells[0].textContent.toLowerCase();
-                const username = row.cells[2].textContent.toLowerCase();
-                const type = row.cells[3].textContent.trim().toLowerCase();
-                
-                const matchesSearch = transactionId.includes(searchTerm) || username.includes(searchTerm);
-                const matchesType = selectedType === '' || type.includes(selectedType.toLowerCase());
-                
-                row.style.display = matchesSearch && matchesType ? '' : 'none';
-            });
+            // Get current page if it exists
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentPage = urlParams.get('page');
+            if (currentPage) {
+                url += `page=${currentPage}`;
+            }
+            
+            // Remove trailing & or ? if present
+            url = url.replace(/[&?]$/, '');
+            
+            // Redirect to the new URL
+            window.location.href = url;
         }
         
-        // Event listeners
-        searchInput.addEventListener('input', applyFilters);
+        // Event listeners - use debounce for search input to avoid too many refreshes
+        let debounceTimeout;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(debounceTimeout);
+            debounceTimeout = setTimeout(applyFilters, 500);
+        });
+        
         typeFilter.addEventListener('change', applyFilters);
         
         resetButton.addEventListener('click', function() {
-            searchInput.value = '';
-            typeFilter.value = '';
-            applyFilters();
+            window.location.href = window.location.pathname;
         });
     });
 </script>

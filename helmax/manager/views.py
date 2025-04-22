@@ -2404,18 +2404,40 @@ def toggleVariant(request, variant_id):
 def admin_wallet(request):
     """View to display all wallet transactions for admin"""
     try:
-        # Get all transactions with related wallets and users
+        # Get search and filter parameters
+        search_query = request.GET.get('search', '').strip()
+        type_filter = request.GET.get('type', '').strip()
+        
+        # Start with all transactions with related wallets and users
         transactions = WalletTransaction.objects.all()\
-            .select_related('wallet', 'wallet__user', 'order')\
-            .order_by('-created_at')
+            .select_related('wallet', 'wallet__user', 'order')
+        
+        # Apply search filter if provided
+        if search_query:
+            transactions = transactions.filter(
+                models.Q(id__icontains=search_query) |
+                models.Q(wallet__user__username__icontains=search_query) |
+                models.Q(wallet__user__email__icontains=search_query) |
+                models.Q(description__icontains=search_query)
+            )
+        
+        # Apply type filter if provided
+        if type_filter:
+            transactions = transactions.filter(transaction_type=type_filter)
+        
+        # Order by most recent first
+        transactions = transactions.order_by('-created_at')
         
         # Pagination
         paginator = Paginator(transactions, 20)  # Show 20 transactions per page
         page_number = request.GET.get('page')
         page_obj = paginator.get_page(page_number)
         
+        # Pre-select the type filter if it was provided
         context = {
             'transactions': page_obj,
+            'search_query': search_query,
+            'type_filter': type_filter
         }
         
         return render(request, 'admin_wallet.html', context)
