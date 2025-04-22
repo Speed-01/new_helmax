@@ -112,7 +112,10 @@ def get_top_products(request):
     try:
         # Check if your model uses 'product' or 'variant__product'
         # Adjust the field names based on your actual model structure
-        top_products = OrderItem.objects.values(
+        top_products = OrderItem.objects.filter(
+            product__name__isnull=False,  # Filter out null product names
+            product__name__gt=''  # Filter out empty product names
+        ).values(
             'product__name'  # Assuming direct relationship with product
         ).annotate(
             units_sold=Sum('quantity'),
@@ -121,7 +124,7 @@ def get_top_products(request):
         
         products_list = []
         for product in top_products:
-            product_name = product.get('product__name') or product.get('variant__product__name', 'Unknown Product')
+            product_name = product.get('product__name')
             products_list.append({
                 'name': product_name,
                 'units_sold': product['units_sold'],
@@ -139,7 +142,10 @@ def get_top_products(request):
 def get_top_categories(request):
     try:
         # Check if your model uses 'product__category' or 'variant__product__category'
-        top_categories = OrderItem.objects.values(
+        top_categories = OrderItem.objects.filter(
+            product__category__name__isnull=False,  # Filter out null category names
+            product__category__name__gt=''  # Filter out empty category names
+        ).values(
             'product__category__name'  # Adjust this field based on your model structure
         ).annotate(
             units_sold=Sum('quantity'),
@@ -151,7 +157,7 @@ def get_top_categories(request):
         values = []
         
         for category in top_categories:
-            category_name = category.get('product__category__name') or category.get('variant__product__category__name', 'Uncategorized')
+            category_name = category.get('product__category__name')
             
             categories_list.append({
                 'name': category_name,
@@ -173,7 +179,10 @@ def get_top_categories(request):
 @login_required(login_url='adminLogin')
 def get_top_brands(request):
     try:
-        top_brands = OrderItem.objects.values(
+        top_brands = OrderItem.objects.filter(
+            product__brand__name__isnull=False,  # Filter out null brand names
+            product__brand__name__gt=''  # Filter out empty brand names
+        ).values(
             'product__brand__name'  # Adjust this field based on your model structure
         ).annotate(
             units_sold=Sum('quantity'),
@@ -185,7 +194,7 @@ def get_top_brands(request):
         values = []
         
         for brand in top_brands:
-            brand_name = brand.get('product__brand__name') or brand.get('variant__product__brand__name', 'Unbranded')
+            brand_name = brand.get('product__brand__name')
             
             brands_list.append({
                 'name': brand_name,
