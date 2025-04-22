@@ -17,4 +17,5 @@ def payment_context(request):
         except Exception:
             pass
             
-    return context
+    return context      
+    

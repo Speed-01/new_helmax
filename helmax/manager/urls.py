@@ -74,6 +74,8 @@ urlpatterns = [
 
     path('return-requests/', views.admin_return_requests, name='admin_return_requests'),
     path('api/return-requests/', views.get_return_requests, name='get_return_requests'),
+    # Duplicate route with manager prefix for consistency with other API endpoints
+    path('manager/api/return-requests/', views.get_return_requests, name='get_return_requests_alt'),
     path('handle-return-request/<int:return_request_id>/', views.handle_return_request, name='handle_return_request'),
 
     # Offer Management URLs

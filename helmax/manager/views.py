@@ -15,7 +15,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
-from django.db import transaction
+from django.db import transaction, models
 import json
 from .models import Product,Category,ProductImage,User, Brand, Variant, Size, Coupon, CouponUsage, Order, ReturnRequest, Wallet, WalletTransaction, ProductOffer, CategoryOffer,OrderItem, OrderStatusHistory
 from django.utils import timezone
@@ -1393,7 +1393,7 @@ def get_return_requests(request):
         items_per_page = int(request.GET.get('items_per_page', 10))
         
         # Start with all return requests
-        query = ReturnRequest.objects.select_related('user', 'order_item', 'order_item__variant', 'order_item__product')
+        query = ReturnRequest.objects.select_related('user', 'order_item', 'order_item__order', 'order_item__variant', 'order_item__variant__product')
         
         # Apply search filter if provided
         if search:
@@ -1401,7 +1401,7 @@ def get_return_requests(request):
                 models.Q(order_item__order__order_id__icontains=search) |
                 models.Q(user__username__icontains=search) |
                 models.Q(user__email__icontains=search) |
-                models.Q(order_item__product__name__icontains=search)
+                models.Q(order_item__variant__product__name__icontains=search)
             )
         
         # Apply status filter if provided
@@ -1414,7 +1414,7 @@ def get_return_requests(request):
         elif sort_field == 'customer':
             sort_key = 'user__username'
         elif sort_field == 'product':
-            sort_key = 'order_item__product__name'
+            sort_key = 'order_item__variant__product__name'
         elif sort_field == 'status':
             sort_key = 'status'
         else:
@@ -1437,9 +1437,9 @@ def get_return_requests(request):
         # Format the data for the response
         return_requests_data = []
         for request in return_requests:
-            order_id = request.order_item.order.order_id if request.order_item and request.order_item.order else 'N/A'
-            product_name = request.order_item.product.name if request.order_item and request.order_item.product else 'N/A'
-            variant_color = request.order_item.variant.color if request.order_item and request.order_item.variant else ''
+            order_id = request.order_item.order.order_id if request.order_item and hasattr(request.order_item, 'order') and request.order_item.order else 'N/A'
+            product_name = request.order_item.variant.product.name if request.order_item and hasattr(request.order_item, 'variant') and hasattr(request.order_item.variant, 'product') else 'N/A'
+            variant_color = request.order_item.variant.color if request.order_item and hasattr(request.order_item, 'variant') else ''
             
             return_requests_data.append({
                 'id': request.id,
@@ -1462,10 +1462,18 @@ def get_return_requests(request):
             'current_page': page
         })
     except Exception as e:
-        logger.error(f"Error fetching return requests: {str(e)}", exc_info=True)
+        error_message = f"Error fetching return requests: {str(e)}"
+        logger.error(error_message, exc_info=True)
+        
+        # Add more detailed error information for debugging
+        import traceback
+        trace = traceback.format_exc()
+        logger.error(f"Traceback: {trace}")
+        
         return JsonResponse({
             'success': False,
-            'message': f"Error fetching return requests: {str(e)}"
+            'message': error_message,
+            'error_details': str(e)
         }, status=500)
 
 @login_required(login_url='adminLogin')
