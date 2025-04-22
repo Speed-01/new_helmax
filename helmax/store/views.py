@@ -973,7 +973,7 @@ def update_quantity(request, item_id):
     
 
 
-@login_required
+@login_required(login_url='Login')
 def wishlist_view(request):
     try:
         # Get or create single wishlist for user
@@ -1298,6 +1298,7 @@ def clear_wishlist(request):
         wishlist.variants.clear()
         return JsonResponse({'success': True, 'message': 'Wishlist cleared successfully'})
     except Exception as e:
+        logger.error(f"Error clearing wishlist: {str(e)}", exc_info=True)
         return JsonResponse({'success': False, 'message': 'Error clearing wishlist'})
 
 @login_required
@@ -1305,52 +1306,95 @@ def clear_wishlist(request):
 def add_multiple_to_cart(request):
     """Add multiple wishlist items to cart"""
     try:
-        data = json.loads(request.body)
-        variant_ids = data.get('variant_ids', [])
+        # Get user's wishlist
+        wishlist, created = Wishlist.objects.get_or_create(user=request.user)
         
-        if not variant_ids:
-            return JsonResponse({'success': False, 'message': 'No items selected'})
+        # Get all active variants in the wishlist
+        wishlist_variants = wishlist.variants.filter(
+            is_active=True, 
+            product__is_active=True
+        ).prefetch_related('sizes')
         
-        cart = Cart.objects.get_or_create(user=request.user)[0]
+        if not wishlist_variants.exists():
+            return JsonResponse({'success': False, 'message': 'No items in wishlist'})
+        
+        # Get or create user's cart
+        cart = Cart.objects.get_or_create(
+            user=request.user, 
+            is_ordered=False, 
+            defaults={'is_active': True}
+        )[0]
+        
         added_count = 0
+        skipped_count = 0
+        error_messages = []
         
-        for variant_id in variant_ids:
+        # Process each variant in the wishlist
+        for variant in wishlist_variants:
             try:
-                variant = Variant.objects.get(id=variant_id, is_active=True)
-                # Check if variant has stock
-                if sum(size.stock for size in variant.sizes.all()) > 0:
-                    # Get first size with stock
-                    size = next((s for s in variant.sizes.all() if s.stock > 0), None)
-                    if size:
-                        cart_item, created = CartItem.objects.get_or_create(
-                            cart=cart,
-                            variant=variant,
-                            size=size,
-                            defaults={'quantity': 1}
-                        )
-                        if not created:
-                            cart_item.quantity += 1
-                            cart_item.save()
-                        added_count += 1
-            except Variant.DoesNotExist:
-                continue
+                # Get available sizes with stock
+                available_sizes = variant.sizes.filter(stock__gt=0).order_by('name')
+                
+                if not available_sizes.exists():
+                    skipped_count += 1
+                    error_messages.append(f"{variant.product.name} ({variant.color}): No sizes in stock")
+                    continue
+                
+                # Get the first available size
+                size = available_sizes.first()
+                
+                # Check if this variant+size combination is already in cart
+                cart_item, created = CartItem.objects.get_or_create(
+                    cart=cart,
+                    variant=variant,
+                    size=size,
+                    defaults={'quantity': 1}
+                )
+                
+                if not created:
+                    # If already in cart, increment quantity if stock allows
+                    if cart_item.quantity < size.stock:
+                        cart_item.quantity += 1
+                        cart_item.save()
+                    else:
+                        error_messages.append(f"{variant.product.name} ({variant.color}): Maximum stock reached")
+                        continue
+                
+                added_count += 1
+                
+            except Exception as item_error:
+                skipped_count += 1
+                error_messages.append(f"Error adding {variant.product.name if hasattr(variant, 'product') else 'item'}")
+                logger.error(f"Error adding item to cart: {str(item_error)}", exc_info=True)
         
+        # Calculate total cart count
+        cart_count = CartItem.objects.filter(cart=cart).aggregate(total=Sum('quantity'))['total'] or 0
+        
+        # Prepare response
         if added_count > 0:
+            message = f'{added_count} item(s) added to cart'
+            if skipped_count > 0:
+                message += f', {skipped_count} item(s) could not be added'
+            
             return JsonResponse({
                 'success': True, 
-                'message': f'{added_count} item(s) added to cart',
-                'cart_count': CartItem.objects.filter(cart=cart).count()
+                'message': message,
+                'cart_count': cart_count,
+                'added_count': added_count,
+                'skipped_count': skipped_count,
+                'errors': error_messages[:5]  # Limit to first 5 errors
             })
         else:
-            return JsonResponse({'success': False, 'message': 'No items could be added to cart'})
+            return JsonResponse({
+                'success': False, 
+                'message': 'No items could be added to cart', 
+                'errors': error_messages[:5]  # Limit to first 5 errors
+            })
             
     except Exception as e:
-        return JsonResponse({'success': False, 'message': 'Error adding items to cart'})
+        logger.error(f"Error in add_multiple_to_cart: {str(e)}", exc_info=True)
+        return JsonResponse({'success': False, 'message': f'Error adding items to cart: {str(e)}'})
 
-
-
-import re
-####### profile ##########
 @login_required(login_url='Login')
 def user_profile(request, user_id):
     # Ensure user can only access their own profile
@@ -1838,6 +1882,33 @@ def payment_success(request, order_id=None):
                 # Update order status for successful payment
                 order.payment_status = 'PAID'
                 order.razorpay_payment_id = razorpay_payment_id
+                
+                # Find the user's cart that's associated with this order
+                try:
+                    # Get all carts for this user that aren't marked as ordered yet
+                    user_carts = Cart.objects.filter(user=order.user, is_ordered=False)
+                    
+                    # Mark the cart as ordered and create a new empty cart
+                    if user_carts.exists():
+                        cart = user_carts.first()
+                        cart.is_ordered = True
+                        cart.save()
+                        
+                        # Create new empty cart for user
+                        new_cart = Cart.objects.create(user=order.user)
+                        logger.info(f"Marked cart as ordered and created new cart for user {order.user.id}")
+                    
+                    # Remove this order from pending orders in session if it exists
+                    if 'pending_orders' in request.session and order.order_id in request.session['pending_orders']:
+                        pending_orders = request.session['pending_orders']
+                        pending_orders.remove(order.order_id)
+                        request.session['pending_orders'] = pending_orders
+                        request.session.modified = True
+                        logger.info(f"Removed order {order.order_id} from pending orders in session")
+                        
+                except Exception as cart_error:
+                    logger.error(f"Error handling cart after successful payment: {str(cart_error)}")
+                
                 order.save()
                 
                 # Verify the order exists in the database again before redirecting
@@ -1870,13 +1941,21 @@ def payment_success(request, order_id=None):
                 order.payment_failure_reason = str(e)
                 order.payment_attempts += 1
                 order.last_payment_attempt = timezone.now()
+                
+                # Set or update payment expiry time (10 minutes from now)
+                order.payment_expiry_time = timezone.now() + timezone.timedelta(minutes=10)
                 order.save()
-
-                # Still redirect to order details, but with error status
+                
+                # Return JSON with error status and payment retry information
                 return JsonResponse({
                     'status': 'error',
-                    'message': 'Payment verification failed. You can retry payment from order details.',
-                    'redirect_url': reverse('order_details', args=[order.order_id])
+                    'message': 'Payment verification failed. You can retry payment within 10 minutes.',
+                    'redirect_url': reverse('order_details', args=[order.order_id]),
+                    'payment_retry': {
+                        'can_retry': True,
+                        'expiry_time': order.payment_expiry_time.isoformat(),
+                        'order_id': order.order_id
+                    }
                 })
 
         except Order.DoesNotExist:
@@ -1904,31 +1983,67 @@ def retry_payment(request, order_id):
     try:
         order = Order.objects.get(order_id=order_id, user=request.user)
         
+        # Check if order is already paid
         if order.payment_status == 'PAID':
             return JsonResponse({
                 'status': 'error',
                 'message': 'Order is already paid'
             })
-
-        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
         
+        # Check if payment has expired
+        now = timezone.now()
+        if order.payment_expiry_time and now > order.payment_expiry_time:
+            # Auto-cancel the order if payment time has expired
+            order.order_status = 'CANCELLED'
+            order.payment_status = 'FAILED'
+            order.cancelled_at = now
+            order.payment_failure_reason = 'Payment time expired'
+            order.save()
+            
+            # Create status history entry
+            OrderStatusHistory.objects.create(
+                order=order,
+                old_status='PENDING',
+                new_status='CANCELLED',
+                reason='Payment time expired'
+            )
+            
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Payment time has expired. Order has been cancelled.',
+                'redirect_url': reverse('my_orders')
+            })
+
         # Create new Razorpay order
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
         payment = client.order.create({
             'amount': int(order.total_amount * 100),  # Amount in paise
             'currency': 'INR',
             'payment_capture': 1
         })
         
-        # Update order with new Razorpay order ID
+        # Update order with new Razorpay order ID and reset payment expiry time
         order.razorpay_order_id = payment['id']
         order.payment_status = 'PAYMENT_PENDING'
+        order.payment_attempts += 1
+        order.last_payment_attempt = now
+        order.payment_expiry_time = now + timezone.timedelta(minutes=10)  # Reset to 10 minutes from now
         order.save()
+        
+        # Get customer details for prefill
+        customer_name = order.full_name or request.user.get_full_name() or request.user.username
+        customer_email = order.email or request.user.email
+        customer_phone = order.phone or ''
         
         return JsonResponse({
             'status': 'success',
             'order_id': payment['id'],
             'amount': int(order.total_amount * 100),
-            'key': settings.RAZORPAY_KEY_ID
+            'key': settings.RAZORPAY_KEY_ID,
+            'expiry_time': order.payment_expiry_time.isoformat(),
+            'customer_name': customer_name,
+            'customer_email': customer_email,
+            'customer_phone': customer_phone
         })
         
     except Order.DoesNotExist:
@@ -1947,7 +2062,7 @@ def retry_payment(request, order_id):
 
 
 ################# Order ####################
-from manager.models import Order, OrderItem, Cart, CartItem
+from manager.models import Order, OrderItem, Cart, CartItem, Coupon, CouponUsage
 # @login_required
 # def order_confirmation(request, order_number):
 #     try:
@@ -2840,15 +2955,32 @@ def create_order(request):
                     order=order
                 )
             
-            # Mark cart as ordered
-            cart.is_ordered = True
-            cart.save()
-            
-            # Create new empty cart for user
-            new_cart = Cart.objects.create(user=request.user)
+            # For Razorpay payments, we'll mark the cart as ordered only after successful payment
+            # For COD, we can mark it as ordered immediately
+            if payment_method != 'razorpay':
+                # Mark cart as ordered
+                cart.is_ordered = True
+                cart.save()
+                
+                # Create new empty cart for user
+                new_cart = Cart.objects.create(user=request.user)
+            else:
+                # For Razorpay, store the order ID in the session for recovery
+                if 'pending_orders' not in request.session:
+                    request.session['pending_orders'] = []
+                
+                # Add this order to pending orders if not already there
+                pending_orders = request.session['pending_orders']
+                if order.order_id not in pending_orders:
+                    pending_orders.append(order.order_id)
+                    request.session['pending_orders'] = pending_orders
+                    request.session.modified = True
             
             # Return appropriate response based on payment method
             if payment_method == 'razorpay':
+                # Set payment expiry time to 10 minutes from now
+                order.payment_expiry_time = timezone.now() + timezone.timedelta(minutes=10)
+                order.save()
                 # Create Razorpay order
                 client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
                 payment_data = {
@@ -2859,10 +2991,23 @@ def create_order(request):
                 }
                 
                 try:
+                    # Log the payment data for debugging
+                    logger.info(f"Creating Razorpay order with data: {payment_data}")
+                    
+                    # Ensure Razorpay credentials are set
+                    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+                        logger.error("Razorpay credentials are not properly configured")
+                        return JsonResponse({
+                            'success': False,
+                            'message': 'Payment gateway configuration error. Please contact support.'
+                        })
+                    
+                    # Create Razorpay order
                     razorpay_order = client.order.create(payment_data)
+                    logger.info(f"Razorpay order created successfully: {razorpay_order['id']}")
                     
                     # Update order with Razorpay order ID
-                    order.payment_id = razorpay_order['id']
+                    order.razorpay_order_id = razorpay_order['id']
                     order.save()
                     
                     return JsonResponse({
@@ -2888,6 +3033,7 @@ def create_order(request):
                     'success': True,
                     'payment_required': False,
                     'order_id': order.id,
+                    'redirect_url': reverse('order_details', args=[order.order_id]),
                     'message': 'Order placed successfully!'
                 })
                 
@@ -2897,6 +3043,124 @@ def create_order(request):
             'success': False,
             'message': 'An error occurred while processing your order. Please try again.'
         })
+
+@login_required
+def add_address_checkout(request):
+    """Add a new address from the checkout page"""
+    if request.method == 'POST':
+        try:
+            # Extract address data from form
+            address_type = request.POST.get('address_type')
+            full_name = request.POST.get('full_name')
+            email = request.POST.get('email')
+            phone = request.POST.get('phone')
+            address_line1 = request.POST.get('address_line1')
+            address_line2 = request.POST.get('address_line2', '')
+            city = request.POST.get('city')
+            state = request.POST.get('state')
+            pincode = request.POST.get('pincode')
+            is_default = request.POST.get('is_default') == 'on'
+            
+            # Validate required fields
+            if not all([address_type, full_name, email, phone, address_line1, city, state, pincode]):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Please fill all required fields'
+                })
+            
+            # Create new address
+            address = Address.objects.create(
+                user=request.user,
+                address_type=address_type,
+                full_name=full_name,
+                email=email,
+                phone=phone,
+                address_line1=address_line1,
+                address_line2=address_line2,
+                city=city,
+                state=state,
+                pincode=pincode,
+                is_default=is_default
+            )
+            
+            # If this is set as default, unset other default addresses
+            if is_default:
+                Address.objects.filter(user=request.user).exclude(id=address.id).update(is_default=False)
+            
+            # Return success response with the new address ID
+            return JsonResponse({
+                'success': True,
+                'message': 'Address added successfully',
+                'address_id': address.id,
+                'address_html': f'''
+                <div class="flex">
+                    <input type="radio" name="selected_address" id="address-{address.id}" value="{address.id}" checked class="mt-1 mr-4 text-[#ff6b00]">
+                    <div class="flex-1 bg-zinc-800 p-4 rounded-lg">
+                        <div class="flex justify-between mb-2">
+                            <div class="flex items-center">
+                                <span class="inline-block px-2 py-1 text-xs font-semibold bg-[#ff6b00]/20 text-[#ff6b00] rounded-md mr-2">{address.address_type}</span>
+                                <span class="text-sm font-medium">{address.full_name}</span>
+                            </div>
+                        </div>
+                        <div class="text-zinc-400 text-sm space-y-1">
+                            <p>{address.address_line1}</p>
+                            {f'<p>{address.address_line2}</p>' if address.address_line2 else ''}
+                            <p>{address.city}, {address.state} - {address.pincode}</p>
+                            <p>Phone: {address.phone}</p>
+                        </div>
+                    </div>
+                </div>
+                '''
+            })
+            
+        except Exception as e:
+            logger.error(f"Error adding address: {str(e)}", exc_info=True)
+            return JsonResponse({
+                'success': False,
+                'message': 'An error occurred while adding the address'
+            })
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Invalid request method'
+    })
+
+@login_required
+def auto_cancel_expired_orders():
+    """Utility function to cancel orders with expired payments"""
+    try:
+        # Find orders with expired payment time
+        now = timezone.now()
+        expired_orders = Order.objects.filter(
+            payment_status__in=['PAYMENT_PENDING', 'FAILED'],
+            payment_expiry_time__lt=now,
+            order_status='PENDING'
+        )
+        
+        count = 0
+        for order in expired_orders:
+            # Cancel the order
+            order.order_status = 'CANCELLED'
+            order.cancelled_at = now
+            order.payment_failure_reason = 'Payment time expired'
+            order.save()
+            
+            # Create status history entry
+            OrderStatusHistory.objects.create(
+                order=order,
+                old_status='PENDING',
+                new_status='CANCELLED',
+                reason='Payment time expired'
+            )
+            count += 1
+        
+        if count > 0:
+            logger.info(f"Auto-cancelled {count} orders with expired payments")
+        
+        return count
+    except Exception as e:
+        logger.error(f"Error in auto_cancel_expired_orders: {str(e)}", exc_info=True)
+        return 0
 
 @login_required
 def wallet_view(request):
@@ -2938,7 +3202,76 @@ def wallet_view(request):
         messages.error(request, "An error occurred while loading your wallet.")
         return redirect('home')
 
+@login_required
+def check_payment_status(request, order_id):
+    """Check the payment status and expiry time for an order"""
+    try:
+        # Get the order
+        order = Order.objects.get(order_id=order_id, user=request.user)
+        
+        # Check if payment is already complete
+        if order.payment_status == 'PAID':
+            return JsonResponse({
+                'status': 'success',
+                'payment_status': 'PAID',
+                'message': 'Payment has been completed successfully',
+                'redirect_url': reverse('order_details', args=[order.order_id])
+            })
+        
+        # Check if order is cancelled
+        if order.order_status == 'CANCELLED':
+            return JsonResponse({
+                'status': 'error',
+                'payment_status': 'CANCELLED',
+                'message': 'This order has been cancelled',
+                'redirect_url': reverse('my_orders')
+            })
+        
+        # Check payment expiry
+        now = timezone.now()
+        can_retry = True
+        remaining_seconds = 0
+        
+        if order.payment_expiry_time:
+            if now > order.payment_expiry_time:
+                # Payment time has expired
+                can_retry = False
+                message = 'Payment time has expired'
+            else:
+                # Calculate remaining time
+                time_diff = order.payment_expiry_time - now
+                remaining_seconds = int(time_diff.total_seconds())
+                minutes = remaining_seconds // 60
+                seconds = remaining_seconds % 60
+                message = f'You have {minutes} minutes and {seconds} seconds to complete payment'
+        else:
+            message = 'No payment expiry time set'
+        
+        return JsonResponse({
+            'status': 'success',
+            'payment_status': order.payment_status,
+            'order_status': order.order_status,
+            'can_retry': can_retry,
+            'remaining_seconds': remaining_seconds,
+            'expiry_time': order.payment_expiry_time.isoformat() if order.payment_expiry_time else None,
+            'message': message
+        })
+        
+    except Order.DoesNotExist:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Order not found'
+        })
+    except Exception as e:
+        logger.error(f"Error checking payment status: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'status': 'error',
+            'message': 'An error occurred while checking payment status'
+        })
+
+@login_required
 def get_product_details(request, variant_id):
+    """Get product details for quick view"""
     try:
         variant = get_object_or_404(
             Variant.objects.select_related('product')
@@ -2960,13 +3293,37 @@ def get_product_details(request, variant_id):
             'color': variant.color,
             'price': variant.price,
             'discount_price': variant.discount_price,
+            'description': variant.product.description,
             'image_url': primary_image.image.url if primary_image else None,
             'stock': sum(size.stock for size in variant.sizes.all()),
-            'sizes': [{'id': size.id, 'size': size.size, 'stock': size.stock} for size in variant.sizes.all()]
+            'sizes': [{'id': size.id, 'name': size.name, 'stock': size.stock} for size in variant.sizes.all()]
         }
         
-        return JsonResponse({'success': True, 'data': data})
+        return JsonResponse({'success': True, **data})
         
+    except Variant.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Product not found'}, status=404)
     except Exception as e:
-        return JsonResponse({'success': False, 'message': str(e)})
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
+@login_required
+def get_variant_sizes(request, variant_id):
+    """Get available sizes for a variant"""
+    try:
+        variant = Variant.objects.get(id=variant_id, is_active=True)
+        sizes = variant.sizes.all()
+        
+        size_data = [{
+            'name': size.name,
+            'stock': size.stock,
+            'is_available': size.stock > 0
+        } for size in sizes]
+        
+        return JsonResponse({
+            'success': True,
+            'sizes': size_data
+        })
+    except Variant.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Product variant not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)

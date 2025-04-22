@@ -410,78 +410,60 @@
         currentPage = page;
         updateUI();
 
-        // Extract return requests from the DOM on initial load
-        if (!returnRequests.length) {
-            extractReturnRequestsFromDOM();
+        // Prepare the API URL with query parameters
+        let apiUrl = `/api/return-requests/?page=${page}&items_per_page=${itemsPerPage}`;
+        
+        // Add search parameter if provided
+        if (search) {
+            apiUrl += `&search=${encodeURIComponent(search)}`;
         }
-
-        // Apply filters and pagination to the extracted data
-        let filteredRequests = returnRequests.filter(request => {
-            // Search filter
-            const matchesSearch = !search || 
-                request.order_id.toString().includes(search) || 
-                request.customer.toLowerCase().includes(search.toLowerCase()) ||
-                request.product.toLowerCase().includes(search.toLowerCase());
-            
-            // Status filter
-            const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
-            
-            return matchesSearch && matchesStatus;
-        });
-
-        // Apply sorting
-        filteredRequests.sort((a, b) => {
-            let valueA, valueB;
-            
-            // Extract the values to compare based on the sort field
-            switch(sortField) {
-                case 'order_id':
-                    valueA = parseInt(a.order_id);
-                    valueB = parseInt(b.order_id);
-                    break;
-                case 'customer':
-                    valueA = a.customer.toLowerCase();
-                    valueB = b.customer.toLowerCase();
-                    break;
-                case 'product':
-                    valueA = a.product.toLowerCase();
-                    valueB = b.product.toLowerCase();
-                    break;
-                case 'status':
-                    valueA = a.status;
-                    valueB = b.status;
-                    break;
-                default:
-                    valueA = parseInt(a.order_id);
-                    valueB = parseInt(b.order_id);
+        
+        // Add status filter if not 'all'
+        if (statusFilter !== 'all') {
+            apiUrl += `&status=${statusFilter}`;
+        }
+        
+        // Add sorting parameters
+        apiUrl += `&sort_field=${sortField}&sort_direction=${sortDirection}`;
+        
+        // Fetch data from the API
+        fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': getCookie('csrftoken')
             }
-            
-            // Compare the values
-            if (valueA < valueB) return sortDirection === 'asc' ? -1 : 1;
-            if (valueA > valueB) return sortDirection === 'asc' ? 1 : -1;
-            return 0;
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Update state variables
+                returnRequests = data.return_requests;
+                totalItems = data.total_items;
+                totalPages = data.total_pages;
+                currentPage = data.current_page;
+                
+                // Update the UI
+                updateTable(returnRequests);
+                updatePaginationInfo();
+                updatePaginationControls();
+            } else {
+                showError(data.message || 'Failed to fetch return requests');
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching return requests:', error);
+            showError('Failed to fetch return requests. Please try again later.');
+        })
+        .finally(() => {
+            isLoading = false;
+            updateUI();
         });
-
-        // Calculate pagination
-        totalItems = filteredRequests.length;
-        totalPages = Math.ceil(totalItems / itemsPerPage);
-        
-        // Adjust current page if needed
-        if (currentPage > totalPages) {
-            currentPage = totalPages || 1;
-        }
-        
-        // Get current page items
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const currentPageItems = filteredRequests.slice(startIndex, endIndex);
-        
-        // Update the UI
-        updateTable(currentPageItems);
-        updatePaginationInfo();
-        updatePaginationControls();
-        isLoading = false;
-        updateUI();
     }
 
     function extractReturnRequestsFromDOM() {

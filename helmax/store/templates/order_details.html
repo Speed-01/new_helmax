@@ -155,6 +155,37 @@
           </a>
         </div>
 
+        <!-- Payment Timer (Only visible for pending payments) -->
+        {% if order.payment_status == 'PAYMENT_PENDING' or order.payment_status == 'FAILED' %}
+        <div class="mb-6 bg-zinc-900 rounded-lg overflow-hidden" id="paymentTimerCard">
+          <div class="p-4 border-b border-zinc-800 bg-amber-900/20">
+            <h2 class="text-xl font-bold flex items-center">
+              <i data-lucide="clock" class="icon mr-2 text-amber-500"></i>
+              Payment Timer
+            </h2>
+          </div>
+          <div class="p-6">
+            <div class="flex flex-col items-center justify-center space-y-4">
+              <div class="text-center">
+                <p class="text-amber-400 mb-2">Time remaining to complete your payment:</p>
+                <div class="text-3xl font-bold text-white" id="paymentCountdown">Loading...</div>
+                <p class="text-gray-400 mt-2" id="paymentMessage">Please complete your payment before time expires.</p>
+              </div>
+              <div class="flex space-x-4 mt-4">
+                <button id="retryPaymentBtn" class="px-6 py-2 bg-[#ff6b00] hover:bg-[#ff8533] text-white rounded-md transition-colors flex items-center">
+                  <i data-lucide="refresh-cw" class="icon mr-2 h-4 w-4"></i>
+                  Retry Payment
+                </button>
+                <button id="cancelOrderBtn" class="px-6 py-2 border border-red-800 text-red-500 hover:bg-red-900/20 rounded-md transition-colors flex items-center">
+                  <i data-lucide="x" class="icon mr-2 h-4 w-4"></i>
+                  Cancel Order
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
         <!-- Order Status Card -->
         <div class="mb-6 bg-zinc-900 rounded-lg overflow-hidden">
           <div class="p-4 border-b border-zinc-800">
@@ -606,12 +637,86 @@
     // Initialize Lucide icons
     lucide.createIcons();
 
-    // Logout Modal functionality
-    function openLogoutModal() {
-      document.getElementById('logoutModal').classList.remove('hidden');
-      document.body.style.overflow = 'hidden';
-    }
+    // Payment timer functionality
+    {% if order.payment_status == 'PAYMENT_PENDING' or order.payment_status == 'FAILED' %}
+    const orderId = "{{ order.order_id }}";
+    let remainingSeconds = 0;
+    let countdownInterval;
 
+    // Function to check payment status and update timer
+    function checkPaymentStatus() {
+      fetch(`/payment/check-status/${orderId}/`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            // If payment is complete, redirect
+            if (data.payment_status === 'PAID') {
+              clearInterval(countdownInterval);
+              document.getElementById('paymentMessage').textContent = 'Payment completed successfully!';
+              setTimeout(() => {
+                window.location.href = data.redirect_url;
+              }, 2000);
+              return;
+            }
+            
+            // Update remaining time if available
+            if (data.remaining_seconds) {
+              remainingSeconds = data.remaining_seconds;
+              updateCountdown();
+            }
+            
+            // Check if payment has expired
+            if (!data.can_retry) {
+              clearInterval(countdownInterval);
+              document.getElementById('paymentCountdown').textContent = 'Payment time expired';
+              document.getElementById('paymentMessage').textContent = 'Your payment time has expired. The order will be automatically cancelled.';
+              document.getElementById('retryPaymentBtn').disabled = true;
+              document.getElementById('retryPaymentBtn').classList.add('opacity-50');
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Error checking payment status:', error);
+        });
+    }
+    
+    // Function to update the countdown timer
+    function updateCountdown() {
+      const minutes = Math.floor(remainingSeconds / 60);
+      const seconds = remainingSeconds % 60;
+      document.getElementById('paymentCountdown').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      
+      if (remainingSeconds <= 0) {
+        clearInterval(countdownInterval);
+        checkPaymentStatus(); // Check one last time
+        return;
+      }
+      
+      remainingSeconds--;
+    }
+    
+    // Initialize timer and status check
+    checkPaymentStatus();
+    countdownInterval = setInterval(updateCountdown, 1000);
+    
+    // Set up retry payment button
+    document.getElementById('retryPaymentBtn').addEventListener('click', function() {
+      const orderId = this.getAttribute('data-order-id');
+      fetch(`/payment/retry/${orderId}/`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            retryPayment(data.razorpay_order_id, data.amount);
+          } else {
+            alert(data.message);
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          alert('An error occurred while preparing payment retry');
+        });
+    });
+    {% endif %}
     function closeLogoutModal() {
       document.getElementById('logoutModal').classList.add('hidden');
       document.body.style.overflow = '';

@@ -188,6 +188,16 @@
                     >
                         Add To Cart
                     </button>
+                    
+                    <!-- Wishlist Heart Button -->
+                    <button 
+                        id="wishlist-btn"
+                        class="w-12 h-12 flex items-center justify-center bg-[#222222] rounded-sm hover:bg-[#333333] transition-colors"
+                        data-product-id="{{ product.id }}"
+                        onclick="toggleWishlist({{ product.id }}, this);"
+                    >
+                        <i class="fas fa-heart {% if product.id in wishlist_product_ids %}text-red-500{% else %}text-white{% endif %} text-xl"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -225,6 +235,103 @@ document.addEventListener('DOMContentLoaded', function() {
     const colorOptions = document.getElementById('color-options');
     const sizeOptions = document.getElementById('size-options');
     const quantityInput = document.getElementById('quantity');
+    
+    // Wishlist toggle function
+    window.toggleWishlist = function(productId, button) {
+        // Check if user is authenticated
+        const isAuthenticated = {{ request.user.is_authenticated|lower }};
+        if (!isAuthenticated) {
+            window.location.href = '{% url "Login" %}?next={% url "product_detail" product.id %}';
+            return;
+        }
+        
+        // Send request to add/remove from wishlist
+        fetch(`/move-to-wishlist/${productId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Toggle heart icon color
+                const heartIcon = button.querySelector('i');
+                if (heartIcon.classList.contains('text-white')) {
+                    heartIcon.classList.remove('text-white');
+                    heartIcon.classList.add('text-red-500');
+                    showNotification('Added to wishlist', 'success');
+                } else {
+                    heartIcon.classList.remove('text-red-500');
+                    heartIcon.classList.add('text-white');
+                    showNotification('Removed from wishlist', 'success');
+                }
+                
+                // Update wishlist count in header if it exists
+                const wishlistCountElement = document.querySelector('.wishlist-count');
+                if (wishlistCountElement) {
+                    if (data.wishlist_count > 0) {
+                        wishlistCountElement.textContent = data.wishlist_count;
+                        wishlistCountElement.classList.remove('hidden');
+                    } else {
+                        wishlistCountElement.classList.add('hidden');
+                    }
+                }
+            } else {
+                showNotification(data.message || 'Failed to update wishlist', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error updating wishlist:', error);
+            showNotification('Failed to update wishlist', 'error');
+        });
+    }
+    
+    // Show notification function
+    function showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg ${type === 'success' ? 'bg-green-600' : 'bg-red-600'} text-white transform transition-all duration-300 flex items-center`;
+        
+        const icon = document.createElement('i');
+        icon.className = `fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2`;
+        notification.appendChild(icon);
+        
+        const text = document.createElement('span');
+        text.textContent = message;
+        notification.appendChild(text);
+        
+        document.body.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+            notification.style.transform = 'translateY(0)';
+        }, 10);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => {
+                notification.remove();
+            }, 300);
+        }, 3000);
+    }
+    
+    // Get cookie function for CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
     const addToCartBtn = document.getElementById('add-to-cart');
     const notification = document.getElementById('notification');
     const decreaseQuantityBtn = document.getElementById('decrease-quantity');

@@ -991,7 +991,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const formData = new FormData(this);
     
-    fetch('/accounts/address/add/', {
+    fetch('/add_address_checkout/', {
       method: 'POST',
       body: formData,
       headers: {
@@ -1003,8 +1003,21 @@ document.addEventListener('DOMContentLoaded', function() {
       if (data.success) {
         showNotification('Address added successfully');
         toggleAddressForm();
-        // Reload the page to show the new address
-        window.location.reload();
+        
+        // Add the new address to the address list without reloading
+        const addressesContainer = document.querySelector('.space-y-4');
+        const newAddressElement = document.createElement('div');
+        newAddressElement.innerHTML = data.address_html;
+        
+        // Add the new address to the top of the list
+        if (addressesContainer.firstChild) {
+          addressesContainer.insertBefore(newAddressElement, addressesContainer.firstChild);
+        } else {
+          addressesContainer.appendChild(newAddressElement);
+        }
+        
+        // Reset the form
+        document.getElementById('addressForm').reset();
       } else {
         showNotification(data.message || 'Failed to add address', 'error');
       }

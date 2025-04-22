@@ -168,6 +168,15 @@
                                         </div>
                                         {% endif %}
                                         {% endwith %}
+                                        
+                                        <!-- Wishlist Heart Icon -->
+                                        <button 
+                                            class="wishlist-btn absolute top-2 left-2 w-8 h-8 flex items-center justify-center bg-black bg-opacity-50 rounded-full hover:bg-opacity-70 transition-all z-10"
+                                            data-product-id="{{ product.id }}"
+                                            onclick="event.preventDefault(); event.stopPropagation(); toggleWishlist({{ product.id }}, this);"
+                                        >
+                                            <i class="fas fa-heart {% if product.id in wishlist_product_ids %}text-red-500{% else %}text-white{% endif %}"></i>
+                                        </button>
                                     </div>
                                     <div class="p-4">
 
@@ -291,6 +300,103 @@
         const filterToggle = document.getElementById('filter-toggle');
         const filterSidebar = document.getElementById('filter-sidebar');
         
+        // Wishlist toggle function
+        window.toggleWishlist = function(productId, button) {
+            // Check if user is authenticated
+            const isAuthenticated = {{ request.user.is_authenticated|lower }};
+            if (!isAuthenticated) {
+                window.location.href = '{% url "Login" %}?next={% url "product_list" %}';
+                return;
+            }
+            
+            // Send request to add/remove from wishlist
+            fetch(`/move-to-wishlist/${productId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Toggle heart icon color
+                    const heartIcon = button.querySelector('i');
+                    if (heartIcon.classList.contains('text-white')) {
+                        heartIcon.classList.remove('text-white');
+                        heartIcon.classList.add('text-red-500');
+                        showNotification('Added to wishlist', 'success');
+                    } else {
+                        heartIcon.classList.remove('text-red-500');
+                        heartIcon.classList.add('text-white');
+                        showNotification('Removed from wishlist', 'success');
+                    }
+                    
+                    // Update wishlist count in header if it exists
+                    const wishlistCountElement = document.querySelector('.wishlist-count');
+                    if (wishlistCountElement) {
+                        if (data.wishlist_count > 0) {
+                            wishlistCountElement.textContent = data.wishlist_count;
+                            wishlistCountElement.classList.remove('hidden');
+                        } else {
+                            wishlistCountElement.classList.add('hidden');
+                        }
+                    }
+                } else {
+                    showNotification(data.message || 'Failed to update wishlist', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error updating wishlist:', error);
+                showNotification('Failed to update wishlist', 'error');
+            });
+        }
+        
+        // Show notification function
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg ${type === 'success' ? 'bg-green-600' : 'bg-red-600'} text-white transform transition-all duration-300 flex items-center`;
+            
+            const icon = document.createElement('i');
+            icon.className = `fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2`;
+            notification.appendChild(icon);
+            
+            const text = document.createElement('span');
+            text.textContent = message;
+            notification.appendChild(text);
+            
+            document.body.appendChild(notification);
+            
+            // Animate in
+            setTimeout(() => {
+                notification.style.transform = 'translateY(0)';
+            }, 10);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            }, 3000);
+        }
+        
+        // Get cookie function for CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
         if (filterToggle && filterSidebar) {
             filterToggle.addEventListener('click', function() {
                 filterSidebar.classList.toggle('hidden');
@@ -382,7 +488,6 @@
                 }
             });
         }
-        
         // Set price inputs
         const minPriceParam = urlParams.get('min_price');
         const maxPriceParam = urlParams.get('max_price');

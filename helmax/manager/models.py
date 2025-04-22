@@ -472,6 +472,7 @@ class Order(BaseModel):
     payment_attempts = models.IntegerField(default=0)
     last_payment_attempt = models.DateTimeField(null=True, blank=True)
     payment_failure_reason = models.TextField(blank=True, null=True)
+    payment_expiry_time = models.DateTimeField(null=True, blank=True)
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     order_id = models.CharField(max_length=25, unique=True)

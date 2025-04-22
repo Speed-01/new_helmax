@@ -8,8 +8,8 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# LOGIN_URL = 'adminLogin'  # Set this to your admin login URL name
-# LOGIN_REDIRECT_URL = 'adminDashboard'  # Set this to your dashboard URL name
+LOGIN_URL = 'Login'  # Set this to your store login URL name
+LOGIN_REDIRECT_URL = 'home'  # Set this to your home URL name
 
 # We need these lines below to allow the Google sign in popup to work.
 SECURE_REFERRER_POLICY = 'no-referrer-when-downgrade'

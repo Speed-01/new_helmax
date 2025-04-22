@@ -73,6 +73,7 @@ urlpatterns = [
     path('get-coupon/<int:coupon_id>/', views.get_coupon_details, name='get_coupon_details'),
 
     path('return-requests/', views.admin_return_requests, name='admin_return_requests'),
+    path('api/return-requests/', views.get_return_requests, name='get_return_requests'),
     path('handle-return-request/<int:return_request_id>/', views.handle_return_request, name='handle_return_request'),
 
     # Offer Management URLs

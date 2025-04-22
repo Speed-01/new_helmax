@@ -42,6 +42,7 @@ urlpatterns = [
     path('editAddress/<int:address_id>/', views.editAddress, name='editAddress'),
     path('deleteAddress/<int:address_id>/', views.deleteAddress, name='deleteAddress'),
     path('set_primary_address/', views.set_primary_address, name='set_primary_address'),
+    path('add_address_checkout/', views.add_address_checkout, name='add_address_checkout'),
 
 
     ######### cheout ######## 
@@ -59,6 +60,7 @@ urlpatterns = [
     path('clear-wishlist/', views.clear_wishlist, name='clear_wishlist'),
     path('add-multiple-to-cart/', views.add_multiple_to_cart, name='add_multiple_to_cart'),
     path('api/product/<int:variant_id>/', views.get_product_details, name='get_product_details'),
+    path('api/variant/<int:variant_id>/sizes/', views.get_variant_sizes, name='get_variant_sizes'),
     path('sort-wishlist/<str:sort_by>/', views.sort_wishlist, name='sort_wishlist'),
     path('api/similar-products/', views.load_similar_products, name='load_similar_products'),
     # urls.py
@@ -74,6 +76,7 @@ urlpatterns = [
     path('api/filter-products/', views.filter_products, name='filter_products'),
     path('payment/success/<str:order_id>/', views.payment_success, name='payment_success'),
     path('payment/retry/<str:order_id>/', views.retry_payment, name='retry_payment'),
+    path('payment/check-status/<str:order_id>/', views.check_payment_status, name='check_payment_status'),
     path('wallet/', views.wallet_view, name='wallet'),
     path('api/order-items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),
     path('orders/<int:order_id>/detail/', views.order_detail, name='order_detail'),

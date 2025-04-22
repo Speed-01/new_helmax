@@ -19,35 +19,79 @@
             }
         }
     </script>
-    <style type="text/tailwindcss">
-        @layer components {
-            .btn {
-                @apply px-4 py-2 rounded font-medium transition-colors duration-200 flex items-center justify-center gap-2;
-            }
-            .btn-primary {
-                @apply bg-primary text-black hover:bg-primary-hover;
-            }
-            .btn-outline {
-                @apply border bg-transparent hover:bg-zinc-800;
-            }
-            .btn-danger {
-                @apply border border-red-500 text-red-500 hover:bg-red-500 hover:text-white;
-            }
-            .card {
-                @apply bg-zinc-900 rounded-lg overflow-hidden transition-transform duration-300 hover:scale-[1.02] hover:shadow-lg;
-            }
-            .dropdown {
-                @apply relative inline-block;
-            }
-            .dropdown-content {
-                @apply hidden absolute right-0 mt-2 w-48 bg-zinc-800 rounded-md shadow-lg z-10;
-            }
-            .dropdown-item {
-                @apply block px-4 py-2 text-sm text-white hover:bg-zinc-700 cursor-pointer;
-            }
-            .dropdown:hover .dropdown-content {
-                @apply block;
-            }
+    <style>
+        /* Custom component classes */
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            font-weight: 500;
+            transition-property: color, background-color, border-color;
+            transition-duration: 200ms;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        .btn-primary {
+            background-color: #ff6b00;
+            color: black;
+        }
+        .btn-primary:hover {
+            background-color: #ff7d1a;
+        }
+        .btn-outline {
+            border: 1px solid #3f3f46;
+            background-color: transparent;
+        }
+        .btn-outline:hover {
+            background-color: #27272a;
+        }
+        .btn-danger {
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+        .btn-danger:hover {
+            background-color: #ef4444;
+            color: white;
+        }
+        .card {
+            background-color: #18181b;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            transition-property: transform;
+            transition-duration: 300ms;
+        }
+        .card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            margin-top: 0.5rem;
+            width: 12rem;
+            background-color: #27272a;
+            border-radius: 0.375rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            z-index: 10;
+        }
+        .dropdown-item {
+            display: block;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            color: white;
+            cursor: pointer;
+        }
+        .dropdown-item:hover {
+            background-color: #3f3f46;
+        }
+        .dropdown:hover .dropdown-content {
+            display: block;
         }
     </style>
 </head>
@@ -221,7 +265,6 @@
                 {% endfor %}
             </div>
         </div>
-        {% endif %}
 
         <!-- Empty State is now handled in the main wishlist section with conditional rendering -->
     </div>
@@ -584,8 +627,12 @@
                 } else {
                     showToast('Error', data.message || 'Failed to remove item from wishlist', 'error');
                 }
-            }
-        });
+            })
+            .catch(error => {
+                console.error('Error removing from wishlist:', error);
+                showToast('Error', 'Failed to remove item from wishlist', 'error');
+            });
+        }
         
         function getCookie(name) {
             let cookieValue = null;
@@ -601,5 +648,347 @@
             }
             return cookieValue;
         }
+        
+        // Show toast notification
+        function showToast(title, message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastTitle = document.getElementById('toastTitle');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            // Set content
+            toastTitle.textContent = title;
+            toastMessage.textContent = message;
+            
+            // Set icon based on type
+            const icon = toast.querySelector('i');
+            if (type === 'success') {
+                icon.className = 'bx bx-check-circle text-green-500 text-xl';
+            } else if (type === 'error') {
+                icon.className = 'bx bx-error-circle text-red-500 text-xl';
+            }
+            
+            // Show toast
+            toast.classList.remove('translate-y-full', 'opacity-0');
+            
+            // Hide after 3 seconds
+            setTimeout(() => {
+                toast.classList.add('translate-y-full', 'opacity-0');
+            }, 3000);
+        }
+        
+        // Share wishlist function
+        function shareWishlist() {
+            const url = window.location.href;
+            navigator.clipboard.writeText(url)
+                .then(() => {
+                    showToast('Copied!', 'Wishlist URL copied to clipboard');
+                })
+                .catch(() => {
+                    showToast('Error', 'Failed to copy URL', 'error');
+                });
+        }
+        
+        // Clear wishlist function
+        function clearWishlist() {
+            if (confirm('Are you sure you want to clear your wishlist?')) {
+                fetch('/clear-wishlist/',{
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Show success message
+                        showToast('Success', data.message, 'success');
+                        
+                        // Update wishlist count in header
+                        const wishlistCountBadge = document.querySelector('.wishlist-count');
+                        if (wishlistCountBadge) {
+                            wishlistCountBadge.textContent = '0';
+                        }
+                        
+                        // Clear wishlist container
+                        const wishlistContainer = document.getElementById('wishlist-items-container');
+                        if (wishlistContainer) {
+                            wishlistContainer.innerHTML = `
+                                <div class="flex flex-col items-center justify-center p-8 text-center">
+                                    <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                                    </svg>
+                                    <h3 class="text-lg font-medium text-gray-900 mb-2">Your wishlist is empty</h3>
+                                    <p class="text-gray-600 mb-4">Items you add to your wishlist will appear here.</p>
+                                    <a href="/shop" class="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors">
+                                        Continue Shopping
+                                    </a>
+                                </div>
+                            `;
+                        }
+                        
+                        // Hide wishlist actions
+                        const wishlistActions = document.getElementById('wishlist-actions');
+                        if (wishlistActions) {
+                            wishlistActions.classList.add('hidden');
+                        }
+                        
+                        // Clear similar products section
+                        const similarProductsContainer = document.getElementById('similar-products-container');
+                        if (similarProductsContainer) {
+                            similarProductsContainer.classList.add('hidden');
+                        }
+                    } else {
+                        // Show error message
+                        showToast('Error', data.message || 'Failed to clear wishlist', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error clearing wishlist:', error);
+                    showToast('Error', 'Failed to clear wishlist', 'error');
+                });
+            }
+        }
+        
+        // Quick view function
+        function quickView(variantId) {
+            fetch(`/api/product/${variantId}/`, {
+                method: 'GET',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const modal = document.getElementById('quickViewModal');
+                    document.getElementById('modalImage').src = data.image_url || 'https://placehold.co/500x500';
+                    document.getElementById('modalTitle').textContent = data.product_name;
+                    document.getElementById('modalColor').textContent = `Color: ${data.color || 'N/A'}`;
+                    document.getElementById('modalPrice').textContent = `₹${data.discount_price || data.price}`;
+                    
+                    if (data.discount_price && data.discount_price < data.price) {
+                        document.getElementById('modalOriginalPrice').textContent = `₹${data.price}`;
+                        document.getElementById('modalOriginalPrice').classList.remove('hidden');
+                    } else {
+                        document.getElementById('modalOriginalPrice').classList.add('hidden');
+                    }
+                    
+                    modal.classList.remove('hidden');
+                } else {
+                    showToast('Error', data.message || 'Failed to load product details', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading product details:', error);
+                showToast('Error', 'Failed to load product details', 'error');
+            });
+        }
+        
+        // Close quick view modal
+        function closeQuickView() {
+            document.getElementById('quickViewModal').classList.add('hidden');
+        }
+        
+        // Add to cart from modal
+        function addToCartFromModal() {
+            const variantId = document.querySelector('.card[data-variant-id]').dataset.variantId;
+            addToCart(variantId);
+            closeQuickView();
+        }
+        
+        // Add to cart function
+        function addToCart(variantId) {
+            // First fetch available sizes for this variant
+            fetch(`/api/variant/${variantId}/sizes/`, {
+                method: 'GET',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.sizes && data.sizes.length > 0) {
+                    // Show size selection modal
+                    showSizeSelectionModal(variantId, data.sizes);
+                } else {
+                    showToast('Error', 'No sizes available for this product', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching sizes:', error);
+                showToast('Error', 'Failed to get available sizes', 'error');
+            });
+        }
+        
+        // Show size selection modal
+        function showSizeSelectionModal(variantId, sizes) {
+            // Create modal if it doesn't exist
+            let sizeModal = document.getElementById('sizeSelectionModal');
+            if (!sizeModal) {
+                sizeModal = document.createElement('div');
+                sizeModal.id = 'sizeSelectionModal';
+                sizeModal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
+                document.body.appendChild(sizeModal);
+            }
+            
+            // Populate modal with sizes
+            let sizeButtons = '';
+            sizes.forEach(size => {
+                if (size.stock > 0) {
+                    sizeButtons += `
+                        <button 
+                            class="w-12 h-12 rounded-full border border-gray-600 flex items-center justify-center hover:border-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-[#ff6b00] m-1"
+                            onclick="addToCartWithSize('${variantId}', '${size.name}')">
+                            ${size.name}
+                        </button>`;
+                } else {
+                    sizeButtons += `
+                        <button 
+                            class="w-12 h-12 rounded-full border border-gray-600 flex items-center justify-center opacity-50 cursor-not-allowed m-1"
+                            disabled>
+                            ${size.name}
+                        </button>`;
+                }
+            });
+            
+            sizeModal.innerHTML = `
+                <div class="bg-zinc-900 p-6 rounded-lg max-w-md w-full">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold">Select Size</h3>
+                        <button onclick="document.getElementById('sizeSelectionModal').remove()" class="text-gray-400 hover:text-white">
+                            <i class='bx bx-x text-2xl'></i>
+                        </button>
+                    </div>
+                    <p class="text-gray-400 mb-4">Please select a size to add this item to your cart</p>
+                    <div class="flex flex-wrap justify-center mb-6">
+                        ${sizeButtons}
+                    </div>
+                    <div class="text-center">
+                        <button 
+                            onclick="document.getElementById('sizeSelectionModal').remove()" 
+                            class="btn btn-outline w-full">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Add to cart with selected size
+        function addToCartWithSize(variantId, sizeName) {
+            fetch('/cart/add/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `variant_id=${variantId}&quantity=1&size_name=${sizeName}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remove size selection modal
+                document.getElementById('sizeSelectionModal').remove();
+                
+                if (data.success) {
+                    showToast('Added to Cart', 'Item has been added to your cart');
+                    // Update cart count in header if needed
+                    if (data.cart_count) {
+                        const cartCountElement = document.querySelector('.cart-count');
+                        if (cartCountElement) {
+                            cartCountElement.textContent = data.cart_count;
+                            cartCountElement.classList.remove('hidden');
+                        }
+                    }
+                } else {
+                    showToast('Error', data.message || 'Failed to add item to cart', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding to cart:', error);
+                showToast('Error', 'Failed to add item to cart', 'error');
+                // Remove size selection modal
+                document.getElementById('sizeSelectionModal').remove();
+            });
+        }
+        
+        // Move all items to cart
+        function moveAllToCart() {
+            // Get all variant IDs from the wishlist
+            const variantIds = Array.from(document.querySelectorAll('.card[data-variant-id]'))
+                .map(card => card.dataset.variantId);
+            
+            if (variantIds.length === 0) {
+                showToast('Error', 'No items in wishlist', 'error');
+                return;
+            }
+            
+            // Show confirmation with size selection modal
+            showMoveAllModal(variantIds);
+        }
+        
+        // Show modal for moving all items to cart
+        function showMoveAllModal(variantIds) {
+            // Create modal
+            let moveAllModal = document.createElement('div');
+            moveAllModal.id = 'moveAllModal';
+            moveAllModal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
+            
+            moveAllModal.innerHTML = `
+                <div class="bg-zinc-900 p-6 rounded-lg max-w-md w-full">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold">Add All Items to Cart</h3>
+                        <button onclick="document.getElementById('moveAllModal').remove()" class="text-gray-400 hover:text-white">
+                            <i class='bx bx-x text-2xl'></i>
+                        </button>
+                    </div>
+                    <p class="text-gray-400 mb-4">For each item in your wishlist, we'll select the first available size. Continue?</p>
+                    <div class="flex gap-3">
+                        <button 
+                            onclick="confirmMoveAllToCart()" 
+                            class="btn btn-primary flex-1">
+                            Add All to Cart
+                        </button>
+                        <button 
+                            onclick="document.getElementById('moveAllModal').remove()" 
+                            class="btn btn-outline flex-1">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(moveAllModal);
+        }
+        
+        // Confirm moving all items to cart
+        function confirmMoveAllToCart() {
+            fetch('/add-multiple-to-cart/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remove modal
+                document.getElementById('moveAllModal').remove();
+                
+                if (data.success) {
+                    showToast('Added to Cart', 'All items have been added to your cart');
+                    setTimeout(() => {
+                        window.location.href = '/cart/';
+                    }, 1500);
+                } else {
+                    showToast('Error', data.message || 'Failed to add items to cart', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding items to cart:', error);
+                showToast('Error', 'Failed to add items to cart', 'error');
+            });
+        }
+    </script>
 </body>
-</html>
+</html> 

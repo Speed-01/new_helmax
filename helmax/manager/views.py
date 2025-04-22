@@ -3,7 +3,7 @@ from django.contrib.auth import login, logout, authenticate
 from django.contrib import messages
 from django.views.decorators.cache import never_cache
 from django.http import JsonResponse, HttpResponse
-from django.db.models import Q
+from django.db.models import Q, Count, Sum
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle
 from reportlab.lib import colors
@@ -22,7 +22,6 @@ from django.utils import timezone
 from store.utils import send_order_status_notification
 from datetime import datetime, timedelta
 import logging
-from django.db.models import Count, Sum
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -1378,17 +1377,97 @@ def edit_coupon(request, coupon_id):
 
 @login_required(login_url='adminLogin')
 def admin_return_requests(request):
-    return_requests = ReturnRequest.objects.all().order_by('-created_at')
-    
-    context = {
-        'return_requests': return_requests
-    }
-    
-    return render(request, 'return_requests.html', context)
+    # Just render the template - data will be loaded via API
+    return render(request, 'return_requests.html')
 
+@login_required(login_url='adminLogin')
+def get_return_requests(request):
+    """API endpoint to fetch return requests with pagination"""
+    try:
+        # Get query parameters
+        page = int(request.GET.get('page', 1))
+        search = request.GET.get('search', '')
+        status_filter = request.GET.get('status', 'all')
+        sort_field = request.GET.get('sort_field', 'created_at')
+        sort_direction = request.GET.get('sort_direction', 'desc')
+        items_per_page = int(request.GET.get('items_per_page', 10))
+        
+        # Start with all return requests
+        query = ReturnRequest.objects.select_related('user', 'order_item', 'order_item__variant', 'order_item__product')
+        
+        # Apply search filter if provided
+        if search:
+            query = query.filter(
+                models.Q(order_item__order__order_id__icontains=search) |
+                models.Q(user__username__icontains=search) |
+                models.Q(user__email__icontains=search) |
+                models.Q(order_item__product__name__icontains=search)
+            )
+        
+        # Apply status filter if provided
+        if status_filter and status_filter.lower() != 'all':
+            query = query.filter(status=status_filter.upper())
+        
+        # Apply sorting
+        if sort_field == 'order_id':
+            sort_key = 'order_item__order__order_id'
+        elif sort_field == 'customer':
+            sort_key = 'user__username'
+        elif sort_field == 'product':
+            sort_key = 'order_item__product__name'
+        elif sort_field == 'status':
+            sort_key = 'status'
+        else:
+            sort_key = 'created_at'
+            
+        if sort_direction == 'desc':
+            sort_key = f'-{sort_key}'
+            
+        query = query.order_by(sort_key)
+        
+        # Paginate the results
+        paginator = Paginator(query, items_per_page)
+        try:
+            return_requests = paginator.page(page)
+        except PageNotAnInteger:
+            return_requests = paginator.page(1)
+        except EmptyPage:
+            return_requests = paginator.page(paginator.num_pages)
+        
+        # Format the data for the response
+        return_requests_data = []
+        for request in return_requests:
+            order_id = request.order_item.order.order_id if request.order_item and request.order_item.order else 'N/A'
+            product_name = request.order_item.product.name if request.order_item and request.order_item.product else 'N/A'
+            variant_color = request.order_item.variant.color if request.order_item and request.order_item.variant else ''
+            
+            return_requests_data.append({
+                'id': request.id,
+                'order_id': order_id,
+                'customer': request.user.username if request.user else 'N/A',
+                'customer_email': request.user.email if request.user else 'N/A',
+                'product': f"{product_name} ({variant_color})" if variant_color else product_name,
+                'reason': request.get_reason_display(),
+                'description': request.description,
+                'status': request.status,
+                'created_at': request.created_at.strftime('%Y-%m-%d %H:%M'),
+                'admin_response': request.admin_response or ''
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'return_requests': return_requests_data,
+            'total_items': paginator.count,
+            'total_pages': paginator.num_pages,
+            'current_page': page
+        })
+    except Exception as e:
+        logger.error(f"Error fetching return requests: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'message': f"Error fetching return requests: {str(e)}"
+        }, status=500)
 
-
-@require_POST
 @login_required(login_url='adminLogin')
 def handle_return_request(request, return_request_id):
     try:
