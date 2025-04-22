@@ -19,6 +19,7 @@ from django.db import transaction, models
 import json
 from .models import Product,Category,ProductImage,User, Brand, Variant, Size, Coupon, CouponUsage, Order, ReturnRequest, Wallet, WalletTransaction, ProductOffer, CategoryOffer,OrderItem, OrderStatusHistory
 from django.utils import timezone
+from .pdf_generator import generate_sales_report_pdf
 from store.utils import send_order_status_notification
 from datetime import datetime, timedelta
 import logging
@@ -287,60 +288,22 @@ def sales_report(request):
     # Handle report downloads
     if download_format:
         if download_format == 'pdf':
-            # Generate PDF report
+            # Generate PDF report with professional formatting
             response = HttpResponse(content_type='application/pdf')
-            response['Content-Disposition'] = f'attachment; filename="sales_report_{start_date}_{end_date}.pdf"'
+            response['Content-Disposition'] = f'attachment; filename="helmax_sales_report_{start_date}_{end_date}.pdf"'
             
-            # Create PDF document
-            doc = SimpleDocTemplate(response, pagesize=letter)
-            elements = []
+            # Use our professional PDF generator function
+            return generate_sales_report_pdf(
+                response=response,
+                orders=orders,
+                total_orders=total_orders,
+                total_sales=total_sales,
+                total_discounts=total_discounts,
+                start_date=start_date,
+                end_date=end_date
+            )
             
-            # Add title
-            styles = getSampleStyleSheet()
-            elements.append(Paragraph(f'Sales Report ({start_date} to {end_date})', styles['Title']))
-            
-            # Add summary
-            elements.append(Paragraph(f'Total Orders: {total_orders}', styles['Normal']))
-            elements.append(Paragraph(f'Total Sales: ₹{total_sales}', styles['Normal']))
-            elements.append(Paragraph(f'Total Discounts: ₹{total_discounts}', styles['Normal']))
-            
-            # Create table data
-            data = [
-                ['Order ID', 'Date', 'Customer', 'Items', 'Subtotal', 'Discount', 'Total', 'Status']
-            ]
-            for order in orders:
-                data.append([
-                    order.order_id,
-                    order.created_at.strftime('%Y-%m-%d %H:%M'),
-                    order.user.username,
-                    order.order_items.count(),
-                    f'₹{order.total_amount}',
-                    f'₹{order.total_discount}',
-                    f'₹{order.total_amount}',
-                    order.order_status
-                ])
-            
-            # Create and style the table
-            table = Table(data)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 14),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 1), (-1, -1), 12),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
-            ]))
-            elements.append(table)
-            
-            # Build PDF
-            doc.build(elements)
-            return response
+
             
         elif download_format == 'excel':
             # Generate Excel report
@@ -1927,60 +1890,22 @@ def sales_report(request):
     # Handle report downloads
     if download_format:
         if download_format == 'pdf':
-            # Generate PDF report
+            # Generate PDF report with professional formatting
             response = HttpResponse(content_type='application/pdf')
-            response['Content-Disposition'] = f'attachment; filename="sales_report_{start_date}_{end_date}.pdf"'
+            response['Content-Disposition'] = f'attachment; filename="helmax_sales_report_{start_date}_{end_date}.pdf"'
             
-            # Create PDF document
-            doc = SimpleDocTemplate(response, pagesize=letter)
-            elements = []
+            # Use our professional PDF generator function
+            return generate_sales_report_pdf(
+                response=response,
+                orders=orders,
+                total_orders=total_orders,
+                total_sales=total_sales,
+                total_discounts=total_discounts,
+                start_date=start_date,
+                end_date=end_date
+            )
             
-            # Add title
-            styles = getSampleStyleSheet()
-            elements.append(Paragraph(f'Sales Report ({start_date} to {end_date})', styles['Title']))
-            
-            # Add summary
-            elements.append(Paragraph(f'Total Orders: {total_orders}', styles['Normal']))
-            elements.append(Paragraph(f'Total Sales: ₹{total_sales}', styles['Normal']))
-            elements.append(Paragraph(f'Total Discounts: ₹{total_discounts}', styles['Normal']))
-            
-            # Create table data
-            data = [
-                ['Order ID', 'Date', 'Customer', 'Items', 'Subtotal', 'Discount', 'Total', 'Status']
-            ]
-            for order in orders:
-                data.append([
-                    order.order_id,
-                    order.created_at.strftime('%Y-%m-%d %H:%M'),
-                    order.user.username,
-                    order.order_items.count(),
-                    f'₹{order.total_amount}',
-                    f'₹{order.total_discount}',
-                    f'₹{order.total_amount}',
-                    order.order_status
-                ])
-            
-            # Create and style the table
-            table = Table(data)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 14),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 1), (-1, -1), 12),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
-            ]))
-            elements.append(table)
-            
-            # Build PDF
-            doc.build(elements)
-            return response
+
             
         elif download_format == 'excel':
             # Generate Excel report

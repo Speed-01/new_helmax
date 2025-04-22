@@ -2,21 +2,21 @@
 {% load static %}
 
 {% block content %}
-<div class="p-8 bg-zinc-900 text-white">
+<div class="p-8 bg-[#0A0A0A] text-white">
     <h1 class="text-2xl font-bold mb-6">Sales Report</h1>
 
     <!-- Filters -->
-    <div class="bg-black p-6 rounded-lg mb-6">
+    <div class="bg-[#111111] p-6 rounded-lg mb-6 border border-[#222222] shadow-lg">
         <form id="reportForm" class="space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <!-- Date Range Type -->
                 <div>
                     <label class="block text-gray-400 mb-2">Report Type</label>
-                    <select id="reportType" name="report_type" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2">
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                        <option value="custom">Custom Range</option>
+                    <select id="reportType" name="report_type" class="w-full bg-[#111111] border border-[#222222] rounded-lg px-4 py-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent">
+                        <option value="daily" {% if report_type == 'daily' %}selected{% endif %}>Daily</option>
+                        <option value="weekly" {% if report_type == 'weekly' %}selected{% endif %}>Weekly</option>
+                        <option value="monthly" {% if report_type == 'monthly' %}selected{% endif %}>Monthly</option>
+                        <option value="custom" {% if report_type == 'custom' %}selected{% endif %}>Custom Range</option>
                     </select>
                 </div>
 
@@ -25,18 +25,18 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-gray-400 mb-2">Start Date</label>
-                            <input type="date" name="start_date" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2">
+                            <input type="date" id="startDate" name="start_date" class="w-full bg-[#111111] border border-[#222222] rounded-lg px-4 py-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent" value="{{ start_date|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}">
                         </div>
                         <div>
                             <label class="block text-gray-400 mb-2">End Date</label>
-                            <input type="date" name="end_date" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2">
+                            <input type="date" id="endDate" name="end_date" class="w-full bg-[#111111] border border-[#222222] rounded-lg px-4 py-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent" value="{{ end_date|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}">
                         </div>
                     </div>
                 </div>
 
                 <!-- Apply Filters Button -->
                 <div class="flex items-end">
-                    <button type="submit" class="bg-[#ff6b00] text-black px-6 py-2 rounded-lg hover:bg-[#ff8533] transition-colors">
+                    <button type="submit" class="bg-yellow-500 text-black px-6 py-2 rounded-lg hover:bg-yellow-400 transition-colors">
                         Apply Filters
                     </button>
                 </div>
@@ -46,34 +46,34 @@
 
     <!-- Report Summary -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div class="bg-black p-6 rounded-lg">
+        <div class="bg-[#111111] p-6 rounded-lg border border-[#222222] shadow-lg">
             <h3 class="text-gray-400 mb-2">Total Orders</h3>
             <p class="text-3xl font-bold">{{ total_orders }}</p>
         </div>
-        <div class="bg-black p-6 rounded-lg">
+        <div class="bg-[#111111] p-6 rounded-lg border border-[#222222] shadow-lg">
             <h3 class="text-gray-400 mb-2">Total Sales</h3>
             <p class="text-3xl font-bold">₹{{ total_sales }}</p>
         </div>
-        <div class="bg-black p-6 rounded-lg">
+        <div class="bg-[#111111] p-6 rounded-lg border border-[#222222] shadow-lg">
             <h3 class="text-gray-400 mb-2">Total Discounts</h3>
             <p class="text-3xl font-bold">₹{{ total_discounts }}</p>
         </div>
     </div>
 
     <!-- Detailed Report Table -->
-    <div class="bg-black rounded-lg overflow-hidden">
-        <div class="p-6 border-b border-zinc-800 flex justify-between items-center">
+    <div class="bg-[#111111] rounded-lg overflow-hidden border border-[#222222] shadow-lg">
+        <div class="p-6 border-b border-[#222222] flex justify-between items-center">
             <h2 class="text-xl font-semibold">Detailed Report</h2>
-            <div class="p-6 border-b border-zinc-800 flex justify-between items-center">
-                <h2 class="text-xl font-semibold">Detailed Report</h2>
+            <div class="flex justify-between items-center">
+
                 <div class="space-x-4">
                     <!-- Simple links instead of buttons -->
                     <a href="?download=pdf&report_type={{ report_type }}&start_date={{ start_date|date:'Y-m-d' }}&end_date={{ end_date|date:'Y-m-d' }}" 
-                       class="inline-block bg-red-900/50 text-red-300 px-4 py-2 rounded-lg hover:bg-red-800/50 transition-colors">
+                       class="inline-block bg-red-500/20 text-red-500 px-4 py-2 rounded-lg hover:bg-red-500/30 transition-colors">
                         Download PDF
                     </a>
                     <a href="?download=excel&report_type={{ report_type }}&start_date={{ start_date|date:'Y-m-d' }}&end_date={{ end_date|date:'Y-m-d' }}" 
-                       class="inline-block bg-green-900/50 text-green-300 px-4 py-2 rounded-lg hover:bg-green-800/50 transition-colors">
+                       class="inline-block bg-green-500/20 text-green-500 px-4 py-2 rounded-lg hover:bg-green-500/30 transition-colors">
                         Download Excel
                     </a>
                 </div>
@@ -82,7 +82,7 @@
         </div>
         <div class="overflow-x-auto">
             <table class="w-full">
-                <thead class="bg-zinc-800">
+                <thead class="bg-[#1A1A1A]">
                     <tr>
                         <th class="px-6 py-3 text-left text-gray-400">Order ID</th>
                         <th class="px-6 py-3 text-left text-gray-400">Date</th>
@@ -94,7 +94,7 @@
                         <th class="px-6 py-3 text-left text-gray-400">Status</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-zinc-800">
+                <tbody class="divide-y divide-[#222222]">
                     {% for order in orders %}
                     <tr>
                         <td class="px-6 py-4">{{ order.order_id }}</td>
@@ -107,15 +107,15 @@
                         <td class="px-6 py-4">
                             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs
                                 {% if order.order_status == 'PROCESSING' %}
-                                    bg-yellow-900/50 text-yellow-300
+                                    bg-yellow-500/20 text-yellow-500
                                 {% elif order.order_status == 'SHIPPED' %}
-                                    bg-blue-900/50 text-blue-300
+                                    bg-blue-500/20 text-blue-500
                                 {% elif order.order_status == 'DELIVERED' %}
-                                    bg-green-900/50 text-green-300
+                                    bg-green-500/20 text-green-500
                                 {% elif order.order_status == 'CANCELLED' %}
-                                    bg-red-900/50 text-red-300
+                                    bg-red-500/20 text-red-500
                                 {% elif order.order_status == 'RETURNED' %}
-                                    bg-gray-800 text-gray-300
+                                    bg-gray-500/20 text-gray-300
                                 {% endif %}">
                                 {{ order.order_status }}
                             </span>
@@ -127,38 +127,6 @@
         </div>
     </div>
 </div>
-            
 
-
-<script>
-function downloadReport(format) {
-    const form = document.getElementById('reportForm');
-    const formData = new FormData(form);
-    const params = new URLSearchParams(formData);
-    params.append('download', format);
-    window.location.href = `?${params.toString()}`;
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const reportType = document.getElementById('reportType');
-    const customDateRange = document.getElementById('customDateRange');
-
-    reportType.addEventListener('change', function() {
-        if (this.value === 'custom') {
-            customDateRange.classList.remove('hidden');
-        } else {
-            customDateRange.classList.add('hidden');
-        }
-    });
-
-    document.getElementById('reportForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const formData = new FormData(this);
-        const queryParams = new URLSearchParams(formData);
-        window.location.href = `?${queryParams.toString()}`;
-    });
-});
-
-
-</script>
+<script src="{% static 'js/sales_report.js' %}"></script>
 {% endblock %}
