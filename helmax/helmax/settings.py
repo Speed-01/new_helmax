@@ -39,6 +39,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'  # Default to True if not set
 
 ALLOWED_HOSTS = [
+    '56.228.19.131',
     'localhost',
     '127.0.0.1',
     '[::1]',
@@ -150,7 +151,7 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = '/home/ubuntu/helmax/new_helmax/staticfiles'
 
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
 SESSION_COOKIE_AGE = 3600  # Session expires in 1 hour 
