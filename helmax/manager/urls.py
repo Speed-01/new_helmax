@@ -76,7 +76,7 @@ urlpatterns = [
     path('api/return-requests/', views.get_return_requests, name='get_return_requests'),
     # Duplicate route with manager prefix for consistency with other API endpoints
     path('manager/api/return-requests/', views.get_return_requests, name='get_return_requests_alt'),
-    path('handle-return-request/<int:return_request_id>/', views.handle_return_request, name='handle_return_request'),
+    # This URL is now defined in the project-level urls.py as 'manager/handle-return-request/<int:return_request_id>/'
 
     # Offer Management URLs
     path('offers/', views.admin_offers, name='admin_offers'),

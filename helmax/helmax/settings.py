@@ -36,16 +36,10 @@ import cloudinary.api
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True') == 'True'  # Default to True if not set
+# Temporarily set DEBUG to True to fix static files issue
+DEBUG = True  # Override env setting temporarily
 
-ALLOWED_HOSTS = [
-    '56.228.19.131',
-    'localhost',
-    '127.0.0.1',
-    '[::1]',
-    'your-domain.com',  # Add your domain when deploying
-]
-
+ALLOWED_HOSTS = []  
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
@@ -69,7 +63,7 @@ INSTALLED_APPS = [
 ]
 
 
-SITE_ID = 3
+SITE_ID = 2
 
 MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',
@@ -112,17 +106,22 @@ AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-# Database
+# # Database
+# from decouple import config
+
+# PostgreSQL configuration - commented out for local development
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT'),
+        'NAME': 'helmax2',
+        'USER': 'postgres',
+        'PASSWORD': 'database007',
+        'HOST': '127.0.0.1',
+        'PORT': '5432',
     }
 }
+
+
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -151,7 +150,13 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
-STATIC_ROOT = '/home/ubuntu/helmax/new_helmax/staticfiles'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Ensure static files are properly found and served
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]
 
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
 SESSION_COOKIE_AGE = 3600  # Session expires in 1 hour 

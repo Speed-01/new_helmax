@@ -1,6 +1,8 @@
 {% extends 'base.html' %}
 {% load static %}
 
+
+
 {% block content %}
 <div class="min-h-screen flex py-20 items-center justify-center bg-cover bg-center" style="background-image: url('{% static 'images/signup.jpg' %}')">
     <div class="bg-black bg-opacity-50 p-8 rounded-lg backdrop-blur-sm w-full max-w-md">
@@ -9,7 +11,7 @@
 
         {% if messages %}
         {% for message in messages %}
-        <div class="{% if message.tags == 'error' %}bg-red-500{% else %}bg-green-500{% endif %} text-white p-3 rounded-lg mb-4 text-sm">
+        <div class="django-message {% if message.tags == 'error' %}bg-red-500{% else %}bg-green-500{% endif %} text-white p-3 rounded-lg mb-4 text-sm">
             {{ message }}
         </div>
         {% endfor %}
@@ -51,23 +53,49 @@
                 <p class="text-red-500 text-xs mt-1">{{ form.phone.errors.0 }}</p>
                 {% endif %}
             </div>
-            <div>
-                <input type="password" name="password1" id="password1" required
-                    class="w-full bg-black bg-opacity-50 text-white border {% if form.password1.errors %}border-red-500{% else %}border-gray-600{% endif %} rounded-md p-3 focus:outline-none focus:border-yellow-500"
-                    placeholder="Password">
+            <div class="relative">
+                <input 
+                    type="password" 
+                    name="password1" 
+                    id="password1" 
+                    required
+                    class="w-full bg-black bg-opacity-50 text-white border {% if form.password1.errors %}border-red-500{% else %}border-gray-600{% endif %} rounded-md p-3 pr-10 focus:outline-none focus:border-yellow-500"
+                    placeholder="Password"
+                >
+                <button 
+                    type="button"
+                    onclick="togglePasswordVisibility('password1', 'password1-toggle-icon')"
+                    class="absolute inset-y-0 right-3 flex items-center text-gray-300 hover:text-white cursor-pointer"
+                >
+                    <i id="password1-toggle-icon" class="fas fa-eye"></i>
+                </button>
                 {% if form.password1.errors %}
-                <p class="text-red-500 text-xs mt-1">{{ form.password1.errors.0 }}</p>
+                    <p class="text-red-500 text-xs mt-1">{{ form.password1.errors.0 }}</p>
                 {% endif %}
             </div>
-            <div>
-                <input type="password" name="password2" id="password2" required
-                    class="w-full bg-black bg-opacity-50 text-white border {% if form.password2.errors %}border-red-500{% else %}border-gray-600{% endif %} rounded-md p-3 focus:outline-none focus:border-yellow-500"
-                    placeholder="Confirm Password">
+            
+            <div class="relative">
+                <input 
+                    type="password" 
+                    name="password2" 
+                    id="password2" 
+                    required
+                    class="w-full bg-black bg-opacity-50 text-white border {% if form.password2.errors %}border-red-500{% else %}border-gray-600{% endif %} rounded-md p-3 pr-10 focus:outline-none focus:border-yellow-500"
+                    placeholder="Confirm Password"
+                >
+                <button 
+                    type="button"
+                    onclick="togglePasswordVisibility('password2', 'password2-toggle-icon')"
+                    class="absolute inset-y-0 right-3 flex items-center text-gray-300 hover:text-white cursor-pointer"
+                >
+                    <i id="password2-toggle-icon" class="fas fa-eye"></i>
+                </button>
                 {% if form.password2.errors %}
-                <p class="text-red-500 text-xs mt-1">{{ form.password2.errors.0 }}</p>
+                    <p class="text-red-500 text-xs mt-1">{{ form.password2.errors.0 }}</p>
                 {% endif %}
                 <div id="password-error" class="text-red-500 text-sm mt-1 hidden"></div>
             </div>
+            
             
             <button type="submit"
                 class="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-4 rounded-md transition duration-300">
@@ -83,102 +111,130 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('signupForm');
-    const password1Input = document.getElementById('password1');
-    const password2Input = document.getElementById('password2');
-    const emailInput = document.getElementById('email');
-    const phoneInput = document.getElementById('phone');
-    const errorDiv = document.getElementById('password-error');
-
-    function showError(element, message) {
-        const errorElement = document.createElement('p');
-        errorElement.className = 'text-red-500 text-xs mt-1';
-        errorElement.textContent = message;
-        element.parentNode.appendChild(errorElement);
-        element.classList.add('border-red-500');
+    function togglePasswordVisibility(inputId, iconId) {
+        const input = document.getElementById(inputId);
+        const icon = document.getElementById(iconId);
+    
+        const isPassword = input.type === "password";
+        input.type = isPassword ? "text" : "password";
+        icon.classList.toggle("fa-eye", !isPassword);
+        icon.classList.toggle("fa-eye-slash", isPassword);
     }
+    
+    document.addEventListener('DOMContentLoaded', function () {
+        // Auto-hide Django messages
+        const djangoMessages = document.querySelectorAll('.django-message');
+        djangoMessages.forEach(msg => {
+            setTimeout(() => {
+                msg.style.transition = 'opacity 0.5s ease';
+                msg.style.opacity = '0';
+                setTimeout(() => msg.remove(), 500); // Remove after fade out
+            }, 5000); // Start fade out after 5 seconds
+        });
 
-    function clearError(element) {
-        const errorElement = element.parentNode.querySelector('.text-red-500');
-        if (errorElement) {
-            errorElement.remove();
-        }
-        element.classList.remove('border-red-500');
-    }
+        const form = document.getElementById('signupForm');
+        const fields = {
+            password1: document.getElementById('password1'),
+            password2: document.getElementById('password2'),
+            email: document.getElementById('email'),
+            phone: document.getElementById('phone'),
+        };
+    
+        // Helper to show error
+        function showError(input, message) {
+            clearError(input);
+            const errorElement = document.createElement('p');
+            errorElement.className = 'text-red-500 text-xs mt-1';
+            errorElement.textContent = message;
+            input.parentNode.appendChild(errorElement);
+            input.classList.add('border-red-500');
 
-    function validatePassword() {
-        const password = password1Input.value;
-        if (password.length < 8) {
-            return 'Password must be at least 8 characters long';
+            setTimeout(() => {
+                errorElement.remove();
+                // Optionally, also remove the red border from the input if no other errors for it exist
+                if (!input.parentNode.querySelector('.text-red-500')) {
+                    input.classList.remove('border-red-500');
+                }
+            }, 5000); // Hide after 5 seconds
         }
-        if (!/[A-Z]/.test(password)) {
-            return 'Password must contain at least one uppercase letter';
+    
+        // Helper to clear error
+        function clearError(input) {
+            const existingError = input.parentNode.querySelector('.text-red-500');
+            if (existingError) existingError.remove();
+            input.classList.remove('border-red-500');
         }
-        if (!/[a-z]/.test(password)) {
-            return 'Password must contain at least one lowercase letter';
+    
+        // Validate by regex
+        function validateField(input, regex, message) {
+            if (!regex.test(input.value)) {
+                showError(input, message);
+                return false;
+            }
+            return true;
         }
-        if (!/[0-9]/.test(password)) {
-            return 'Password must contain at least one number';
+    
+        // Validate password strength
+        function validatePassword(passwordInput) {
+            const value = passwordInput.value;
+            if (value.length < 8)
+                return 'Password must be at least 8 characters long';
+            if (!/[A-Z]/.test(value))
+                return 'Password must contain at least one uppercase letter';
+            if (!/[a-z]/.test(value))
+                return 'Password must contain at least one lowercase letter';
+            if (!/[0-9]/.test(value))
+                return 'Password must contain at least one number';
+            return '';
         }
-        return '';
-    }
-
-    form.addEventListener('submit', function(e) {
-        let isValid = true;
-        
-        // Clear previous errors
-        document.querySelectorAll('.text-red-500').forEach(el => el.remove());
-        document.querySelectorAll('.border-red-500').forEach(el => el.classList.remove('border-red-500'));
-
-        // Password validation
-        const passwordError = validatePassword();
-        if (passwordError) {
-            e.preventDefault();
-            showError(password1Input, passwordError);
-            isValid = false;
-        }
-
-        // Password match validation
-        if (password1Input.value !== password2Input.value) {
-            e.preventDefault();
-            showError(password2Input, 'Passwords do not match');
-            isValid = false;
-        }
-
-        // Email validation
-        if (!emailInput.value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-            e.preventDefault();
-            showError(emailInput, 'Please enter a valid email address');
-            isValid = false;
-        }
-
-        // Phone validation
-        if (!phoneInput.value.match(/^\d{10}$/)) {
-            e.preventDefault();
-            showError(phoneInput, 'Please enter a valid 10-digit phone number');
-            isValid = false;
-        }
-
-        return isValid;
+    
+        // Validate form on submit
+        form.addEventListener('submit', function (e) {
+            let isValid = true;
+    
+            // Clear all previous errors
+            Object.values(fields).forEach(clearError);
+    
+            // Validate password strength
+            const pwdError = validatePassword(fields.password1);
+            if (pwdError) {
+                showError(fields.password1, pwdError);
+                isValid = false;
+            }
+    
+            // Match password and confirm
+            if (fields.password1.value !== fields.password2.value) {
+                showError(fields.password2, 'Passwords do not match');
+                isValid = false;
+            }
+    
+            // Email format check
+            if (!validateField(fields.email, /^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please enter a valid email address')) {
+                isValid = false;
+            }
+    
+            // Phone number format
+            if (!validateField(fields.phone, /^\d{10}$/, 'Please enter a valid 10-digit phone number')) {
+                isValid = false;
+            }
+    
+            if (!isValid) e.preventDefault();
+        });
+    
+        // Real-time validations
+        fields.password1.addEventListener('input', () => {
+            clearError(fields.password1);
+            const err = validatePassword(fields.password1);
+            if (err) showError(fields.password1, err);
+        });
+    
+        fields.password2.addEventListener('input', () => {
+            clearError(fields.password2);
+            if (fields.password1.value !== fields.password2.value) {
+                showError(fields.password2, 'Passwords do not match');
+            }
+        });
     });
-
-    // Real-time password validation
-    password1Input.addEventListener('input', function() {
-        clearError(password1Input);
-        const error = validatePassword();
-        if (error) {
-            showError(password1Input, error);
-        }
-    });
-
-    // Real-time password match validation
-    password2Input.addEventListener('input', function() {
-        clearError(password2Input);
-        if (password1Input.value !== password2Input.value) {
-            showError(password2Input, 'Passwords do not match');
-        }
-    });
-});
 </script>
+    
 {% endblock %}

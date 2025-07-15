@@ -564,108 +564,265 @@ def api_brands(request):
             'details': str(e)
         }, status=500)
 
-@login_required(login_url='adminLogin')
+from django.http import JsonResponse
+from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
+from django.db.models import Q, Sum, Min
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+@login_required
+@require_http_methods(["GET"])
 def api_products(request):
+    """
+    Improved API endpoint for fetching products with better error handling,
+    optimized queries, and proper data validation.
+    """
     try:
-        # Get query parameters with defaults
-        search = request.GET.get('search', '')
-        page = int(request.GET.get('page', 1))
-        per_page = int(request.GET.get('per_page', 10))
-        sort_field = request.GET.get('sort_field', 'id')
-        sort_direction = request.GET.get('sort_direction', 'asc')
+        # Get and validate query parameters
+        search = request.GET.get('search', '').strip()
+        page = max(1, int(request.GET.get('page', 1)))
+        per_page = min(100, max(1, int(request.GET.get('per_page', 10))))
+        sort_field = request.GET.get('sort_field', 'name').strip()
+        sort_direction = request.GET.get('sort_direction', 'asc').strip()
+        status_filter = request.GET.get('status', 'all').strip()
+        category_filter = request.GET.get('category', 'all').strip()
         
-        # Special handling for common sort fields that might be requested but don't exist directly
-        if sort_field == 'created_at':
-            logger.info("Sorting by 'created_at' requested, falling back to 'id'")
-            sort_field = 'id'
-            
-        # Define valid sort fields based on your model fields
-        valid_sort_fields = ['id', 'name', 'brand', 'category', 'is_active']
+        # Define valid sort fields to prevent SQL injection
+        VALID_SORT_FIELDS = {
+            'id': 'id',
+            'name': 'name',
+            'brand': 'brand__name',
+            'category': 'category__name',
+            'is_active': 'is_active',
+            'created_at': 'created_at',
+            'updated_at': 'updated_at'
+        }
         
-        # Validate sort field to prevent error with non-existent fields
-        if sort_field not in valid_sort_fields:
-            # Log the invalid sort field attempt
-            logger.warning(f"Invalid sort field requested: {sort_field}")
-            # Default to id if invalid sort field is requested
-            sort_field = 'id'
+        # Validate and map sort field
+        if sort_field not in VALID_SORT_FIELDS:
+            logger.warning(f"Invalid sort field requested: {sort_field}, defaulting to 'name'")
+            sort_field = 'name'
+        
+        sort_field_mapped = VALID_SORT_FIELDS[sort_field]
         
         # Apply sorting direction
+        if sort_direction not in ['asc', 'desc']:
+            sort_direction = 'asc'
+            
         if sort_direction == 'desc':
-            sort_field = f'-{sort_field}'
+            sort_field_mapped = f'-{sort_field_mapped}'
         
-        # Filter products based on search query if provided
-        products_query = Product.objects.all()
+        # Build the query with optimized select_related and prefetch_related
+        products_query = Product.objects.select_related(
+            'category', 'brand'
+        ).prefetch_related(
+            'variants',
+            'variants__sizes'
+        )
+        
+        # Apply search filter
         if search:
-            products_query = products_query.filter(name__icontains=search)
+            products_query = products_query.filter(
+                Q(name__icontains=search) |
+                Q(brand__name__icontains=search) |
+                Q(category__name__icontains=search)
+            )
+        
+        # Apply status filter
+        if status_filter in ['active', 'blocked']:
+            is_active = status_filter == 'active'
+            products_query = products_query.filter(is_active=is_active)
+        
+        # Apply category filter
+        if category_filter != 'all':
+            try:
+                category_id = int(category_filter)
+                products_query = products_query.filter(category_id=category_id)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid category filter: {category_filter}")
         
         # Apply sorting
-        products_query = products_query.order_by(sort_field)
+        try:
+            products_query = products_query.order_by(sort_field_mapped)
+        except Exception as e:
+            logger.error(f"Error applying sort: {str(e)}")
+            products_query = products_query.order_by('name')
         
         # Set up pagination
         paginator = Paginator(products_query, per_page)
+        
         try:
             products_page = paginator.page(page)
-        except (PageNotAnInteger, EmptyPage):
-            # Default to first page if page number is invalid
+        except PageNotAnInteger:
+            logger.warning(f"Invalid page number: {page}, defaulting to page 1")
             products_page = paginator.page(1)
+            page = 1
+        except EmptyPage:
+            logger.warning(f"Page {page} is out of range, defaulting to last page")
+            products_page = paginator.page(paginator.num_pages)
+            page = paginator.num_pages
         
-        # Prepare data for JSON response
+        # Prepare optimized data for JSON response
         products_data = []
-        for product in products_page:
-            # Get product variants - handle possible related object errors
-            try:
-                variants = product.variants.all()
-                
-                # Calculate total stock across all variants and sizes
-                total_stock = 0
-                price = 0
-                for variant in variants:
-                    # Handle possible missing sizes relationship
-                    try:
-                        for size in variant.sizes.all():
-                            total_stock += size.stock
-                    except Exception as e:
-                        logger.error(f"Error processing sizes for variant {variant.id}: {str(e)}")
-                    
-                    # Get minimum price from variants
-                    if variant.price and (price == 0 or variant.price < price):
-                        price = variant.price
-            except Exception as e:
-                # Handle case where variants relationship might fail
-                logger.error(f"Error processing variants for product {product.id}: {str(e)}")
-                variants = []
-                total_stock = 0
-                price = 0
-            
-            # Create product data dictionary with safe access to relations
-            products_data.append({
-                'id': product.id,
-                'name': product.name,
-                'category': product.category.name if hasattr(product, 'category') and product.category else "N/A",
-                'brand': product.brand.name if hasattr(product, 'brand') and product.brand else "N/A",
-                'price': float(price) if price else 0,
-                'stock': total_stock,
-                'is_active': product.is_active,
-            })
         
-        # Create response with pagination metadata
+        for product in products_page:
+            try:
+                # Get category and brand names safely
+                category_name = product.category.name if product.category else "N/A"
+                brand_name = product.brand.name if product.brand else "N/A"
+                
+                # Calculate aggregated data from variants (optimized)
+                total_stock = 0
+                min_price = None
+                
+                # Use the prefetched variants to avoid additional queries
+                for variant in product.variants.all():
+                    # Calculate stock from prefetched sizes
+                    variant_stock = sum(size.stock for size in variant.sizes.all())
+                    total_stock += variant_stock
+                    
+                    # Track minimum price
+                    if variant.price:
+                        if min_price is None or variant.price < min_price:
+                            min_price = variant.price
+                
+                # Create product data dictionary
+                product_data = {
+                    'id': product.id,
+                    'name': product.name,
+                    'category': category_name,
+                    'brand': brand_name,
+                    'price': float(min_price) if min_price else 0.0,
+                    'stock': total_stock,
+                    'is_active': product.is_active,
+                    'created_at': product.created_at.isoformat() if hasattr(product, 'created_at') else None,
+                }
+                
+                products_data.append(product_data)
+                
+            except Exception as e:
+                logger.error(f"Error processing product {product.id}: {str(e)}")
+                # Continue with other products even if one fails
+                continue
+        
+        # Create response with comprehensive pagination metadata
         response_data = {
             'items': products_data,
-            'page': products_page.number,
+            'page': page,
+            'per_page': per_page,
             'total_pages': paginator.num_pages,
             'total': paginator.count,
+            'has_next': products_page.has_next(),
+            'has_previous': products_page.has_previous(),
+            'search': search,
+            'status_filter': status_filter,
+            'category_filter': category_filter,
+            'sort_field': sort_field,
+            'sort_direction': sort_direction
         }
         
-        return JsonResponse(response_data)
+        return JsonResponse(response_data, safe=False)
+        
+    except ValueError as e:
+        logger.error(f"ValueError in api_products: {str(e)}")
+        return JsonResponse({
+            'error': 'Invalid parameter value',
+            'message': str(e)
+        }, status=400)
         
     except Exception as e:
-        # Log the error for server-side debugging
-        logger.error(f"Error in api_products view: {str(e)}")
-        # Return error response to client
+        logger.error(f"Unexpected error in api_products: {str(e)}")
         return JsonResponse({
-            'error': 'An error occurred while fetching products.',
-            'details': str(e)
+            'error': 'An unexpected error occurred while fetching products',
+            'message': str(e) if settings.DEBUG else 'Internal server error'
         }, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def toggle_product_status(request, product_id):
+    """
+    Improved toggle product status view with better error handling
+    and validation.
+    """
+    try:
+        # Validate product_id
+        if not product_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Product ID is required'
+            }, status=400)
+        
+        # Get the product
+        try:
+            product = Product.objects.get(id=product_id)
+        except Product.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': f'Product with ID {product_id} not found'
+            }, status=404)
+        
+        # Toggle the status
+        product.is_active = not product.is_active
+        product.save(update_fields=['is_active'])
+        
+        logger.info(f"Product {product_id} status toggled to {'active' if product.is_active else 'blocked'}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Product status updated to {"active" if product.is_active else "blocked"}',
+            'is_active': product.is_active
+        })
+        
+    except Exception as e:
+        logger.error(f"Error toggling product status for ID {product_id}: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': 'An error occurred while updating product status',
+            'message': str(e) if settings.DEBUG else 'Internal server error'
+        }, status=500)
+
+
+# Alternative optimized query using database aggregation (for better performance)
+@login_required
+@require_http_methods(["GET"])
+def api_products_optimized(request):
+    """
+    Ultra-optimized version using database aggregation for large datasets
+    """
+    try:
+        # Same parameter validation as above...
+        search = request.GET.get('search', '').strip()
+        page = max(1, int(request.GET.get('page', 1)))
+        per_page = min(100, max(1, int(request.GET.get('per_page', 10))))
+        
+        # Use database aggregation for better performance
+        products_query = Product.objects.select_related(
+            'category', 'brand'
+        ).annotate(
+            total_stock=Sum('variants__sizes__stock'),
+            min_price=Min('variants__price')
+        )
+        
+        # Apply filters (same as above)...
+        if search:
+            products_query = products_query.filter(
+                Q(name__icontains=search) |
+                Q(brand__name__icontains=search) |
+                Q(category__name__icontains=search)
+            )
+        
+        # Pagination
+        paginator = Paginator(products_query, per_page)
+        products_page = paginator.page
+    except Exception as e:
+        logger.error(f"Error in api_products_optimized: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
         
 @login_required(login_url='adminLogin')
 def addVariant(request, product_id):
@@ -878,20 +1035,20 @@ def deleteVariant(request, variant_id):
     
     return redirect('adminProducts')
 
-@login_required(login_url='adminLogin')
-def toggle_product_status(request, product_id):
-    print(f"Toggling status for product ID: {product_id}")
-    try:
-        product = Product.objects.get(id=product_id)
-        product.is_active = not product.is_active
-        product.save()
+# @login_required(login_url='adminLogin')
+# def toggle_product_status(request, product_id):
+#     print(f"Toggling status for product ID: {product_id}")
+#     try:
+#         product = Product.objects.get(id=product_id)
+#         product.is_active = not product.is_active
+#         product.save()
         
        
-        return JsonResponse({'success': True, 'status': 'active' if product.is_active else 'blocked'})
-    except Product.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Product not found'}, status=404)
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+#         return JsonResponse({'success': True, 'status': 'active' if product.is_active else 'blocked'})
+#     except Product.DoesNotExist:
+#         return JsonResponse({'success': False, 'error': 'Product not found'}, status=404)
+#     except Exception as e:
+#         return JsonResponse({'success': False, 'error': str(e)}, status=500)
     
 @login_required(login_url='adminLogin')
 def toggleVariant(request, variant_id):
@@ -1442,8 +1599,16 @@ def get_return_requests(request):
 @login_required(login_url='adminLogin')
 def handle_return_request(request, return_request_id):
     try:
+        print(f"Handling return request: {return_request_id}")
+        print(f"Request method: {request.method}")
+        print(f"Request path: {request.path}")
+        
         data = json.loads(request.body)
+        print(f"Request data: {data}")
+        
         return_request = get_object_or_404(ReturnRequest, id=return_request_id)
+        print(f"Found return request: {return_request.id}")
+        
         action = data.get('action')
         admin_response = data.get('response', '')
 
@@ -1506,12 +1671,66 @@ def handle_return_request(request, return_request_id):
             })
             
     except Exception as e:
-        logger.error(f"Error handling return request: {str(e)}")
+        error_message = f"Error handling return request: {str(e)}"
+        print(error_message)
+        logger.error(error_message)
+        import traceback
+        print(traceback.format_exc())
         return JsonResponse({
             'success': False,
             'message': f'An error occurred: {str(e)}'
-
         }, status=400)
+
+@login_required(login_url='adminLogin')
+def get_return_request_info(request, return_request_id):
+    """API endpoint to get information about a specific return request"""
+    try:
+        print(f"Getting info for return request: {return_request_id}")
+        
+        # Try to find the return request
+        try:
+            return_request = ReturnRequest.objects.select_related(
+                'user', 'order_item', 'order_item__order', 'order_item__variant', 'order_item__variant__product'
+            ).get(id=return_request_id)
+        except ReturnRequest.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': f'Return request with ID {return_request_id} not found'
+            }, status=404)
+        
+        # Format the request data
+        order_id = return_request.order_item.order.order_id if return_request.order_item and hasattr(return_request.order_item, 'order') and return_request.order_item.order else 'N/A'
+        product_name = return_request.order_item.variant.product.name if return_request.order_item and hasattr(return_request.order_item, 'variant') and hasattr(return_request.order_item.variant, 'product') else 'N/A'
+        variant_color = return_request.order_item.variant.color if return_request.order_item and hasattr(return_request.order_item, 'variant') else ''
+        
+        request_data = {
+            'id': return_request.id,
+            'order_id': order_id,
+            'customer': return_request.user.username if return_request.user else 'N/A',
+            'customer_email': return_request.user.email if return_request.user else 'N/A',
+            'product': f"{product_name} ({variant_color})" if variant_color else product_name,
+            'reason': return_request.get_reason_display(),
+            'description': return_request.description,
+            'status': return_request.status,
+            'created_at': return_request.created_at.strftime('%Y-%m-%d %H:%M'),
+            'admin_response': return_request.admin_response or ''
+        }
+        
+        return JsonResponse({
+            'success': True,
+            'request': request_data
+        })
+        
+    except Exception as e:
+        error_message = f"Error getting return request info: {str(e)}"
+        print(error_message)
+        logger.error(error_message)
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
+        }, status=500)
 
 
 @login_required(login_url='adminLogin')
@@ -2296,20 +2515,7 @@ def deleteVariant(request, variant_id):
     
     return redirect('adminProducts')
 
-@login_required(login_url='adminLogin')
-def toggle_product_status(request, product_id):
-    print(f"Toggling status for product ID: {product_id}")
-    try:
-        product = Product.objects.get(id=product_id)
-        product.is_active = not product.is_active
-        product.save()
-        
-       
-        return JsonResponse({'success': True, 'status': 'active' if product.is_active else 'blocked'})
-    except Product.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Product not found'}, status=404)
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
     
 @login_required(login_url='adminLogin')
 def toggleVariant(request, variant_id):
