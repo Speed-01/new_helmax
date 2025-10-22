@@ -114,7 +114,11 @@ def admin_logout(request):
     return redirect('adminLogin')
 
 
+<<<<<<< HEAD
 @never_cache
+=======
+
+>>>>>>> 9ed6be7 (Middleware for nocache)
 @login_required(login_url='adminLogin')
 def customers(request):
     credential = request.GET.get("value", "")
