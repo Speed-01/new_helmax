@@ -74,7 +74,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "helmax.middleware.NoCacheMiddleware"
+    "helmax.middleware.NoCacheMiddleware",
+    "helmax.middleware.AdminLoginRequiredMiddleware"
 ]
 
 ROOT_URLCONF = "helmax.urls"
