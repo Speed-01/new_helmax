@@ -4,17 +4,18 @@ from django.contrib import messages
 from django.utils.timezone import now
 from manager.forms import SignupForm, OTPVerificationForm, PasswordResetRequestForm,SetPasswordForm
 from .forms import AddressForm
-from django.http import Http404
-from django.conf import settings
-import os
-import random
-from decimal import Decimal
-from .invoice_generator import generate_invoice_pdf
+from manager.models import OTP,User,Category, Brand, Size, Product, Variant, ProductImage, Review, Address, Cart, CartItem,PaymentMethod, Coupon, CouponUsage, Wishlist, ReturnRequest, Wallet, WalletTransaction
+from datetime import timezone
+from django.views.decorators.cache import never_cache
+from django.http import  JsonResponse
 from manager.models import (
     OTP, User, Category, Brand, Size, Product, Variant, ProductImage,   
     Review, Address, Cart, CartItem, Coupon, CouponUsage, PaymentMethod,
     Order, OrderItem, Wishlist, ReturnRequest, Wallet, WalletTransaction
 )
+import os
+from django.http import Http404
+ 
 
 PAYMENT_METHODS = [
     {'id': 'razorpay', 'name': 'Razorpay', 'description': 'Pay using Credit/Debit Card, UPI, or Net Banking'},
@@ -22,31 +23,14 @@ PAYMENT_METHODS = [
 ]
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.cache import never_cache
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.core.exceptions import ValidationError
-from django.db import transaction
-from django.http import JsonResponse
-from django.urls import reverse
-import logging
-from django.contrib.auth.decorators import login_required
-from django.db import transaction
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
-import json
-from django.utils import timezone
-from django.views.decorators.cache import never_cache
 from django.http import  JsonResponse, HttpResponse
 import json
 from django.conf import settings
 from django.apps import apps
-from .utils import send_otp_email
+from .utils import send_otp_email, generate_invoice_pdf
 from django.views.decorators.http import require_POST, require_GET, require_http_methods
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.views.decorators.csrf import csrf_exempt
-from google.oauth2 import id_token
-from google.auth.transport import requests
 from django.contrib.auth import get_user_model
 import logging  
 from django.db.models import Sum, F, Count
@@ -595,7 +579,6 @@ def product_list(request):
     brands_filter = request.GET.get('brands')
     min_price = request.GET.get('min_price')
     max_price = request.GET.get('max_price')
-    sort_option = request.GET.get('sort', 'new_arrivals')
     
     if categories_filter:
         category_ids = categories_filter.split(',')
@@ -1694,112 +1677,94 @@ logger = logging.getLogger(__name__)
 @login_required
 @require_http_methods(['POST'])
 def place_order(request):
-    try:
-        address_id = request.POST.get('address_id')
-        payment_method = request.POST.get('payment_method')
-        delivery_charge = float(request.POST.get('delivery_charge', 0))
-        
-        # Validate inputs
-        if not address_id:
-            return JsonResponse({'success': False, 'message': 'Please select a delivery address'})
-        
-        if not payment_method:
-            return JsonResponse({'success': False, 'message': 'Please select a payment method'})
-            
-        # Get user cart
-        cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
-        if not cart or not cart.items.exists():
-            return JsonResponse({'success': False, 'message': 'Your cart is empty'})
-            
-        # Get delivery address
+    if request.method == 'POST':
         try:
-            address = Address.objects.get(id=address_id, user=request.user)
-        except Address.DoesNotExist:
-            return JsonResponse({'success': False, 'message': 'Invalid delivery address'})
+            address_id = request.POST.get('address_id')
+            payment_method = request.POST.get('payment_method')
             
-        # Convert delivery charge to Decimal for consistent type handling
-        from decimal import Decimal
-        delivery_charge_decimal = Decimal(str(delivery_charge))
-        
-        # Calculate total amount including delivery charge
-        amount = cart.final_price + delivery_charge_decimal
-        
-        # Validate if COD is allowed
-        if payment_method == 'cod':
-            if amount > Decimal('2000'):
-                return JsonResponse({
-                    'success': False, 
-                    'message': 'Cash on Delivery is not available for orders above ₹2,000'
-                })
-            # Additional COD validation
-            if not address.city or not address.state:
-                return JsonResponse({
-                    'success': False,
-                    'message': 'Complete address details required for Cash on Delivery'
-                })
-            # Free delivery - no validation needed
-            delivery_charge_decimal = Decimal('0')
-        
-        # Create order
-        order = Order.objects.create(
-            user=request.user,
-            address=address,
-            payment_method=payment_method,
-            total_price=cart.total_price,
-            final_price=amount,  # Including delivery charge
-            discount=cart.total_discount,
-            delivery_charge=delivery_charge,
-            coupon=cart.coupon
-        )
-        
-        # Create order items
-        for cart_item in cart.items.all():
-            OrderItem.objects.create(
-                order=order,
-                variant=cart_item.variant,
-                size=cart_item.size,
-                quantity=cart_item.quantity,
-                price=cart_item.variant.final_price,
-                total_price=cart_item.variant.final_price * cart_item.quantity
-            )
-            
-            # Update product stock
-            cart_item.size.stock -= cart_item.quantity
-            cart_item.size.save()
-        
-        # Handle payment based on payment method
-        if payment_method == 'razorpay':
-            # Create Razorpay order
-            razorpay_order = create_razorpay_order(order)
-            
-            return JsonResponse({
-                'success': True,
-                'razorpay_order_id': razorpay_order.get('id'),
-                'amount': int(amount * 100),  # Convert to paisa
-                'order_id': order.order_id  # Use the formatted order_id instead of numeric ID
-            })
-        else:
-            # For COD, mark order as placed
-            order.status = 'PLACED'
-            order.save()
-            
-            # Clear cart
-            cart.items.all().delete()
-            cart.applied_coupon = None
-            cart.save()
-            
-            return JsonResponse({
-                'success': True,
-                'redirect_url': reverse('order_success', args=[order.order_id])
-            })
-            
-    except Exception as e:
-        logger.error(f"Order placement error: {str(e)}", exc_info=True)
-        return JsonResponse({
-            'success': False,
-            'message': 'An error occurred while placing your order. Please try again.'
-        })
+            if not address_id:
+                return JsonResponse({'success': False, 'message': 'Please select a delivery address'})
 
+            # Get the address
+            try:
+                address = Address.objects.get(id=address_id, user=request.user)
+            except Address.DoesNotExist:
+                return JsonResponse({'success': False, 'message': 'Invalid address'})
+
+            # Get the cart
+            cart = Cart.objects.get(user=request.user, is_ordered=False)
+            if not cart.items.exists():
+                return JsonResponse({'success': False, 'message': 'Your cart is empty'})
+
+            # Get or create payment methods if they don't exist
+            cod_method, _ = PaymentMethod.objects.get_or_create(
+                name='COD'
+            )
+            razorpay_method, _ = PaymentMethod.objects.get_or_create(
+                name='Razorpay'
+            )
+
+            # Set payment method based on selection
+            if payment_method == 'razorpay':
+                payment_method_id = razorpay_method.id
+            else:
+                payment_method_id = cod_method.id
+
+            # Create the order
+            order = Order.objects.create(
+                user=request.user,
+                total_amount=cart.total_price,
+                paymentmethod_id=payment_method_id,
+                full_name=address.full_name,
+                email=address.email,
+                phone=address.phone,
+                address_line1=address.address_line1,
+                address_line2=address.address_line2,
+                city=address.city,
+                state=address.state,
+                pincode=address.pincode
+            )
+
+            # Create order items
+            for cart_item in cart.items.all():
+                OrderItem.objects.create(
+                    order=order,
+                    product=cart_item.variant.product,
+                    variant=cart_item.variant,
+                    size=cart_item.size,
+                    quantity=cart_item.quantity,
+                    price=cart_item.variant.discount_price or cart_item.variant.price
+                )
+
+            # If Razorpay payment
+            if payment_method == 'razorpay':
+                client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+                amount_in_paise = int(order.total_amount * 100)
+                razorpay_order = client.order.create({
+                    "amount": amount_in_paise,
+                    "currency": "INR",
+                    "payment_capture": "1"
+                })
+                order.razorpay_order_id = razorpay_order['id']
+                order.save()
+                
+                return JsonResponse({
+                    'success': True,
+                    'razorpay_order_id': razorpay_order['id'],
+                    'amount': amount_in_paise,
+                })
+            else:
+                # For COD
+                return JsonResponse({
+                    'success': True,
+                    'redirect_url': reverse('order_confirmation', args=[order.id])
+                })
+
+        except Exception as e:
+            logger.error(f"Error in place_order: {str(e)}")
+            return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'})
+
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
 
 @csrf_exempt
 @login_required
@@ -3164,166 +3129,11 @@ def auto_cancel_expired_orders():
 
 @login_required
 def wallet_view(request):
-    """View to display user's wallet and transaction history"""
-    try:
-        # Get or create wallet for user
-        wallet, created = Wallet.objects.get_or_create(user=request.user)
-        
-        # Get all transactions with related orders
-        transactions = WalletTransaction.objects.filter(wallet=wallet)\
-            .select_related('order')\
-            .order_by('-created_at')
-
-        # Prepare transaction data
-        transaction_data = []
-        for transaction in transactions:
-            data = {
-                'id': transaction.id,
-                'amount': transaction.amount,
-                'type': transaction.transaction_type,
-                'description': transaction.description,
-                'date': transaction.created_at,
-                'status': transaction.status,
-                'order_number': transaction.order.order_number if transaction.order else None
-            }
-            transaction_data.append(data)
-
-        context = {
-            'wallet': wallet,
-            'transactions': transaction_data,
-            'total_credits': sum(t.amount for t in transactions if t.transaction_type in ['CREDIT', 'REFUND']),
-            'total_debits': sum(t.amount for t in transactions if t.transaction_type == 'DEBIT'),
-        }
-        
-        return render(request, 'wallet.html', context)
-        
-    except Exception as e:
-        logger.error(f"Error in wallet view: {str(e)}")
-        messages.error(request, "An error occurred while loading your wallet.")
-        return redirect('home')
-
-@login_required
-def check_payment_status(request, order_id):
-    """Check the payment status and expiry time for an order"""
-    try:
-        # Get the order
-        order = Order.objects.get(order_id=order_id, user=request.user)
-        
-        # Check if payment is already complete
-        if order.payment_status == 'PAID':
-            return JsonResponse({
-                'status': 'success',
-                'payment_status': 'PAID',
-                'message': 'Payment has been completed successfully',
-                'redirect_url': reverse('order_details', args=[order.order_id])
-            })
-        
-        # Check if order is cancelled
-        if order.order_status == 'CANCELLED':
-            return JsonResponse({
-                'status': 'error',
-                'payment_status': 'CANCELLED',
-                'message': 'This order has been cancelled',
-                'redirect_url': reverse('my_orders')
-            })
-        
-        # Check payment expiry
-        now = timezone.now()
-        can_retry = True
-        remaining_seconds = 0
-        
-        if order.payment_expiry_time:
-            if now > order.payment_expiry_time:
-                # Payment time has expired
-                can_retry = False
-                message = 'Payment time has expired'
-            else:
-                # Calculate remaining time
-                time_diff = order.payment_expiry_time - now
-                remaining_seconds = int(time_diff.total_seconds())
-                minutes = remaining_seconds // 60
-                seconds = remaining_seconds % 60
-                message = f'You have {minutes} minutes and {seconds} seconds to complete payment'
-        else:
-            message = 'No payment expiry time set'
-        
-        return JsonResponse({
-            'status': 'success',
-            'payment_status': order.payment_status,
-            'order_status': order.order_status,
-            'can_retry': can_retry,
-            'remaining_seconds': remaining_seconds,
-            'expiry_time': order.payment_expiry_time.isoformat() if order.payment_expiry_time else None,
-            'message': message
-        })
-        
-    except Order.DoesNotExist:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'Order not found'
-        })
-    except Exception as e:
-        logger.error(f"Error checking payment status: {str(e)}", exc_info=True)
-        return JsonResponse({
-            'status': 'error',
-            'message': 'An error occurred while checking payment status'
-        })
-
-@login_required
-def get_product_details(request, variant_id):
-    """Get product details for quick view"""
-    try:
-        variant = get_object_or_404(
-            Variant.objects.select_related('product')
-            .prefetch_related('images', 'sizes'),
-            id=variant_id,
-            is_active=True,
-            product__is_active=True
-        )
-        
-        # Get primary image or first image
-        primary_image = variant.images.filter(is_primary=True).first()
-        if not primary_image:
-            primary_image = variant.images.first()
-            
-        data = {
-            'id': variant.id,
-            'product_id': variant.product.id,
-            'product_name': variant.product.name,
-            'color': variant.color,
-            'price': variant.price,
-            'discount_price': variant.discount_price,
-            'description': variant.product.description,
-            'image_url': primary_image.image.url if primary_image else None,
-            'stock': sum(size.stock for size in variant.sizes.all()),
-            'sizes': [{'id': size.id, 'name': size.name, 'stock': size.stock} for size in variant.sizes.all()]
-        }
-        
-        return JsonResponse({'success': True, **data})
-        
-    except Variant.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Product not found'}, status=404)
-    except Exception as e:
-        return JsonResponse({'success': False, 'message': str(e)}, status=500)
-
-@login_required
-def get_variant_sizes(request, variant_id):
-    """Get available sizes for a variant"""
-    try:
-        variant = Variant.objects.get(id=variant_id, is_active=True)
-        sizes = variant.sizes.all()
-        
-        size_data = [{
-            'name': size.name,
-            'stock': size.stock,
-            'is_available': size.stock > 0
-        } for size in sizes]
-        
-        return JsonResponse({
-            'success': True,
-            'sizes': size_data
-        })
-    except Variant.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Product variant not found'}, status=404)
-    except Exception as e:
-        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+    wallet, created = Wallet.objects.get_or_create(user=request.user)
+    transactions = WalletTransaction.objects.filter(wallet=wallet).order_by('-created_at')
+    
+    context = {
+        'wallet': wallet,
+        'transactions': transactions
+    }
+    return render(request, 'wallet.html', context)
