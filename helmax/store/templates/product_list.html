@@ -161,13 +161,11 @@
                                         >
                                         <div class="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent opacity-0 group-hover:opacity-60 transition-opacity duration-300"></div>
                                         
-                                        {% with best_offer=product.get_best_offer %}
-                                        {% if best_offer %}
+                                        {% if product.primary_variant and product.primary_variant.discount_percentage %}
                                         <div class="absolute top-2 right-2 bg-[#ff6b00] text-white text-xs font-bold px-2 py-1 rounded-sm">
-                                            -{{ best_offer.discount_percentage }}%
+                                            -{{ product.primary_variant.discount_percentage }}%
                                         </div>
                                         {% endif %}
-                                        {% endwith %}
                                         
                                         <!-- Wishlist Heart Icon -->
                                         <button 
@@ -190,8 +188,8 @@
                                         <div class="flex items-center justify-between">
                                             <div class="flex items-center gap-2">
                                                 {% with pv=product.primary_variant %}
-                                                    {% if pv.discount_price and pv.discount_price < pv.price %}
-                                                        <span class="text-xl font-medium text-[#ff6b00]">₹{{ pv.discount_price|floatformat:2 }}</span>
+                                                    {% if pv.final_price and pv.final_price < pv.price %}
+                                                        <span class="text-xl font-medium text-[#ff6b00]">₹{{ pv.final_price|floatformat:2 }}</span>
                                                         <span class="text-sm text-gray-400 line-through">₹{{ pv.price|floatformat:2 }}</span>
                                                         <span class="text-xs text-[#ff6b00] ml-2">({{ pv.discount_percentage }}% off)</span>
                                                     {% else %}

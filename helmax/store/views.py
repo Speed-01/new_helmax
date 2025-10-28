@@ -758,12 +758,19 @@ def product_list(request):
             variant_stock = sum(size.stock for size in variant.sizes.all())
             total_stock += variant_stock
             
-            # Calculate discount percentage
+            # Determine final price (accounts for product/category offers via Variant.final_price)
+            try:
+                final_price_val = float(variant.final_price)
+            except Exception:
+                final_price_val = float(variant.price)
+
+            # Calculate discount percentage based on final price
             discount_percentage = 0
-            if variant.discount_price and variant.price and variant.price > 0:
-                discount_percentage = int(
-                    ((variant.price - variant.discount_price) / variant.price) * 100
-                )
+            try:
+                if variant.price and final_price_val < float(variant.price) and float(variant.price) > 0:
+                    discount_percentage = int(((float(variant.price) - final_price_val) / float(variant.price)) * 100)
+            except Exception:
+                discount_percentage = 0
             
             # Default to None for image_url if no image exists
             image_url = None
@@ -778,6 +785,7 @@ def product_list(request):
                 'color': variant.color,
                 'price': float(variant.price),
                 'discount_price': float(variant.discount_price) if variant.discount_price else None,
+                'final_price': final_price_val,
                 'stock': variant_stock,
                 'discount_percentage': discount_percentage,
                 'image_url': image_url,  # This will be None if no image exists
