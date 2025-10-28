@@ -1,28 +1,53 @@
+# ────────────────────────────────────────────────
+# Standard library imports
+# ────────────────────────────────────────────────
+import json
+import logging
+from datetime import datetime, timedelta
+
+# ────────────────────────────────────────────────
+# Django core imports
+# ────────────────────────────────────────────────
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import login, logout, authenticate
 from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_exempt, csrf_protect
+from django.views.decorators.http import require_POST, require_http_methods
 from django.http import JsonResponse, HttpResponse
-from django.db.models import Q, Count, Sum
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db import transaction, models
+from django.db.models import Q, Count, Sum, Min
+from django.utils import timezone
+
+# ────────────────────────────────────────────────
+# Third-party library imports
+# ────────────────────────────────────────────────
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
+
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from django.contrib.auth.decorators import login_required
-from django.views.decorators.csrf import csrf_exempt, csrf_protect
-from django.db import transaction, models
-import json
-from .models import Product,Category,ProductImage,User, Brand, Variant, Size, Coupon, CouponUsage, Order, ReturnRequest, Wallet, WalletTransaction, ProductOffer, CategoryOffer,OrderItem, OrderStatusHistory
-from django.utils import timezone
+
+# ────────────────────────────────────────────────
+# Local application imports
+# ────────────────────────────────────────────────
+from .models import (
+    Product, Category, ProductImage, User, Brand, Variant, Size,
+    Coupon, CouponUsage, Order, ReturnRequest, Wallet, WalletTransaction,
+    ProductOffer, CategoryOffer, OrderItem, OrderStatusHistory
+)
 from .pdf_generator import generate_sales_report_pdf
 from store.utils import send_order_status_notification
-from datetime import datetime, timedelta
-import logging
+
+# ────────────────────────────────────────────────
+# Project-level imports
+# ────────────────────────────────────────────────
+
+from django.conf import settings
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -564,14 +589,7 @@ def api_brands(request):
             'details': str(e)
         }, status=500)
 
-from django.http import JsonResponse
-from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
-from django.db.models import Q, Sum, Min
-from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.decorators import login_required
-import json
-import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -2600,8 +2618,6 @@ def admin_wallet_transaction_detail(request, transaction_id):
         messages.error(request, "An error occurred while loading transaction details.")
         return redirect('admin_wallet')
 
-
-from django.db.models import Sum
 
 
 from manager.models import Order, OrderItem, Product, Category, Brand

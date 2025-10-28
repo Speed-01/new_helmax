@@ -43,6 +43,18 @@ ALLOWED_HOSTS = []
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
+# Cache settings
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+
+# Cache timeout settings
+CACHE_MIDDLEWARE_SECONDS = 600  # 10 minutes
+CACHE_MIDDLEWARE_KEY_PREFIX = 'helmax'
+
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -204,7 +216,8 @@ LOGOUT_REDIRECT_URL = '/'
 LOGIN_URL = '/'
 
 # Razorpay settings
-RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID')
-RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET')
-# RAZORPAY_KEY_ID = 'rzp_test_KDYrLJHnu3O9Ip'
-# RAZORPAY_KEY_SECRET = 'bcOjtnHN19lrbqBWdS35Ee7J'
+RAZORPAY_KEY_ID = 'rzp_test_KDYrLJHnu3O9Ip'
+RAZORPAY_KEY_SECRET = 'bcOjtnHN19lrbqBWdS35Ee7J'
+# Using hardcoded test keys temporarily
+# RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID')
+# RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET')

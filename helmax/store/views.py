@@ -15,7 +15,8 @@ from manager.models import (
 )
 import os
 from django.http import Http404
- 
+from decimal import Decimal
+import random 
 
 PAYMENT_METHODS = [
     {'id': 'razorpay', 'name': 'Razorpay', 'description': 'Pay using Credit/Debit Card, UPI, or Net Banking'},
@@ -33,7 +34,7 @@ from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import get_user_model
 import logging  
-from django.db.models import Sum, F, Count
+from django.db.models import Sum, F, Count, Min, Max, Avg, FloatField, ExpressionWrapper
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.decorators import login_required
@@ -60,171 +61,109 @@ import razorpay
 logger = logging.getLogger(__name__)
 
 def home(request):
+    # Get only necessary fields from categories and brands
+    categories = Category.objects.filter(is_active=True).only('id', 'name')
+    brands = Brand.objects.filter(is_active=True).only('id', 'name')
+    
+    # Optimize variant query
+    active_variants = Variant.objects.filter(
+        is_active=True
+    ).select_related(
+        'product'
+    ).prefetch_related(
+        'images',
+        'sizes'
+    ).annotate(
+        stock_total=Sum('sizes__stock')
+    )
+
+    # Get featured/latest products with optimized querying
     products = (
         Product.objects.filter(is_active=True)
-        .prefetch_related('variants', 'variants__images')
         .select_related('category', 'brand')
-    )[:10]  
-
-    # product_data = []
-    # for product in products:
-    #     primary_variant = product.variants.first()
-    #     if primary_variant:
-    #         primary_image = primary_variant.images.filter(is_primary=True).first()
-    #         print(primary_variant)  # Check if primary_variant is correctly fetched
-    #         print(primary_image) 
-    #         product_data.append({
-    #             'id': product.id,
-    #             'name': product.name,
-    #             'description': product.description,
-    #             'price': primary_variant.discount_price or primary_variant.price,
-    #             'image_url': primary_image.image.url if primary_image else 'default_image.jpg',
-    #         })
-
-    return render(request, 'home.html', {'products': products})
-
-
-def prepare_product_data(products):
-    product_data = []
-    for product in products:
-        # Get first active variant
-        first_variant = product.variants.filter(is_active=True).first()
-        if first_variant:
-            # Get primary image or first image
-            primary_image = first_variant.images.filter(is_primary=True).first()
-            if not primary_image:
-                primary_image = first_variant.images.first()
-
-            # Calculate total stock
-            total_stock = sum(
-                size.stock 
-                for variant in product.variants.all() 
-                for size in variant.sizes.all()
-            )
-
-            # Calculate discount percentage
-            discount_percentage = None
-            if first_variant.discount_price and first_variant.price:
-                discount_percentage = int(
-                    ((first_variant.price - first_variant.discount_price) / first_variant.price) * 100
-                )
-
-            product_data.append({
-                'id': product.id,
-                'name': product.name,
-                'price': first_variant.price,
-                'discount_price': first_variant.discount_price or first_variant.price,
-                'image_url': primary_image.image.url if primary_image else None,
-                'total_stock': total_stock,
-                'discount_percentage': discount_percentage,
-                'category': product.category.name,
-                'brand': product.brand.name if product.brand else None,
-            })
-    return product_data
-
-def product_search(request):
-    query = request.GET.get('q', '')
-    products = Product.objects.filter(
-        Q(name__icontains=query) | 
-        Q(description__icontains=query),
-        is_active=True
-    ).prefetch_related('variants')
-
-    product_data = []
-    for product in products:
-        variant = product.variants.first()
-        product_data.append({
-            'id': product.id,
-            'name': product.name,
-            'price': variant.price,
-            'image_url': variant.images.first().image.url if variant.images.exists() else '',
-            'description': product.description[:100]
-        })
-
-    return render(request, 'product_list.html', {'products': product_data})
-
-def filter_products(request):
-    products = Product.objects.filter(
-        is_active=True,
-        category__is_active=True
-    ).distinct()
-    
-    # Category filter
-    categories = request.GET.get('categories', '').split(',')
-    if categories and categories[0]:
-        products = products.filter(category_id__in=categories)
-    
-    # Brand filter
-    brands = request.GET.get('brands', '').split(',')
-    if brands and brands[0]:
-        products = products.filter(brand_id__in=brands)
-    
-    # Price filter
-    min_price = request.GET.get('min_price')
-    max_price = request.GET.get('max_price')
-    if min_price and max_price:
-        try:
-            min_price = float(min_price)
-            max_price = float(max_price)
-            products = products.filter(
-                variants__price__gte=min_price,
-                variants__price__lte=max_price
-            ).distinct()
-        except (ValueError, TypeError):
-            # If price conversion fails, ignore price filter
-            pass
-    
-    # Search filter
-    search = request.GET.get('search', '')
-    if search:
-        products = products.filter(
-            Q(name__icontains=search) |
-            Q(description__icontains=search)
+        .prefetch_related(
+            Prefetch('variants', queryset=active_variants)
         )
-    
-    # Sorting
-    sort = request.GET.get('sort', 'new_arrivals')
-    if sort == 'price_low_high':
-        products = products.order_by('variants__price')
-    elif sort == 'price_high_low':
-        products = products.order_by('-variants__price')
-    elif sort == 'name_asc':
-        products = products.order_by('name')
-    elif sort == 'name_desc':
-        products = products.order_by('-name')
-    else:
-        # Default sorting by newest
-        products = products.order_by('-id')
-    
-    # Prepare product data
+        .annotate(
+            total_stock=Sum('variants__sizes__stock'),
+            has_active_variants=Count('variants', filter=Q(variants__is_active=True))
+        )
+        .filter(has_active_variants__gt=0)
+    )[:10]
+
+    # Process products for display
     product_data = []
     for product in products:
         # Get first active variant
         first_variant = product.variants.filter(is_active=True).first()
         if not first_variant:
-            continue  # Skip products without active variants
-            
+            continue
+
         # Get primary image or first image
         primary_image = first_variant.images.filter(is_primary=True).first()
         if not primary_image:
             primary_image = first_variant.images.first()
-            
-        # Add product data
+
+        # Calculate total stock
+        total_stock = sum(
+            size.stock 
+            for variant in product.variants.filter(is_active=True)
+            for size in variant.sizes.all()
+        )
+
+        # Calculate discount percentage if applicable
+        discount_percentage = 0
+        if first_variant.discount_price and first_variant.price:
+            discount_percentage = int(
+                ((first_variant.price - first_variant.discount_price) / first_variant.price) * 100
+            )
+
+        # Get image URL safely
+        image_url = None
+        if primary_image and hasattr(primary_image, 'image'):
+            try:
+                image_url = primary_image.image.url
+            except:
+                pass
+
         product_data.append({
             'id': product.id,
             'name': product.name,
-            'category': product.category.name if product.category else '',
-            'brand': product.brand.name if product.brand else '',
-            'price': float(first_variant.price) if first_variant.price else 0,
-            'discount_price': float(first_variant.discount_price) if first_variant.discount_price else float(first_variant.price) if first_variant.price else 0,
-            'image_url': primary_image.image.url if primary_image and hasattr(primary_image, 'image') else '/static/images/placeholder.jpg',
-            'total_stock': sum(size.stock for size in first_variant.sizes.all()) if first_variant.sizes.exists() else 0,
-            'discount_percentage': int(((first_variant.price - first_variant.discount_price) / first_variant.price) * 100) if first_variant.discount_price and first_variant.price and first_variant.discount_price < first_variant.price else 0
+            'description': product.description,
+            'category': product.category.name if product.category else 'Uncategorized',
+            'brand': product.brand.name if product.brand else 'No Brand',
+            'price': float(first_variant.price),
+            'discount_price': float(first_variant.discount_price) if first_variant.discount_price else None,
+            'image_url': image_url,
+            'total_stock': total_stock,
+            'discount_percentage': discount_percentage
         })
 
-    return JsonResponse({
-        'products': product_data
-    })
+    # Prepare filter data
+    filter_data = {
+        'categories': [{'id': cat.id, 'name': cat.name} for cat in categories],
+        'brands': [{'id': brand.id, 'name': brand.name} for brand in brands],
+        'price_range': {
+            'min': products.aggregate(min_price=Min('variants__price'))['min_price'] or 0,
+            'max': products.aggregate(max_price=Max('variants__price'))['max_price'] or 0
+        },
+        'sort_options': [
+            {'value': 'newest', 'label': 'Newest First'},
+            {'value': 'price_low_high', 'label': 'Price: Low to High'},
+            {'value': 'price_high_low', 'label': 'Price: High to Low'},
+            {'value': 'name_asc', 'label': 'Name: A to Z'},
+            {'value': 'name_desc', 'label': 'Name: Z to A'},
+            {'value': 'popularity', 'label': 'Most Popular'}
+        ]
+    }
+    
+    context = {
+        'products': product_data,
+        'filters': filter_data
+    }
+    
+    return render(request, 'home.html', context)
+
 
 
 def signup(request):
@@ -516,6 +455,148 @@ def confirm_logout(request):
         return redirect('Login')
     return redirect(request.META.get('HTTP_REFERER', 'home'))
 
+def prepare_product_data(products):
+    product_data = []
+    for product in products:
+        # Get first active variant
+        first_variant = product.variants.filter(is_active=True).first()
+        if first_variant:
+            # Get primary image or first image
+            primary_image = first_variant.images.filter(is_primary=True).first()
+            if not primary_image:
+                primary_image = first_variant.images.first()
+
+            # Calculate total stock
+            total_stock = sum(
+                size.stock 
+                for variant in product.variants.all() 
+                for size in variant.sizes.all()
+            )
+
+            # Calculate discount percentage
+            discount_percentage = None
+            if first_variant.discount_price and first_variant.price:
+                discount_percentage = int(
+                    ((first_variant.price - first_variant.discount_price) / first_variant.price) * 100
+                )
+
+            product_data.append({
+                'id': product.id,
+                'name': product.name,
+                'price': first_variant.price,
+                'discount_price': first_variant.discount_price or first_variant.price,
+                'image_url': primary_image.image.url if primary_image else None,
+                'total_stock': total_stock,
+                'discount_percentage': discount_percentage,
+                'category': product.category.name,
+                'brand': product.brand.name if product.brand else None,
+            })
+    return product_data
+
+def product_search(request):
+    query = request.GET.get('q', '')
+    products = Product.objects.filter(
+        Q(name__icontains=query) | 
+        Q(description__icontains=query),
+        is_active=True
+    ).prefetch_related('variants')
+
+    product_data = []
+    for product in products:
+        variant = product.variants.first()
+        product_data.append({
+            'id': product.id,
+            'name': product.name,
+            'price': variant.price,
+            'image_url': variant.images.first().image.url if variant.images.exists() else '',
+            'description': product.description[:100]
+        })
+
+    return render(request, 'product_list.html', {'products': product_data})
+
+def filter_products(request):
+    products = Product.objects.filter(
+        is_active=True,
+        category__is_active=True
+    ).distinct()
+    
+    # Category filter
+    categories = request.GET.get('categories', '').split(',')
+    if categories and categories[0]:
+        products = products.filter(category_id__in=categories)
+    
+    # Brand filter
+    brands = request.GET.get('brands', '').split(',')
+    if brands and brands[0]:
+        products = products.filter(brand_id__in=brands)
+    
+    # Price filter
+    min_price = request.GET.get('min_price')
+    max_price = request.GET.get('max_price')
+    if min_price and max_price:
+        try:
+            min_price = float(min_price)
+            max_price = float(max_price)
+            products = products.filter(
+                variants__price__gte=min_price,
+                variants__price__lte=max_price
+            ).distinct()
+        except (ValueError, TypeError):
+            # If price conversion fails, ignore price filter
+            pass
+    
+    # Search filter
+    search = request.GET.get('search', '')
+    if search:
+        products = products.filter(
+            Q(name__icontains=search) |
+            Q(description__icontains=search)
+        )
+    
+    # Sorting
+    sort = request.GET.get('sort', 'new_arrivals')
+    if sort == 'price_low_high':
+        products = products.order_by('variants__price')
+    elif sort == 'price_high_low':
+        products = products.order_by('-variants__price')
+    elif sort == 'name_asc':
+        products = products.order_by('name')
+    elif sort == 'name_desc':
+        products = products.order_by('-name')
+    else:
+        # Default sorting by newest
+        products = products.order_by('-id')
+    
+    # Prepare product data
+    product_data = []
+    for product in products:
+        # Get first active variant
+        first_variant = product.variants.filter(is_active=True).first()
+        if not first_variant:
+            continue  # Skip products without active variants
+            
+        # Get primary image or first image
+        primary_image = first_variant.images.filter(is_primary=True).first()
+        if not primary_image:
+            primary_image = first_variant.images.first()
+            
+        # Add product data
+        product_data.append({
+            'id': product.id,
+            'name': product.name,
+            'category': product.category.name if product.category else '',
+            'brand': product.brand.name if product.brand else '',
+            'price': float(first_variant.price) if first_variant.price else 0,
+            'discount_price': float(first_variant.discount_price) if first_variant.discount_price else float(first_variant.price) if first_variant.price else 0,
+            'image_url': primary_image.image.url if primary_image and hasattr(primary_image, 'image') else '/static/images/placeholder.svg',
+            'total_stock': sum(size.stock for size in first_variant.sizes.all()) if first_variant.sizes.exists() else 0,
+            'discount_percentage': int(((first_variant.price - first_variant.discount_price) / first_variant.price) * 100) if first_variant.discount_price and first_variant.price and first_variant.discount_price < first_variant.price else 0
+        })
+
+    return JsonResponse({
+        'products': product_data
+    })
+
 def get_variant_data(request, product_id, variant_id):
     variant = get_object_or_404(
         Variant.objects.select_related('product')
@@ -557,21 +638,32 @@ def get_variant_data(request, product_id, variant_id):
 
 
 def product_list(request):
-    # Get all active categories and brands for filters
-    categories = Category.objects.filter(is_active=True)
-    brands = Brand.objects.filter(is_active=True)
+    # Cache categories and brands since they don't change often
+    categories = Category.objects.filter(is_active=True).only('id', 'name')
+    brands = Brand.objects.filter(is_active=True).only('id', 'name')
     
-    # Get initial products with their first active variant and image
+    # Optimize initial product query
+    base_variant_query = Variant.objects.filter(
+        is_active=True
+    ).select_related(
+        'product'
+    ).prefetch_related(
+        'images',
+        'sizes'
+    ).annotate(
+        stock_total=Sum('sizes__stock')
+    )
+
+    # Get initial products with optimized querying
     products = Product.objects.filter(
         is_active=True,
         category__is_active=True,
+        variants__is_active=True
     ).select_related(
         'category', 
         'brand'
     ).prefetch_related(
-        'variants',
-        'variants__images',
-        'variants__sizes'
+        Prefetch('variants', queryset=base_variant_query)
     ).distinct()
     
     # Apply filters if provided
@@ -579,92 +671,140 @@ def product_list(request):
     brands_filter = request.GET.get('brands')
     min_price = request.GET.get('min_price')
     max_price = request.GET.get('max_price')
+    sort_option = request.GET.get('sort', 'newest')  # Default sort is newest
+    search_query = request.GET.get('search', '').strip()
     
+    # Apply search filter if provided
+    if search_query:
+        products = products.filter(
+            Q(name__icontains=search_query) |
+            Q(description__icontains=search_query) |
+            Q(category__name__icontains=search_query) |
+            Q(brand__name__icontains=search_query)
+        )
+    
+    # Apply category filter
     if categories_filter:
-        category_ids = categories_filter.split(',')
-        products = products.filter(category_id__in=category_ids)
+        category_ids = [cid for cid in categories_filter.split(',') if cid.isdigit()]
+        if category_ids:
+            products = products.filter(category_id__in=category_ids)
     
+    # Apply brand filter
     if brands_filter:
-        brand_ids = brands_filter.split(',')
-        products = products.filter(brand_id__in=brand_ids)
+        brand_ids = [bid for bid in brands_filter.split(',') if bid.isdigit()]
+        if brand_ids:
+            products = products.filter(brand_id__in=brand_ids)
     
-    if min_price and max_price:
+    # Apply price filter
+    if min_price or max_price:
         try:
-            min_price = float(min_price)
-            max_price = float(max_price)
-            products = products.filter(
-                variants__price__gte=min_price,
-                variants__price__lte=max_price
-            ).distinct()
+            if min_price:
+                min_price = float(min_price)
+                products = products.filter(variants__price__gte=min_price)
+            if max_price:
+                max_price = float(max_price)
+                products = products.filter(variants__price__lte=max_price)
+            products = products.distinct()
         except (ValueError, TypeError):
-            # If price conversion fails, ignore price filter
-            pass
+            pass  # Invalid price format, ignore filter
     
     # Apply sorting
     if sort_option == 'price_low_high':
-        products = products.order_by('variants__price')
+        products = products.annotate(
+            min_price=Min('variants__price')
+        ).order_by('min_price')
     elif sort_option == 'price_high_low':
-        products = products.order_by('-variants__price')
+        products = products.annotate(
+            min_price=Min('variants__price')
+        ).order_by('-min_price')
     elif sort_option == 'name_asc':
         products = products.order_by('name')
     elif sort_option == 'name_desc':
         products = products.order_by('-name')
-    else:  # Default to newest
-        products = products.order_by('-id')
+    elif sort_option == 'newest':
+        products = products.order_by('-id')  # Using id as a proxy for newest items
+    elif sort_option == 'popularity':
+        products = products.annotate(
+            total_sales=Count('variants__orderitem')
+        ).order_by('-total_sales')
 
+    # Paginate the products
+    page = request.GET.get('page', 1)
+    products_per_page = 12  # You can adjust this number
+    paginator = Paginator(products, products_per_page)
+    
+    try:
+        products_page = paginator.page(page)
+    except PageNotAnInteger:
+        products_page = paginator.page(1)
+    except EmptyPage:
+        products_page = paginator.page(paginator.num_pages)
+    
     # Prepare product data for template
     product_data = []
-    for product in products:
-        # Get first active variant
-        first_variant = product.variants.filter(is_active=True).first()
-        if not first_variant:
-            continue  # Skip products without active variants
-            
-        # Get primary image or first image
-        primary_image = first_variant.images.filter(is_primary=True).first()
-        if not primary_image:
-            primary_image = first_variant.images.first()
-
-        # Calculate total stock safely
+    for product in products_page:
+        variant_data = []
         total_stock = 0
-        try:
-            for variant in product.variants.filter(is_active=True):
-                for size in variant.sizes.all():
-                    total_stock += size.stock
-        except Exception:
-            # Fallback if size or stock doesn't exist
-            pass
-
-        # Calculate discount percentage if applicable
-        discount_percentage = 0
-        if first_variant.discount_price and first_variant.price and first_variant.price > 0:
-            discount_percentage = int(
-                ((first_variant.price - first_variant.discount_price) / first_variant.price) * 100
+        
+        # Process variants
+        for variant in product.variants.all():  # This is already filtered for active variants
+            # Get primary image or first image
+            primary_image = next(
+                (img for img in variant.images.all() if img.is_primary),
+                next((img for img in variant.images.all()), None)
             )
+            
+            # Calculate variant stock
+            variant_stock = sum(size.stock for size in variant.sizes.all())
+            total_stock += variant_stock
+            
+            # Calculate discount percentage
+            discount_percentage = 0
+            if variant.discount_price and variant.price and variant.price > 0:
+                discount_percentage = int(
+                    ((variant.price - variant.discount_price) / variant.price) * 100
+                )
+            
+            # Default to None for image_url if no image exists
+            image_url = None
+            if primary_image and hasattr(primary_image, 'image'):
+                try:
+                    image_url = primary_image.image.url
+                except:
+                    image_url = None
 
-        # Check if brand exists
-        brand_name = product.brand.name if product.brand else "No Brand"
+            variant_data.append({
+                'id': variant.id,
+                'color': variant.color,
+                'price': float(variant.price),
+                'discount_price': float(variant.discount_price) if variant.discount_price else None,
+                'stock': variant_stock,
+                'discount_percentage': discount_percentage,
+                'image_url': image_url,  # This will be None if no image exists
+                'sizes': [{'id': size.id, 'name': size.name, 'stock': size.stock} 
+                         for size in variant.sizes.all()]
+            })
         
-        # Check if category exists
-        category_name = product.category.name if product.category else "Uncategorized"
+        if not variant_data:  # Skip products with no valid variants
+            continue
+            
+        # Use the first variant as the primary variant for display
+        primary_variant = variant_data[0]
         
-        # Get description
-        description = product.description if hasattr(product, 'description') else ""
-
-        # Add product only if it has valid data
         product_data.append({
             'id': product.id,
             'name': product.name,
-            'description': description,
-            'price': first_variant.price or 0,
-            'discount_price': first_variant.discount_price or first_variant.price or 0,
-            'image_url': primary_image.image.url if primary_image and hasattr(primary_image, 'image') else '/static/images/placeholder.jpg',
+            'category': product.category.name if product.category else 'Uncategorized',
+            'brand': product.brand.name if product.brand else 'No Brand',
+            'description': product.description,
+            'primary_variant': primary_variant,
             'total_stock': total_stock,
-            'discount_percentage': discount_percentage,
-            'category': category_name,
-            'brand': brand_name,
+            'variants': variant_data,
+            'rating': product.average_rating if hasattr(product, 'average_rating') else None,
+            'review_count': product.review_count if hasattr(product, 'review_count') else 0,
         })
-
+        
+       
     # Pagination
     paginator = Paginator(product_data, 8)  # 12 products per page
     page = request.GET.get('page', 1)
@@ -674,24 +814,69 @@ def product_list(request):
     except (PageNotAnInteger, EmptyPage):
         products_page = paginator.get_page(1)
     
+    # Build pagination info for template
+    pagination = {
+        'current_page': products_page.number,
+        'total_pages': paginator.num_pages,
+        'has_previous': products_page.has_previous(),
+        'has_next': products_page.has_next(),
+        'page_range': list(paginator.page_range),
+        'total_items': paginator.count
+    }
+
+    # Active filters to preserve UI state
+    active_filters = {
+        'categories': categories_filter or '',
+        'brands': brands_filter or '',
+        'min_price': min_price or '',
+        'max_price': max_price or '',
+        'sort': sort_option or 'newest',
+        'search': search_query or ''
+    }
+
+    # Wishlist product ids for UI (if user has wishlist)
+    wishlist_product_ids = []
+    try:
+        if request.user.is_authenticated:
+            wishlist = Wishlist.objects.filter(user=request.user).first()
+            if wishlist:
+                wishlist_product_ids = list(wishlist.variants.values_list('product__id', flat=True))
+    except Exception:
+        wishlist_product_ids = []
+
     context = {
         'products': products_page,
         'categories': categories,
-        'brands': brands
+        'brands': brands,
+        'pagination': pagination,
+        'active_filters': active_filters,
+        'wishlist_product_ids': wishlist_product_ids,
     }
     
     return render(request, 'product_list.html', context)
 
 def product_detail(request, product_id):
+    # Optimize variant query
+    variant_query = Variant.objects.filter(
+        is_active=True
+    ).prefetch_related(
+        'sizes',
+        'images'
+    ).annotate(
+        stock_total=Sum('sizes__stock')
+    )
+
+    # Optimize product query with necessary related data
     product = get_object_or_404(
-        Product.objects.select_related('category', 'brand')
-        .prefetch_related(
-            Prefetch('variants', 
-                queryset=Variant.objects.filter(is_active=True).prefetch_related(
-                    'sizes',
-                    Prefetch('images', queryset=ProductImage.objects.all())  # Remove filter to get all images
-                )
-            )
+        Product.objects.select_related(
+            'category', 
+            'brand'
+        ).prefetch_related(
+            Prefetch('variants', queryset=variant_query),
+            'reviews'  # If you have reviews
+        ).annotate(
+            total_stock=Sum('variants__sizes__stock'),
+            avg_rating=Avg('reviews__rating')
         ),
         id=product_id,
         is_active=True
@@ -1098,45 +1283,6 @@ def move_to_wishlist(request, variant_id):
 #     } for item in wishlist_items]
 #     return JsonResponse(items, safe=False)
 
-@login_required
-@require_POST
-def get_delivery_charge(request):
-    try:
-        data = json.loads(request.body)
-        city = data.get('city', '').lower()
-        state = data.get('state', '').lower()
-        order_amount = float(data.get('order_amount', 0))
-        
-        from .delivery_charges import delivery_charges, FREE_SHIPPING_THRESHOLD
-        
-        # Check for free shipping
-        if order_amount >= FREE_SHIPPING_THRESHOLD:
-            return JsonResponse({
-                'success': True,
-                'charge': 0
-            })
-        
-        # First try to find charge by city
-        charge = delivery_charges.get(city)
-        
-        # If city not found, try to find by state
-        if not charge:
-            charge = delivery_charges.get(state)
-        
-        # If neither found, use default charge
-        if not charge:
-            charge = 80  # Default delivery charge
-        
-        return JsonResponse({
-            'success': True,
-            'charge': float(charge)
-        })
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': 'Error calculating delivery charge',
-            'charge': 80  # Default charge in case of error
-        })
 
 @login_required
 @require_POST

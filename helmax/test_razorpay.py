@@ -11,8 +11,8 @@ env_path = base_dir / 'helmax' / '.env'
 load_dotenv(env_path)
 
 # Get Razorpay credentials
-key_id = os.getenv('RAZORPAY_KEY_ID')
-key_secret = os.getenv('RAZORPAY_KEY_SECRET')
+key_id = 'rzp_test_KDYrLJHnu3O9Ip'
+key_secret = 'bcOjtnHN19lrbqBWdS35Ee7J'
 
 print(f"Testing Razorpay connection with credentials:")
 print(f"Key ID: {key_id}")

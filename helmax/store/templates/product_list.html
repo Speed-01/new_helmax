@@ -153,11 +153,11 @@
                             <a href="{% url 'product_detail' product.id %}" class="block h-full">
                                 <div class="bg-[#1a1a1a] rounded-sm overflow-hidden h-full hover:shadow-lg hover:shadow-[#ff6b00]/10 transition-all duration-300">
                                     <div class="relative aspect-square overflow-hidden">
-                                        <img 
-                                            src="{{ product.image_url }}" 
+                                        <img
+                                            src="{% if product.image_url %}{{ product.image_url }}{% else %}{% static 'images/placeholder.svg' %}{% endif %}"
                                             alt="{{ product.name }}"
+                                            loading="lazy"
                                             class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                            onerror="this.src='/static/images/placeholder.jpg'"
                                         >
                                         <div class="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent opacity-0 group-hover:opacity-60 transition-opacity duration-300"></div>
                                         
@@ -189,21 +189,21 @@
                                         </p>
                                         <div class="flex items-center justify-between">
                                             <div class="flex items-center gap-2">
-                                                {% if product.discount_price and product.discount_price < product.price %}
-                                                    <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.discount_price|floatformat:2 }}</span>
-                                                    <span class="text-sm text-gray-400 line-through">₹{{ product.price|floatformat:2 }}</span>
-                                                    <span class="text-xs text-[#ff6b00] ml-2">({{ product.discount_percentage }}% off)</span>
-                                                {% else %}
-                                                    {% with best_offer=product.get_best_offer %}
-                                                    {% if best_offer %}
-                                                        <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.price|calculate_offer_price:best_offer.discount_percentage|floatformat:2 }}</span>
-                                                        <span class="text-sm text-gray-400 line-through">₹{{ product.price|floatformat:2 }}</span>
-                                                        <span class="text-xs text-[#ff6b00] ml-2">({{ best_offer.discount_percentage }}% off)</span>
+                                                {% with pv=product.primary_variant %}
+                                                    {% if pv.discount_price and pv.discount_price < pv.price %}
+                                                        <span class="text-xl font-medium text-[#ff6b00]">₹{{ pv.discount_price|floatformat:2 }}</span>
+                                                        <span class="text-sm text-gray-400 line-through">₹{{ pv.price|floatformat:2 }}</span>
+                                                        <span class="text-xs text-[#ff6b00] ml-2">({{ pv.discount_percentage }}% off)</span>
                                                     {% else %}
-                                                        <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.price|floatformat:2 }}</span>
+                                                        {% if pv.price %}
+                                                            <span class="text-xl font-medium text-[#ff6b00]">₹{{ pv.price|floatformat:2 }}</span>
+                                                        {% elif product.price %}
+                                                            <span class="text-xl font-medium text-[#ff6b00]">₹{{ product.price|floatformat:2 }}</span>
+                                                        {% else %}
+                                                            <span class="text-sm text-gray-400">Price unavailable</span>
+                                                        {% endif %}
                                                     {% endif %}
-                                                    {% endwith %}
-                                                {% endif %}
+                                                {% endwith %}
                                             </div>
                                         </div>
                                     </div>
