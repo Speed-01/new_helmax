@@ -39,10 +39,20 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # Temporarily set DEBUG to True to fix static files issue
 DEBUG = True  # Override env setting temporarily
 
-ALLOWED_HOSTS = []  
+ALLOWED_HOSTS = ['3.110.104.151', 'localhost', '127.0.0.1' , 'helmax.store', 'www.helmax.store']
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://3.110.104.151',
+    'https://3.110.104.151',
+    'https://helmax.store',
+    'https://www.helmax.store'
+]
+
+
+  
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
-
+SECURE_SSL_REDIRECT = True
 # Cache settings
 CACHES = {
     'default': {
@@ -123,17 +133,19 @@ AUTHENTICATION_BACKENDS = [
 # from decouple import config
 
 # PostgreSQL configuration - commented out for local development
+
+
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'helmax2',
-        'USER': 'postgres',
-        'PASSWORD': 'database007',
-        'HOST': '127.0.0.1',
+        'NAME': 'helmax_db',
+        'USER': 'helmax_user',
+        'PASSWORD': 'helmax123',
+        'HOST': '127.0.0.1',  # or 'localhost'
         'PORT': '5432',
     }
 }
-
 
 
 # Password validation
