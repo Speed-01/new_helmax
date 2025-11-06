@@ -1,1 +1,17 @@
+# Ignore virtual environments
+helmax_env/
+venv/
+.env
+
+# Ignore compiled files
+__pycache__/
+*.pyc
+
+# Ignore OS junk
+.DS_Store
+Thumbs.db
+
+# Ignore IDE settings
+.vscode/
+.idea/
 myworld
