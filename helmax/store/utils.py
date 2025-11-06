@@ -3,7 +3,6 @@ from django.conf import settings
 
 from django.utils import timezone
 
-
 def send_otp_email(email, otp, purpose="signup"):
     """
     Send OTP email for signup or password reset
@@ -104,9 +103,28 @@ def generate_invoice_pdf(order):
     p.drawString(100, y, "Items:")
     p.setFont("Helvetica", 12)
 
-    for item in order.orderitem_set.all():
+    # Access related order items using the related_name defined on OrderItem
+    # In models.OrderItem the ForeignKey has related_name='order_items', so
+    # use order.order_items.all(). If that attribute is missing for any reason,
+    # fall back to the default reverse manager orderitem_set.
+    try:
+        items_qs = order.order_items.all()
+    except Exception:
+        try:
+            items_qs = order.orderitem_set.all()
+        except Exception:
+            items_qs = []
+
+    if not items_qs:
         y -= 20
-        p.drawString(120, y, f"{item.product.name} x {item.quantity} — ₹{item.price}")
+        p.drawString(120, y, "(No items found for this order)")
+    else:
+        for item in items_qs:
+            y -= 20
+            product_name = getattr(item.product, 'name', 'Unknown product')
+            qty = getattr(item, 'quantity', 0)
+            price = getattr(item, 'price', 0)
+            p.drawString(120, y, f"{product_name} x {qty} — ₹{price}")
 
     # Finalize the PDF
     p.showPage()

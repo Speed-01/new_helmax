@@ -28,7 +28,8 @@ from django.http import  JsonResponse, HttpResponse
 import json
 from django.conf import settings
 from django.apps import apps
-from .utils import send_otp_email, generate_invoice_pdf
+from .utils import send_otp_email
+from .invoice_generator import generate_invoice_pdf
 from django.views.decorators.http import require_POST, require_GET, require_http_methods
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.views.decorators.csrf import csrf_exempt
@@ -1927,18 +1928,25 @@ def download_invoice(request, order_id):
         # Get the order and verify ownership
         order = get_object_or_404(Order, order_id=order_id, user=request.user)
         
-        # Generate the invoice PDF
-        filename = generate_invoice_pdf(order)
-        
-        # Prepare the file path
+        # Generate the invoice PDF. generate_invoice_pdf historically
+        # returned a filename (string) pointing to a file under MEDIA_ROOT/invoices/.
+        # A newer implementation may return an HttpResponse directly.
+        result = generate_invoice_pdf(order)
+
+        # If the generator already returned an HttpResponse (in-memory PDF), return it directly
+        if isinstance(result, HttpResponse):
+            return result
+
+        # Otherwise assume we received a filename and read the file from disk
+        filename = result
         file_path = os.path.join(settings.MEDIA_ROOT, 'invoices', filename)
-        
+
         if os.path.exists(file_path):
             with open(file_path, 'rb') as fh:
                 response = HttpResponse(fh.read(), content_type='application/pdf')
                 response['Content-Disposition'] = f'attachment; filename="{filename}"'
                 return response
-        
+
         raise Http404()
         
     except Exception as e:

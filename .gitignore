@@ -15,3 +15,6 @@ Thumbs.db
 .vscode/
 .idea/
 myworld
+
+# Ignore media files (user uploads, invoices, etc.)
+helmax/media/
