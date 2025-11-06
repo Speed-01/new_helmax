@@ -8,6 +8,8 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+
 LOGIN_URL = 'Login'  # Set this to your store login URL name
 LOGIN_REDIRECT_URL = 'home'  # Set this to your home URL name
 
@@ -35,24 +37,24 @@ import cloudinary.api
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-# Temporarily set DEBUG to True to fix static files issue
-DEBUG = True  # Override env setting temporarily
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = ['3.110.104.151', 'localhost', '127.0.0.1' , 'helmax.store', 'www.helmax.store']
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
 
+# CSRF trusted origins (auto-generated)
 CSRF_TRUSTED_ORIGINS = [
-    'http://3.110.104.151',
-    'https://3.110.104.151',
-    'https://helmax.store',
-    'https://www.helmax.store'
+    f"https://{host.strip()}" for host in ALLOWED_HOSTS if host and not host.startswith('127.')
 ]
 
 
-  
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_SSL_REDIRECT = True
+# SECURITY FLAGS
+SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
+CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'False').lower() == 'true'
+SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False').lower() == 'true'
+
+
+
+
 # Cache settings
 CACHES = {
     'default': {
@@ -136,14 +138,15 @@ AUTHENTICATION_BACKENDS = [
 
 
 
+# DATABASE
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'helmax_db',
-        'USER': 'helmax_user',
-        'PASSWORD': 'helmax123',
-        'HOST': '127.0.0.1',  # or 'localhost'
-        'PORT': '5432',
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT'),
     }
 }
 
@@ -185,7 +188,6 @@ STATICFILES_FINDERS = [
 
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
 SESSION_COOKIE_AGE = 3600  # Session expires in 1 hour 
-SESSION_COOKIE_SECURE = True  # Enforce HTTPS
 SESSION_COOKIE_HTTPONLY = True  # Prevent JS from accessing session cookie
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Store sessions in DB
 
@@ -228,8 +230,6 @@ LOGOUT_REDIRECT_URL = '/'
 LOGIN_URL = '/'
 
 # Razorpay settings
-RAZORPAY_KEY_ID = 'rzp_test_KDYrLJHnu3O9Ip'
-RAZORPAY_KEY_SECRET = 'bcOjtnHN19lrbqBWdS35Ee7J'
-# Using hardcoded test keys temporarily
-# RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID')
-# RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET')
+
+RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID')
+RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET')
