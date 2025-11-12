@@ -201,6 +201,27 @@ class ProductImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.variant}"
+
+
+    @property
+    def url(self):
+        """Get image URL with fallback to default if image is invalid"""
+        try:
+            return self.image.url
+        except Exception:
+            # Return None so the template can handle fallback
+            return None
+    
+    def save(self, *args, **kwargs):
+        # If this is marked as primary, unset primary flag for other images of this variant
+        if self.is_primary:
+            ProductImage.objects.filter(variant=self.variant).update(is_primary=False)
+        super().save(*args, **kwargs)
+        
+        # If this is the only image for the variant, make it primary
+        if not self.is_primary and not ProductImage.objects.filter(variant=self.variant, is_primary=True).exists():
+            self.is_primary = True
+            super().save(update_fields=['is_primary'])
       
 
 class Review(models.Model):

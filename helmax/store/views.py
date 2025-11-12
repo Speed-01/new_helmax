@@ -60,31 +60,20 @@ import logging
 import razorpay
 
 logger = logging.getLogger(__name__)
-
 def home(request):
-    # Get only necessary fields from categories and brands
+    # Get active categories and brands
     categories = Category.objects.filter(is_active=True).only('id', 'name')
     brands = Brand.objects.filter(is_active=True).only('id', 'name')
-    
-    # Optimize variant query
-    active_variants = Variant.objects.filter(
-        is_active=True
-    ).select_related(
-        'product'
-    ).prefetch_related(
-        'images',
-        'sizes'
-    ).annotate(
+
+    # Prefetch variants and related data
+    active_variants = Variant.objects.filter(is_active=True).select_related('product').prefetch_related('images', 'sizes').annotate(
         stock_total=Sum('sizes__stock')
     )
 
-    # Get featured/latest products with optimized querying
     products = (
         Product.objects.filter(is_active=True)
         .select_related('category', 'brand')
-        .prefetch_related(
-            Prefetch('variants', queryset=active_variants)
-        )
+        .prefetch_related(Prefetch('variants', queryset=active_variants))
         .annotate(
             total_stock=Sum('variants__sizes__stock'),
             has_active_variants=Count('variants', filter=Q(variants__is_active=True))
@@ -92,55 +81,35 @@ def home(request):
         .filter(has_active_variants__gt=0)
     )[:10]
 
-    # Process products for display
+    # Prepare simplified product data for the template
     product_data = []
     for product in products:
-        # Get first active variant
         first_variant = product.variants.filter(is_active=True).first()
         if not first_variant:
             continue
 
-        # Get primary image or first image
-        primary_image = first_variant.images.filter(is_primary=True).first()
-        if not primary_image:
-            primary_image = first_variant.images.first()
+        # Get primary image or fallback
+        primary_image = first_variant.images.filter(is_primary=True).first() or first_variant.images.first()
 
-        # Calculate total stock
-        total_stock = sum(
-            size.stock 
-            for variant in product.variants.filter(is_active=True)
-            for size in variant.sizes.all()
-        )
-
-        # Calculate discount percentage if applicable
-        discount_percentage = 0
-        if first_variant.discount_price and first_variant.price:
-            discount_percentage = int(
-                ((first_variant.price - first_variant.discount_price) / first_variant.price) * 100
-            )
-
-        # Get image URL safely
+        # Safely get image URL
         image_url = None
-        if primary_image and hasattr(primary_image, 'image'):
+        if primary_image and primary_image.image:
             try:
                 image_url = primary_image.image.url
-            except:
-                pass
+            except (ValueError, AttributeError):
+                image_url = None
 
         product_data.append({
             'id': product.id,
             'name': product.name,
-            'description': product.description,
-            'category': product.category.name if product.category else 'Uncategorized',
-            'brand': product.brand.name if product.brand else 'No Brand',
             'price': float(first_variant.price),
             'discount_price': float(first_variant.discount_price) if first_variant.discount_price else None,
-            'image_url': image_url,
-            'total_stock': total_stock,
-            'discount_percentage': discount_percentage
+            'image_url': image_url or '/static/images/default-product.jpg',
+            'category': product.category.name if product.category else '',
+            'brand': product.brand.name if product.brand else '',
         })
 
-    # Prepare filter data
+    # Prepare filter options
     filter_data = {
         'categories': [{'id': cat.id, 'name': cat.name} for cat in categories],
         'brands': [{'id': brand.id, 'name': brand.name} for brand in brands],
@@ -157,14 +126,12 @@ def home(request):
             {'value': 'popularity', 'label': 'Most Popular'}
         ]
     }
-    
+
     context = {
         'products': product_data,
         'filters': filter_data
     }
-    
     return render(request, 'home.html', context)
-
 
 
 def signup(request):

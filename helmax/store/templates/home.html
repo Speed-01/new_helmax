@@ -1,46 +1,42 @@
 {% extends "base.html" %}
-
 {% load static %}
 
 {% block logout %}
-    <form action="{% url 'logout' %}" method="POST" class="inline">
-        {% csrf_token %}
-        <button type="submit" class="text-xm font-medium bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition">Logout</button>
-    </form>
-    {% endblock %}
+<form action="{% url 'logout' %}" method="POST" class="inline">
+    {% csrf_token %}
+    <button type="submit" class="text-xm font-medium bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition">
+        Logout
+    </button>
+</form>
+{% endblock %}
+
 {% block content %}
 
-
-    
-    
 <!-- Hero Section -->
-<section class="relative h-[600px] overflow-hidden ">
+<section class="relative h-[600px] overflow-hidden">
     <div id="hero-carousel" class="relative w-full h-full">
-        <div class="carousel-item block absolute w-full h-full transition-opacity duration-1000 opacity-100" data-index="0">
-            <img id="debug-image-1" src="{% static 'images/hero.png' %}" alt="Hero motorcycle gear" class="w-full h-full object-cover" onerror="logImageError(this)">
-            <div class="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30">
-                <div class="container mx-auto h-full flex flex-col justify-center text-white px-4">
-                    <h1 class="text-5xl font-bold mb-4">Safety Meets Style</h1>
-                    <p class="text-xl">Helmets for Every Ride</p>
-                </div>
+        <div class="carousel-item absolute w-full h-full transition-opacity duration-1000 opacity-100" data-index="0">
+            <img src="{% static 'images/hero.png' %}" 
+                 alt="Hero motorcycle gear" 
+                 class="w-full h-full object-cover"
+                 onerror="if(!this.dataset.error){this.src='{% static 'images/default-product.jpg' %}';this.dataset.error=true;}">
+            <div class="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30 flex flex-col justify-center text-white px-4">
+                <h1 class="text-5xl font-bold mb-4">Safety Meets Style</h1>
+                <p class="text-xl">Helmets for Every Ride</p>
             </div>
         </div>
-        <div class="carousel-item block absolute w-full h-full transition-opacity duration-1000 opacity-0" data-index="1">
+        <div class="carousel-item absolute w-full h-full transition-opacity duration-1000 opacity-0" data-index="1">
             <img src="{% static 'images/banner.png' %}" alt="Black Friday Banner" class="w-full h-full object-cover">
-            <div class="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30">
-                <div class="container mx-auto h-full flex flex-col justify-center text-white px-4">
-                    <h1 class="text-5xl font-bold mb-4">Black Friday Deals</h1>
-                    <p class="text-xl">Gear Up and Save Big</p>
-                </div>
+            <div class="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30 flex flex-col justify-center text-white px-4">
+                <h1 class="text-5xl font-bold mb-4">Black Friday Deals</h1>
+                <p class="text-xl">Gear Up and Save Big</p>
             </div>
         </div>
-        <div class="carousel-item block  absolute w-full h-full transition-opacity duration-1000 opacity-0" data-index="2">
+        <div class="carousel-item absolute w-full h-full transition-opacity duration-1000 opacity-0" data-index="2">
             <img src="{% static 'images/banner2.jpg' %}" alt="Always Ahead" class="w-full h-full object-cover">
-            <div class="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30">
-                <div class="container mx-auto h-full flex flex-col justify-center text-white px-4">
-                    <h1 class="text-5xl font-bold mb-4">Always Ahead</h1>
-                    <p class="text-xl">Performance Meets Protection</p>
-                </div>
+            <div class="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30 flex flex-col justify-center text-white px-4">
+                <h1 class="text-5xl font-bold mb-4">Always Ahead</h1>
+                <p class="text-xl">Performance Meets Protection</p>
             </div>
         </div>
     </div>
@@ -53,167 +49,79 @@
 </section>
 
 <!-- Featured Collections -->
-<section class="py-16 bg-gray-50 bg-black" >
-    <div class="container mx-auto px-4 ">
-        <h2 class="text-3xl font-bold text-center mb-12 ">Featured Collections</h2>
-        {% load static %}
+<section class="py-16 bg-black text-white">
+    <div class="container mx-auto px-4">
+        <h2 class="text-3xl font-bold text-center mb-12">Featured Collections</h2>
 
         <div id="product-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-12">
             {% for product in products %}
-                {% with product.variants.first as variant %}
-                    <a href="{% url 'product_detail' product.id %}" class="group cursor-pointer block">
-                        <div class="aspect-square relative mb-3">
-                            {% if variant %}
-                                {% with variant.images.first as product_image %}
-                                {% if product_image %}
-                                        <img src="{{ product_image.image.url }}" alt="{{ product.name }}" class="w-full h-full object-cover rounded-lg">
-                                    {% else %}
-                                        <img src="{% static 'images/default-product.jpg' %}" alt="No Image Available" class="w-full h-full object-cover rounded-lg">
-                                    {% endif %}
-                                {% endwith %}
-                            {% else %}
-                                <img src="{% static 'images/default-product.jpg' %}" alt="No Variant Available" class="w-full h-full object-cover rounded-lg">
-                            {% endif %}
-                        </div>
-                        <h3 class="font-medium text-sm">{{ product.name }}</h3>
-                        <p class="text-sm text-gray-600">
-                            {% if variant %}
-                                ${{ variant.price }}
-                            {% else %}
-                                No price available
-                            {% endif %}
+                <a href="{% url 'product_detail' product.id %}" class="group cursor-pointer block">
+                    <div class="aspect-square relative mb-3">
+                        <img src="{{ product.image_url }}" 
+                             alt="{{ product.name }}" 
+                             class="w-full h-full object-cover rounded-lg"
+                             onerror="if(!this.dataset.error){this.src='{% static 'images/default-product.jpg' %}';this.dataset.error=true;}">
+                    </div>
+                    <h3 class="font-medium text-sm">{{ product.name }}</h3>
+                    {% if product.discount_price %}
+                        <p class="text-sm text-gray-300">
+                            <span class="line-through text-red-400">${{ product.price }}</span>
+                            <span class="ml-2 text-green-400 font-semibold">${{ product.discount_price }}</span>
                         </p>
-                    </a>
-                {% endwith %}
+                    {% else %}
+                        <p class="text-sm text-gray-300">${{ product.price }}</p>
+                    {% endif %}
+                </a>
             {% endfor %}
         </div>
 
-        
-        
         <div class="text-center mt-8">
-            <a href="{% url 'product_list' %}" class="text-blue-600 hover:text-blue-800 font-medium">VIEW ALL</a>
+            <a href="{% url 'product_list' %}" class="text-blue-400 hover:text-blue-600 font-medium">VIEW ALL</a>
         </div>
     </div>
 </section>
 
-
-
-<!-- Black Friday Banner -->
+<!-- Banners -->
 <section class="bg-orange-500 py-16">
-    <img src="{% static "images/banner.png" %}" alt="Hero motorcycle gear" class="w-full h-full object-cover">
+    <img src="{% static 'images/banner.png' %}" alt="Black Friday Banner" class="w-full h-full object-cover">
 </section>
 
-<!-- Always Ahead Banner -->
 <section class="relative h-[400px]">
-    <img src="{% static "images/banner2.jpg" %}" alt="Always ahead" class="w-full h-full object-cover">
+    <img src="{% static 'images/banner2.jpg' %}" alt="Always ahead" class="w-full h-full object-cover">
     <div class="absolute inset-0 bg-black/50 flex items-center justify-center">
         <h2 class="text-5xl font-bold text-white">ALWAYS AHEAD</h2>
     </div>
 </section>
 
-
+<!-- Minimal, stable JS -->
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Carousel functionality
-        let currentIndex = 0;
-        const carouselItems = document.querySelectorAll('.carousel-item');
-        const totalItems = carouselItems.length;
+document.addEventListener('DOMContentLoaded', function() {
+    let currentIndex = 0;
+    const carouselItems = document.querySelectorAll('.carousel-item');
+    const totalItems = carouselItems.length;
+    const dots = document.querySelectorAll('section button');
 
-        function showSlide(index) {
-            carouselItems.forEach(item => {
-                item.classList.add('opacity-0');
-                item.classList.remove('opacity-100');
-            });
-            carouselItems[index].classList.remove('opacity-0');
-            carouselItems[index].classList.add('opacity-100');
-
-            const dots = document.querySelectorAll('section button');
-            dots.forEach((dot, i) => {
-                dot.classList.toggle('bg-white', i === index);
-                dot.classList.toggle('bg-white/50', i !== index);
-            });
-        }
-
-        function changeSlide(index) {
-            currentIndex = index;
-            showSlide(currentIndex);
-        }
-
-        function autoChangeSlide() {
-            currentIndex = (currentIndex + 1) % totalItems;
-            showSlide(currentIndex);
-        }
-
-        // Product form handling
-        const productForm = document.getElementById('product-form');
-        if (productForm) {
-            productForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                const productData = {
-                    name: formData.get('name'),
-                    price: parseFloat(formData.get('price')),
-                    image: formData.get('image')
-                };
-
-                console.log('Saving product:', productData);
-                addProductToPage(productData);
-                closeAdminPanel();
-                e.target.reset();
-            });
-        } else {
-            console.warn('Product form not found');
-        }
-
-        // Image error logging
-        function logImageError(img) {
-            console.error('Image Load Error Details:', {
-                src: img.src,
-                absoluteURL: new URL(img.src, document.baseURI).href,
-                alt: img.alt
-            });
-        }
-
-        // Log image details
-        const images = document.querySelectorAll('#hero-carousel img');
-        images.forEach(img => {
-            console.log('Image Details:', {
-                src: img.src,
-                absoluteURL: new URL(img.src, document.baseURI).href
-            });
+    function showSlide(index) {
+        carouselItems.forEach((item, i) => {
+            item.classList.toggle('opacity-100', i === index);
+            item.classList.toggle('opacity-0', i !== index);
         });
+        dots.forEach((dot, i) => {
+            dot.classList.toggle('bg-white', i === index);
+            dot.classList.toggle('bg-white/50', i !== index);
+        });
+    }
 
-        // Admin panel functions
-        function toggleAdminPanel() {
-            const adminPanel = document.getElementById('admin-panel');
-            adminPanel.classList.toggle('hidden');
-        }
+    window.changeSlide = function(index) {
+        currentIndex = index;
+        showSlide(index);
+    };
 
-        function closeAdminPanel() {
-            const adminPanel = document.getElementById('admin-panel');
-            adminPanel.classList.add('hidden');
-        }
-
-        function addProductToPage(product) {
-            const productGrid = document.querySelector('.grid');
-            const productElement = document.createElement('div');
-            productElement.className = 'group cursor-pointer';
-            productElement.innerHTML = `
-                <div class="aspect-square relative mb-3">
-                    <img src="${product.image}" alt="${product.name}" class="w-full h-full object-cover rounded-lg">
-                </div>
-                <h3 class="font-medium text-sm">${product.name}</h3>
-                <p class="text-sm text-gray-600">$${product.price.toFixed(2)}</p>
-            `;
-            productGrid.appendChild(productElement);
-        }
-
-        // Start auto-changing slides
-        setInterval(autoChangeSlide, 3000);
-    });
+    setInterval(() => {
+        currentIndex = (currentIndex + 1) % totalItems;
+        showSlide(currentIndex);
+    }, 3000);
+});
 </script>
 
-
-{% endblock  %}
-
-
+{% endblock %}
