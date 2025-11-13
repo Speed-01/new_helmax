@@ -2,6 +2,7 @@
 {% load static %}
 
 {% block content %}
+{% csrf_token %}
 <style><link href="https://unpkg.com/lucide-static@latest/font/lucide.css" rel="stylesheet"></style>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>
@@ -197,11 +198,32 @@
               </div>
             </div>
 
-            <div class="mt-4 flex justify-end">
-              <a href="{% url 'order_details' order.order_id %}" 
+            <div class="mt-4 flex flex-col md:flex-row justify-end gap-2 md:gap-4">
+              {# Show payment status for Razorpay orders #}
+              {% if order.payment_method.name == 'razorpay' %}
+                <span class="text-sm font-semibold px-3 py-1 rounded-full 
+                  {% if order.payment_status == 'FAILED' %}bg-red-900/50 text-red-300
+                  {% elif order.payment_status == 'PENDING' %}bg-yellow-900/50 text-yellow-300
+                  {% elif order.payment_status == 'PAYMENT_PENDING' %}bg-orange-900/50 text-orange-300
+                  {% elif order.payment_status == 'PAID' %}bg-green-900/50 text-green-300
+                  {% else %}bg-gray-800 text-gray-300{% endif %}">
+                  Payment: {{ order.payment_status }}
+                </span>
+              {% endif %}
+
+              <a href="{% url 'order_details' order.order_id %}"
                  class="bg-[#ff6b00] text-black px-6 py-2 rounded-lg hover:bg-[#ff8533] transition-colors">
                 View Details
               </a>
+
+              {% if order.payment_method.name == 'razorpay' and order.order_status == 'PENDING' and order.payment_status != 'PAID' %}
+                <form method="POST" action="{% url 'retry_payment_form' order.order_id %}" style="display: inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors font-semibold">
+                    Retry Payment
+                  </button>
+                </form>
+              {% endif %}
             </div>
           </div>
           {% endfor %}
@@ -305,8 +327,9 @@
 </div>
 {% endblock %}
 
+
+
 {% block extra_scripts %}
-<script src="https://unpkg.com/lucide@latest"></script>
 <script>
   // Initialize Lucide icons
   lucide.createIcons();
@@ -438,8 +461,21 @@
     
     closeConfirmationModal();
   }
+</script>
+
+<!-- Razorpay Payment Retry Script -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+// Retry payment function
+function retryRazorpayPayment(orderId) {
+  console.log('Retry payment clicked for:', orderId);
   
-  // Helper function to get CSRF token
+  const button = event.target;
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Processing...';
+  
+  // Get CSRF token
   function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -454,5 +490,69 @@
     }
     return cookieValue;
   }
+  
+  fetch('/payment/retry/' + orderId + '/', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value || getCookie('csrftoken'),
+      'Content-Type': 'application/json'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log('Response:', data);
+    
+    if (data.status === 'success') {
+      const options = {
+        key: data.key,
+        amount: data.amount,
+        currency: 'INR',
+        name: 'Helmax',
+        description: 'Retry Payment',
+        order_id: data.order_id,
+        handler: function(response) {
+          fetch('/payment/success/' + orderId + '/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value || getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature
+            })
+          })
+          .then(res => res.json())
+          .then(result => {
+            window.location.href = result.redirect_url || '/my-orders/';
+          });
+        },
+        prefill: {
+          name: data.customer_name,
+          email: data.customer_email,
+          contact: data.customer_phone
+        },
+        theme: { color: '#ff6b00' }
+      };
+      
+      const rzp = new Razorpay(options);
+      rzp.on('payment.failed', function() {
+        window.location.href = '/my-orders/';
+      });
+      rzp.open();
+    } else {
+      alert(data.message || 'Error occurred');
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('Network error');
+    button.disabled = false;
+    button.textContent = originalText;
+  });
+}
 </script>
 {% endblock %}

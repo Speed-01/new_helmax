@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block title %}Retry Payment - Helmax{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-black text-white py-8">
+  <div class="max-w-md mx-auto">
+    <div class="bg-zinc-900 rounded-lg p-6 text-center">
+      <h1 class="text-2xl font-bold mb-4">Processing Payment</h1>
+      <p class="text-gray-400 mb-6">Opening payment portal for Order #{{ order.order_id }}</p>
+      <div class="flex justify-center">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ff6b00]"></div>
+      </div>
+      <p class="text-xs text-gray-500 mt-6">Do not close this page</p>
+    </div>
+  </div>
+</div>
+
+<!-- Razorpay SDK -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+// Get CSRF token
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// Auto-open Razorpay on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const options = {
+    key: '{{ razorpay_key }}',
+    amount: {{ amount }},
+    currency: 'INR',
+    name: 'Helmax',
+    description: 'Retry Payment for Order #{{ order.order_id }}',
+    order_id: '{{ razorpay_order_id }}',
+    handler: function(response) {
+      console.log('Payment Success:', response);
+      // Verify payment with backend
+      fetch('/payment/success/{{ order.order_id }}/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_signature: response.razorpay_signature
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.redirect_url) {
+          window.location.href = data.redirect_url;
+        } else {
+          window.location.href = '/my-orders/';
+        }
+      })
+      .catch(() => {
+        window.location.href = '/my-orders/';
+      });
+    },
+    prefill: {
+      name: '{{ customer_name }}',
+      email: '{{ customer_email }}',
+      contact: '{{ customer_phone }}'
+    },
+    theme: {
+      color: '#ff6b00'
+    }
+  };
+
+  const rzp = new Razorpay(options);
+  
+  // Handle payment failure
+  rzp.on('payment.failed', function() {
+    alert('Payment failed. Please try again.');
+    window.location.href = '/my-orders/';
+  });
+
+  // Handle window close
+  rzp.on('payment.closed', function() {
+    // User closed the modal without completing payment
+    window.location.href = '/my-orders/';
+  });
+
+  // Open the Razorpay modal
+  rzp.open();
+});
+</script>
+{% endblock %}

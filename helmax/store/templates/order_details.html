@@ -42,6 +42,7 @@
   </style>
 </head>
 <body class="min-h-screen bg-black text-white">
+  {% csrf_token %}
   <div class="flex min-h-screen">
     <!-- Sidebar - Hidden on mobile -->
     <aside class="w-64 bg-[#18181b]/80 backdrop-blur-lg text-white p-6 space-y-6 border-r border-[#334155]/30 hidden md:block">
@@ -155,36 +156,98 @@
           </a>
         </div>
 
-        <!-- Payment Timer (Only visible for pending payments) -->
-        {% if order.payment_status == 'PAYMENT_PENDING' or order.payment_status == 'FAILED' %}
-        <div class="mb-6 bg-zinc-900 rounded-lg overflow-hidden" id="paymentTimerCard">
-          <div class="p-4 border-b border-zinc-800 bg-amber-900/20">
-            <h2 class="text-xl font-bold flex items-center">
-              <i data-lucide="clock" class="icon mr-2 text-amber-500"></i>
-              Payment Timer
-            </h2>
-          </div>
+        <!-- Order Actions -->
+        <div class="mb-6 bg-zinc-900 rounded-lg overflow-hidden">
           <div class="p-6">
-            <div class="flex flex-col items-center justify-center space-y-4">
-              <div class="text-center">
-                <p class="text-amber-400 mb-2">Time remaining to complete your payment:</p>
-                <div class="text-3xl font-bold text-white" id="paymentCountdown">Loading...</div>
-                <p class="text-gray-400 mt-2" id="paymentMessage">Please complete your payment before time expires.</p>
-              </div>
-              <div class="flex space-x-4 mt-4">
-                <button id="retryPaymentBtn" class="px-6 py-2 bg-[#ff6b00] hover:bg-[#ff8533] text-white rounded-md transition-colors flex items-center">
-                  <i data-lucide="refresh-cw" class="icon mr-2 h-4 w-4"></i>
-                  Retry Payment
-                </button>
+            <div class="flex space-x-4">
+                {% if order.order_status != 'CANCELLED' and order.order_status != 'DELIVERED' %}
                 <button id="cancelOrderBtn" class="px-6 py-2 border border-red-800 text-red-500 hover:bg-red-900/20 rounded-md transition-colors flex items-center">
                   <i data-lucide="x" class="icon mr-2 h-4 w-4"></i>
                   Cancel Order
                 </button>
+                {% endif %}
               </div>
             </div>
           </div>
         </div>
-        {% endif %}
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i data-lucide="loader" class="icon mr-2 h-4 w-4 animate-spin"></i>Processing...';
+        
+        fetch(`/payment/retry/${orderId}/`, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            const options = {
+              key: data.key,
+              amount: data.amount,
+              currency: 'INR',
+              name: 'Helmax',
+              description: 'Order Payment',
+              order_id: data.order_id,
+              handler: function(response) {
+                // On payment success, verify with backend
+                fetch(`/payment/success/${orderId}/`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken')
+                  },
+                  body: JSON.stringify({
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_signature: response.razorpay_signature
+                  })
+                })
+                .then(res => res.json())
+                .then(resData => {
+                  window.location.href = resData.redirect_url;
+                })
+                .catch(() => {
+                  window.location.href = '/my-orders/';
+                });
+              },
+              prefill: {
+                name: data.customer_name,
+                email: data.customer_email,
+                contact: data.customer_phone
+              },
+              theme: { color: '#ff6b00' }
+            };
+            const rzp = new Razorpay(options);
+            rzp.on('payment.failed', function () {
+              window.location.href = '/my-orders/';
+            });
+            rzp.open();
+          } else {
+            // Re-enable button and show error
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            alert(data.message || 'Payment retry failed');
+            if (data.redirect_url) {
+              window.location.href = data.redirect_url;
+            }
+          }
+        })
+        .catch(() => {
+          // Re-enable button
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+          alert('An error occurred. Please try again.');
+        });
+      });
+    });
+  });
+  </script>
 
         <!-- Order Status Card -->
         <div class="mb-6 bg-zinc-900 rounded-lg overflow-hidden">
@@ -196,6 +259,19 @@
           </div>
           <div class="p-6">
             <!-- Order Status Timeline -->
+            {% if order.order_status == 'CANCELLED' %}
+            <!-- Cancelled Order Display -->
+            <div class="p-6 bg-red-900/30 border border-red-800 rounded-lg text-center">
+              <div class="flex justify-center mb-4">
+                <div class="w-16 h-16 rounded-full flex items-center justify-center bg-red-900/50 border-2 border-red-600">
+                  <i data-lucide="x-circle" class="icon h-8 w-8 text-red-400"></i>
+                </div>
+              </div>
+              <h3 class="text-2xl font-bold text-red-400 mb-2">Order Cancelled</h3>
+              <p class="text-red-300 mb-4">{{ order.payment_failure_reason|default:"This order has been cancelled." }}</p>
+              <p class="text-sm text-red-200">Cancelled at: {{ order.cancelled_at|date:"F j, Y g:i A" }}</p>
+            </div>
+            {% else %}
             <div class="relative">
               <div class="flex justify-between items-center">
                 <!-- Step 1: Order Placed -->
@@ -240,6 +316,7 @@
                 <div class="h-full bg-[#ff6b00] transition-all duration-500" style="width: {% if order.order_status == 'DELIVERED' %}100{% elif order.order_status == 'SHIPPED' %}66{% elif order.order_status == 'PROCESSING' %}33{% else %}0{% endif %}%"></div>
               </div>
             </div>
+            {% endif %}
           </div>
         </div>
 
@@ -289,14 +366,6 @@
                     {% endif %}">
                     {{ order.payment_status }}
                   </span>
-                  {% if order.payment_status == 'FAILED' or order.payment_status == 'PAYMENT_PENDING' %}
-                  <button 
-                    onclick="retryPayment('{{ order.razorpay_order_id }}', {{ order.total_amount }})" 
-                    class="px-3 py-1 text-sm bg-[#ff6b00] hover:bg-[#ff8533] text-black font-medium rounded-md transition-colors flex items-center gap-1">
-                    <i data-lucide="refresh-cw" class="icon h-4 w-4"></i>
-                    Retry Payment
-                  </button>
-                  {% endif %}
                 </div>
               </div>
               {% if order.payment_failure_reason %}
@@ -569,55 +638,6 @@
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
   <script>
-    function retryPayment(orderId, amount) {
-      const options = {
-        "key": "{{ razorpay_key_id }}",
-        "amount": amount * 100,
-        "currency": "INR",
-        "name": "Helmax",
-        "description": "Order Payment",
-        "order_id": orderId,
-        "handler": function (response) {
-          // Handle successful payment
-          fetch('/payment/success/', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_signature: response.razorpay_signature
-            })
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.status === 'success' || data.status === 'error') {
-              window.location.href = data.redirect_url;
-            } else {
-              alert('Payment failed: ' + data.message);
-            }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while processing payment');
-          });
-        },
-        "prefill": {
-          "name": "{{ order.full_name }}",
-          "email": "{{ order.email }}",
-          "contact": "{{ order.phone }}"
-        },
-        "theme": {
-          "color": "#ff6b00"
-        }
-      };
-
-      const rzp1 = new Razorpay(options);
-      rzp1.open();
-    }
-
     function getCookie(name) {
       let cookieValue = null;
       if (document.cookie && document.cookie !== '') {
@@ -637,86 +657,6 @@
     // Initialize Lucide icons
     lucide.createIcons();
 
-    // Payment timer functionality
-    {% if order.payment_status == 'PAYMENT_PENDING' or order.payment_status == 'FAILED' %}
-    const orderId = "{{ order.order_id }}";
-    let remainingSeconds = 0;
-    let countdownInterval;
-
-    // Function to check payment status and update timer
-    function checkPaymentStatus() {
-      fetch(`/payment/check-status/${orderId}/`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.status === 'success') {
-            // If payment is complete, redirect
-            if (data.payment_status === 'PAID') {
-              clearInterval(countdownInterval);
-              document.getElementById('paymentMessage').textContent = 'Payment completed successfully!';
-              setTimeout(() => {
-                window.location.href = data.redirect_url;
-              }, 2000);
-              return;
-            }
-            
-            // Update remaining time if available
-            if (data.remaining_seconds) {
-              remainingSeconds = data.remaining_seconds;
-              updateCountdown();
-            }
-            
-            // Check if payment has expired
-            if (!data.can_retry) {
-              clearInterval(countdownInterval);
-              document.getElementById('paymentCountdown').textContent = 'Payment time expired';
-              document.getElementById('paymentMessage').textContent = 'Your payment time has expired. The order will be automatically cancelled.';
-              document.getElementById('retryPaymentBtn').disabled = true;
-              document.getElementById('retryPaymentBtn').classList.add('opacity-50');
-            }
-          }
-        })
-        .catch(error => {
-          console.error('Error checking payment status:', error);
-        });
-    }
-    
-    // Function to update the countdown timer
-    function updateCountdown() {
-      const minutes = Math.floor(remainingSeconds / 60);
-      const seconds = remainingSeconds % 60;
-      document.getElementById('paymentCountdown').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-      
-      if (remainingSeconds <= 0) {
-        clearInterval(countdownInterval);
-        checkPaymentStatus(); // Check one last time
-        return;
-      }
-      
-      remainingSeconds--;
-    }
-    
-    // Initialize timer and status check
-    checkPaymentStatus();
-    countdownInterval = setInterval(updateCountdown, 1000);
-    
-    // Set up retry payment button
-    document.getElementById('retryPaymentBtn').addEventListener('click', function() {
-      const orderId = this.getAttribute('data-order-id');
-      fetch(`/payment/retry/${orderId}/`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.status === 'success') {
-            retryPayment(data.razorpay_order_id, data.amount);
-          } else {
-            alert(data.message);
-          }
-        })
-        .catch(error => {
-          console.error('Error:', error);
-          alert('An error occurred while preparing payment retry');
-        });
-    });
-    {% endif %}
     function closeLogoutModal() {
       document.getElementById('logoutModal').classList.add('hidden');
       document.body.style.overflow = '';

@@ -1298,6 +1298,17 @@ document.getElementById('apply-coupon').addEventListener('click', async function
           };
           
           const rzp = new Razorpay(options);
+          
+          // Handle payment failure
+          rzp.on('payment.failed', function (response) {
+            console.log('Payment failed:', response.error);
+            showNotification('Payment failed. You can retry from the orders page.', 'error');
+            // Redirect to orders page where user can retry
+            setTimeout(() => {
+              window.location.href = '/my-orders/';
+            }, 2000);
+          });
+          
           rzp.open();
         } else {
           // For COD, redirect to order details page

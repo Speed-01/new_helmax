@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.utils.timezone import now
 from manager.forms import SignupForm, OTPVerificationForm, PasswordResetRequestForm,SetPasswordForm
 from .forms import AddressForm
-from manager.models import OTP,User,Category, Brand, Size, Product, Variant, ProductImage, Review, Address, Cart, CartItem,PaymentMethod, Coupon, CouponUsage, Wishlist, ReturnRequest, Wallet, WalletTransaction
+from manager.models import OTP,User,Category, Brand, Size, Product, Variant, ProductImage, Review, Address, Cart, CartItem,PaymentMethod, Coupon, CouponUsage, Wishlist, ReturnRequest, Wallet, WalletTransaction,OrderStatusHistory
 from datetime import timezone
 from django.views.decorators.cache import never_cache
 from django.http import  JsonResponse
@@ -1975,23 +1975,27 @@ def payment_success(request, order_id=None):
                 
                 # Update order status for successful payment
                 order.payment_status = 'PAID'
+                order.order_status = 'PENDING'
                 order.razorpay_payment_id = razorpay_payment_id
-                
-                # Find the user's cart that's associated with this order
+                # Reduce stock for each order item
+                for item in order.order_items.all():
+                    size = item.size
+                    if size:
+                        if size.stock >= item.quantity:
+                            size.stock -= item.quantity
+                            size.save()
+                        else:
+                            logger.error(f"Insufficient stock for {item.variant.product.name} in size {size.name} during payment success. Only {size.stock} available.")
+                            # Optionally, handle this edge case (should not happen if checked at order time)
+                # Mark the user's cart as ordered and create a new cart
                 try:
-                    # Get all carts for this user that aren't marked as ordered yet
                     user_carts = Cart.objects.filter(user=order.user, is_ordered=False)
-                    
-                    # Mark the cart as ordered and create a new empty cart
                     if user_carts.exists():
                         cart = user_carts.first()
                         cart.is_ordered = True
                         cart.save()
-                        
-                        # Create new empty cart for user
                         new_cart = Cart.objects.create(user=order.user)
                         logger.info(f"Marked cart as ordered and created new cart for user {order.user.id}")
-                    
                     # Remove this order from pending orders in session if it exists
                     if 'pending_orders' in request.session and order.order_id in request.session['pending_orders']:
                         pending_orders = request.session['pending_orders']
@@ -1999,10 +2003,8 @@ def payment_success(request, order_id=None):
                         request.session['pending_orders'] = pending_orders
                         request.session.modified = True
                         logger.info(f"Removed order {order.order_id} from pending orders in session")
-                        
                 except Exception as cart_error:
                     logger.error(f"Error handling cart after successful payment: {str(cart_error)}")
-                
                 order.save()
                 
                 # Verify the order exists in the database again before redirecting
@@ -2043,8 +2045,8 @@ def payment_success(request, order_id=None):
                 # Return JSON with error status and payment retry information
                 return JsonResponse({
                     'status': 'error',
-                    'message': 'Payment verification failed. You can retry payment within 10 minutes.',
-                    'redirect_url': reverse('order_details', args=[order.order_id]),
+                    'message': 'Payment verification failed. You can retry payment from the orders page.',
+                    'redirect_url': reverse('my_orders'),
                     'payment_retry': {
                         'can_retry': True,
                         'expiry_time': order.payment_expiry_time.isoformat(),
@@ -2073,12 +2075,18 @@ def payment_success(request, order_id=None):
     }, status=400)
 
 @login_required
+@login_required
 def retry_payment(request, order_id):
     try:
+        # Add debugging logs
+        logger.info(f"Retry payment request for order_id: {order_id} by user: {request.user.id}")
+        
         order = Order.objects.get(order_id=order_id, user=request.user)
+        logger.info(f"Found order: {order.order_id} with current razorpay_order_id: {order.razorpay_order_id}")
         
         # Check if order is already paid
         if order.payment_status == 'PAID':
+            logger.warning(f"Order {order_id} is already paid")
             return JsonResponse({
                 'status': 'error',
                 'message': 'Order is already paid'
@@ -2116,13 +2124,19 @@ def retry_payment(request, order_id):
             'payment_capture': 1
         })
         
+        logger.info(f"Created new Razorpay order: {payment['id']} for order: {order.order_id}")
+        logger.info(f"Razorpay response: {payment}")
+        
         # Update order with new Razorpay order ID and reset payment expiry time
+        old_razorpay_id = order.razorpay_order_id
         order.razorpay_order_id = payment['id']
         order.payment_status = 'PAYMENT_PENDING'
         order.payment_attempts += 1
         order.last_payment_attempt = now
         order.payment_expiry_time = now + timezone.timedelta(minutes=10)  # Reset to 10 minutes from now
         order.save()
+        
+        logger.info(f"Updated order {order.order_id}: old_razorpay_id={old_razorpay_id}, new_razorpay_id={order.razorpay_order_id}")
         
         # Get customer details for prefill
         customer_name = order.full_name or request.user.get_full_name() or request.user.username
@@ -2152,6 +2166,73 @@ def retry_payment(request, order_id):
         }, status=400)
 
 
+@login_required
+def retry_payment_form(request, order_id):
+    """Form-based retry payment - creates Razorpay order and renders checkout page"""
+    try:
+        order = Order.objects.get(order_id=order_id, user=request.user)
+        
+        # Check if order is already paid
+        if order.payment_status == 'PAID':
+            messages.error(request, 'Order is already paid')
+            return redirect('my_orders')
+        
+        # Check if payment has expired - CANCEL THE ORDER
+        now = timezone.now()
+        if order.payment_expiry_time and now > order.payment_expiry_time:
+            # Auto-cancel expired order
+            order.order_status = 'CANCELLED'
+            order.payment_status = 'FAILED'
+            order.cancelled_at = now
+            order.payment_failure_reason = 'Payment time expired - Order cancelled'
+            order.save()
+            
+            # Create status history
+            OrderStatusHistory.objects.create(
+                order=order,
+                old_status='PENDING',
+                new_status='CANCELLED',
+                reason='Payment deadline expired'
+            )
+            
+            messages.error(request, 'Payment time has expired. Your order has been cancelled.')
+            return redirect('my_orders')
+        
+        # Create new Razorpay order
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+        payment = client.order.create({
+            'amount': int(order.total_amount * 100),
+            'currency': 'INR',
+            'payment_capture': 1
+        })
+        
+        # Update order with new Razorpay order ID
+        order.razorpay_order_id = payment['id']
+        order.payment_status = 'PAYMENT_PENDING'
+        order.payment_attempts += 1
+        order.last_payment_attempt = now
+        order.payment_expiry_time = now + timezone.timedelta(minutes=10)
+        order.save()
+        
+        # Render checkout with Razorpay details
+        context = {
+            'order': order,
+            'razorpay_key': settings.RAZORPAY_KEY_ID,
+            'razorpay_order_id': payment['id'],
+            'amount': int(order.total_amount * 100),
+            'customer_name': order.full_name or request.user.get_full_name() or request.user.username,
+            'customer_email': order.email or request.user.email,
+            'customer_phone': order.phone or ''
+        }
+        return render(request, 'retry_payment.html', context)
+        
+    except Order.DoesNotExist:
+        messages.error(request, 'Order not found')
+        return redirect('my_orders')
+    except Exception as e:
+        logger.error(f"Error in retry_payment_form: {str(e)}")
+        messages.error(request, 'An error occurred while processing your request')
+        return redirect('my_orders')
 
 
 
@@ -3026,20 +3107,18 @@ def create_order(request):
                     price=cart_item.variant.final_price or cart_item.variant.price,
                     size=cart_item.size
                 )
-                
-                # Reduce inventory
-                size = cart_item.size
-                if size:
-                    # Ensure stock doesn't go below zero
-                    if size.stock >= cart_item.quantity:
-                        size.stock -= cart_item.quantity
-                        size.save()
-                    else:
-                        # Handle insufficient stock
-                        return JsonResponse({
-                            'success': False,
-                            'message': f'Insufficient stock for {cart_item.variant.product.name} in size {size.name}. Only {size.stock} available.'
-                        })
+                # Only reduce stock for COD orders here. For Razorpay, do it after payment success.
+                if payment_method != 'razorpay':
+                    size = cart_item.size
+                    if size:
+                        if size.stock >= cart_item.quantity:
+                            size.stock -= cart_item.quantity
+                            size.save()
+                        else:
+                            return JsonResponse({
+                                'success': False,
+                                'message': f'Insufficient stock for {cart_item.variant.product.name} in size {size.name}. Only {size.stock} available.'
+                            })
             
             # If there was a coupon, record its usage
             if cart.coupon:

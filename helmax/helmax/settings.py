@@ -1,3 +1,5 @@
+# Skip Allauth social login confirmation page and go directly to Google
+SOCIALACCOUNT_LOGIN_ON_GET = True
 from pathlib import Path
 import os
 from dotenv import load_dotenv

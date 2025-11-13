@@ -1165,6 +1165,25 @@ def admin_orders_api(request):
             # Calculate total discount including both product and coupon discounts
             total_discount = float(order.product_discount) + float(order.coupon_discount)
             
+            # Check if payment has expired and auto-cancel if needed
+            from django.utils import timezone
+            if (order.order_status == 'PENDING' and 
+                order.payment_expiry_time and 
+                timezone.now() > order.payment_expiry_time):
+                # Auto-cancel the order if payment time expired
+                order.order_status = 'CANCELLED'
+                order.save(update_fields=['order_status'])
+                # Create status history entry
+                OrderStatusHistory.objects.get_or_create(
+                    order=order,
+                    old_status='PENDING',
+                    new_status='CANCELLED',
+                    defaults={
+                        'reason': 'Auto-cancelled: Payment time window exceeded',
+                        'changed_by': None
+                    }
+                )
+            
             orders_data.append({
                 'id': order.order_id,
                 'username': order.user.username if order.user else 'N/A',
