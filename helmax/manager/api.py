@@ -56,20 +56,16 @@ def get_sales_data(request):
         filter_type = request.GET.get('filter', 'monthly')
         today = timezone.now()
         
-        if filter_type == 'daily':        
+        if filter_type == 'weekly':        
+            # Last 7 days
             start_date = today - timedelta(days=7)
             date_trunc = TruncDate('created_at')
             date_format = '%Y-%m-%d'
-        elif filter_type == 'weekly':
-            start_date = today - timedelta(weeks=4)
-            # For weekly data, we'll still use date and group by week manually
-            date_trunc = TruncDate('created_at')
-            date_format = '%Y-%W'
         elif filter_type == 'yearly':
             start_date = today - timedelta(days=365)
             date_trunc = TruncMonth('created_at')
             date_format = '%Y-%m'
-        else:  # monthly
+        else:  # monthly (default)
             start_date = today - timedelta(days=30)
             date_trunc = TruncDate('created_at')
             date_format = '%Y-%m-%d'
@@ -272,3 +268,73 @@ def get_products(request):
     except Exception as e:
         logger.error(f'Error in get_products: {str(e)}')
         return JsonResponse({'error': 'Failed to fetch products', 'details': str(e)}, status=500)
+
+@login_required(login_url='adminLogin')
+def get_order_status_summary(request):
+    try:
+        status_counts = Order.objects.values('order_status').annotate(count=Count('id'))
+        summary = {
+            'PENDING': 0,
+            'PROCESSING': 0,
+            'SHIPPED': 0,
+            'DELIVERED': 0,
+            'CANCELLED': 0
+        }
+        
+        for status_count in status_counts:
+            status = status_count['order_status']
+            if status in summary:
+                summary[status] = status_count['count']
+        
+        return JsonResponse(summary)
+    except Exception as e:
+        logger.error(f'Error in get_order_status_summary: {str(e)}')
+        return JsonResponse({'error': 'Failed to fetch order status summary'}, status=500)
+
+@login_required(login_url='adminLogin')
+def get_recent_orders(request):
+    try:
+        recent_orders = Order.objects.select_related('user').order_by('-created_at')[:10]
+        orders_list = []
+        
+        for order in recent_orders:
+            orders_list.append({
+                'order_id': order.order_id,
+                'customer_name': order.user.username if order.user else 'Unknown',
+                'total_amount': float(order.total_amount) if order.total_amount else 0
+            })
+        
+        return JsonResponse({'orders': orders_list})
+    except Exception as e:
+        logger.error(f'Error in get_recent_orders: {str(e)}')
+        return JsonResponse({'error': 'Failed to fetch recent orders'}, status=500)
+
+@login_required(login_url='adminLogin')
+def get_low_stock_products(request):
+    try:
+        # Fetch products with low stock
+        products_list = []
+        products = Product.objects.select_related('category').all()
+        
+        for product in products:
+            total_stock = 0
+            # Calculate total stock across all variants and sizes
+            for variant in product.variants.all():
+                for size in variant.sizes.all():
+                    total_stock += size.stock
+            
+            # Show products with 20 or fewer units in stock
+            if total_stock <= 20:
+                products_list.append({
+                    'name': product.name,
+                    'category': product.category.name if product.category else 'N/A',
+                    'stock': total_stock
+                })
+        
+        # Sort by stock (lowest first)
+        products_list.sort(key=lambda x: x['stock'])
+        
+        return JsonResponse({'products': products_list[:15]})  # Return top 15 low stock items
+    except Exception as e:
+        logger.error(f'Error in get_low_stock_products: {str(e)}')
+        return JsonResponse({'error': 'Failed to fetch low stock products'}, status=500)

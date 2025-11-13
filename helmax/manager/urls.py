@@ -11,6 +11,9 @@ urlpatterns = [
     path('api/top-categories/', api.get_top_categories, name='api_top_categories'),
     path('api/top-products/', api.get_top_products, name='api_top_products'),
     path('api/top-brands/', api.get_top_brands, name='api_top_brands'),
+    path('api/order-status-summary/', api.get_order_status_summary, name='api_order_status_summary'),
+    path('api/recent-orders/', api.get_recent_orders, name='api_recent_orders'),
+    path('api/low-stock-products/', api.get_low_stock_products, name='api_low_stock_products'),
     # Dashboard routes
     path('dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('dashboard/data/', views.dashboard_data, name='dashboard_data'),
