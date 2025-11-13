@@ -5,6 +5,136 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Variant</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Cropper.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <style>
+        .image-preview-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .image-preview-item {
+            position: relative;
+            cursor: pointer;
+            border: 2px solid #2A2A2A;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .image-preview-item:hover {
+            border-color: #666;
+            box-shadow: 0 0 10px rgba(234, 179, 8, 0.3);
+        }
+        
+        .image-preview-item img {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+        }
+        
+        .image-preview-item .crop-btn {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(234, 179, 8, 0.9);
+            color: black;
+            padding: 4px 8px;
+            font-size: 12px;
+            text-align: center;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .image-preview-item:hover .crop-btn {
+            opacity: 1;
+        }
+        
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .crop-modal {
+            background: #1A1A1A;
+            border: 2px solid #333;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .crop-modal h3 {
+            color: #fff;
+            margin-bottom: 16px;
+            font-size: 18px;
+        }
+        
+        .crop-container {
+            position: relative;
+            max-height: 400px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        
+        .crop-container img {
+            max-width: 100%;
+            max-height: 400px;
+        }
+        
+        .crop-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .crop-actions button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .crop-actions .btn-save {
+            background: linear-gradient(to right, #eab308, #ea580c);
+            color: black;
+            font-weight: 600;
+        }
+        
+        .crop-actions .btn-save:hover {
+            opacity: 0.9;
+        }
+        
+        .crop-actions .btn-cancel {
+            background: #2A2A2A;
+            color: #999;
+        }
+        
+        .crop-actions .btn-cancel:hover {
+            background: #333;
+        }
+    </style>
 </head>
 <body class="bg-[#0A0A0A] text-gray-200">
     <div class="p-6 space-y-6">
@@ -103,8 +233,14 @@
                     accept="image/*"
                     class="w-full px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                 >
+                <p class="text-xs text-gray-400 mt-2">Click on any image preview to crop it</p>
+                <div id="imagePreviewContainer" class="image-preview-container"></div>
                 <p class="text-sm text-gray-400">Upload at least 4 images to replace the existing ones</p>
             </div>
+
+            <!-- Hidden inputs to store cropped images -->
+            <input type="hidden" id="croppedImages" name="cropped_images" value="">
+            <input type="hidden" id="originalImages" name="original_images" value="">
 
             <div class="flex justify-between items-center">
                 <button type="submit" 
@@ -130,5 +266,164 @@
             {% csrf_token %}
         </form>
     </div>
-</body>
-</html>
+
+    <!-- Image Crop Modal -->
+    <div id="cropModal" class="modal-overlay">
+        <div class="crop-modal">
+            <h3>Crop Image</h3>
+            <div class="crop-container">
+                <img id="cropperImage" src="" alt="Image to crop">
+            </div>
+            <div class="crop-actions">
+                <button type="button" class="btn-cancel" onclick="closeCropModal()">Cancel</button>
+                <button type="button" class="btn-save" onclick="saveCroppedImage()">Save Crop</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cropper.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <script>
+        let imageFiles = [];
+        let croppedImagesData = {};
+        let currentCropIndex = null;
+        let cropper = null;
+
+        // Handle file input change
+        document.getElementById('images').addEventListener('change', function(e) {
+            imageFiles = Array.from(this.files);
+            displayImagePreviews();
+        });
+
+        function displayImagePreviews() {
+            const container = document.getElementById('imagePreviewContainer');
+            container.innerHTML = '';
+            
+            imageFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const div = document.createElement('div');
+                    div.className = 'image-preview-item';
+                    div.innerHTML = `
+                        <img src="${e.target.result}" alt="Preview ${index}">
+                        <div class="crop-btn" onclick="openCropModal(${index})">Crop</div>
+                    `;
+                    container.appendChild(div);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function openCropModal(index) {
+            currentCropIndex = index;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const imgElement = document.getElementById('cropperImage');
+                imgElement.src = e.target.result;
+                
+                // Destroy previous cropper if exists
+                if (cropper) {
+                    cropper.destroy();
+                }
+                
+                // Initialize cropper
+                cropper = new Cropper(imgElement, {
+                    aspectRatio: 1,
+                    viewMode: 1,
+                    autoCropArea: 1,
+                    responsive: true,
+                    guides: true,
+                    center: true,
+                    highlight: true,
+                    cropBoxMovable: true,
+                    cropBoxResizable: true,
+                    toggleDragModeOnDblclick: true,
+                });
+            };
+            reader.readAsDataURL(imageFiles[index]);
+            
+            document.getElementById('cropModal').classList.add('active');
+        }
+
+        function closeCropModal() {
+            document.getElementById('cropModal').classList.remove('active');
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+            currentCropIndex = null;
+        }
+
+        function saveCroppedImage() {
+            if (!cropper || currentCropIndex === null) return;
+            
+            const canvas = cropper.getCroppedCanvas({
+                maxWidth: 1024,
+                maxHeight: 1024,
+                fillColor: '#fff',
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high',
+            });
+            
+            // Convert canvas to blob and store
+            canvas.toBlob(function(blob) {
+                croppedImagesData[currentCropIndex] = blob;
+                
+                // Update the preview to show cropped image
+                const container = document.getElementById('imagePreviewContainer');
+                const items = container.querySelectorAll('.image-preview-item');
+                if (items[currentCropIndex]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        items[currentCropIndex].querySelector('img').src = e.target.result;
+                    };
+                    reader.readAsDataURL(blob);
+                }
+                
+                closeCropModal();
+            }, 'image/jpeg', 0.95);
+        }
+
+        // Override form submission to include cropped images
+        document.getElementById('editVariantForm').addEventListener('submit', function(e) {
+            // Create FormData to handle file uploads
+            const formData = new FormData(this);
+            
+            // Add cropped images
+            let croppedCount = 0;
+            Object.keys(croppedImagesData).forEach(index => {
+                formData.append(`cropped_image_${index}`, croppedImagesData[index], `cropped_${index}.jpg`);
+                croppedCount++;
+            });
+            
+            // Store info about which images were cropped
+            formData.append('cropped_indices', Object.keys(croppedImagesData).join(','));
+            
+            // Replace form submission with fetch to handle file upload
+            e.preventDefault();
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            }).then(response => {
+                if (response.ok) {
+                    window.location.href = '{% url "adminProducts" %}';
+                } else {
+                    alert('Error updating variant');
+                }
+            }).catch(error => {
+                console.error('Error:', error);
+                alert('Error updating variant');
+            });
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('cropModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeCropModal();
+            }
+        });
+    </script>

@@ -851,11 +851,16 @@ def addVariant(request, product_id):
         price = request.POST.get('price')
         discount_price = request.POST.get('discount_price')
         sizes = request.POST.getlist('sizes')
+        
+        # Handle both original and cropped images
         images = request.FILES.getlist('images')
-        primary_image_index = int(request.POST.get('primary_image_index', 0))  # New field
+        cropped_indices = request.POST.get('cropped_indices', '').split(',')
+        cropped_indices = [int(i) for i in cropped_indices if i.isdigit()]
+        
+        primary_image_index = int(request.POST.get('primary_image_index', 0))
 
         try:
-            with transaction.atomic():  # Use transaction to ensure data consistency
+            with transaction.atomic():
                 # Create variant
                 variant = Variant.objects.create(
                     product=product,
@@ -875,12 +880,23 @@ def addVariant(request, product_id):
                         stock=stock_value
                     )
 
-                # Handle images
+                # Handle images - both original and cropped
                 for index, image in enumerate(images):
+                    # Check if this image was cropped
+                    if index in cropped_indices:
+                        # Use the cropped version if available
+                        cropped_key = f'cropped_image_{index}'
+                        if cropped_key in request.FILES:
+                            image_to_save = request.FILES[cropped_key]
+                        else:
+                            image_to_save = image
+                    else:
+                        image_to_save = image
+                    
                     ProductImage.objects.create(
                         variant=variant,
-                        image=image,
-                        is_primary=(index == primary_image_index)  # Set primary based on selected index
+                        image=image_to_save,
+                        is_primary=(index == primary_image_index)
                     )
 
             messages.success(request, 'Variant added successfully.')
@@ -939,6 +955,10 @@ def editVariant(request, variant_id):
         new_sizes = request.POST.getlist('sizes')
         new_images = request.FILES.getlist('images')
         
+        # Handle both original and cropped images
+        cropped_indices = request.POST.get('cropped_indices', '').split(',')
+        cropped_indices = [int(i) for i in cropped_indices if i.isdigit()]
+        
         try:
             # Update variant details
             variant.color = color.upper() if color else color  # Convert color to uppercase
@@ -991,11 +1011,22 @@ def editVariant(request, variant_id):
                 # If new images are uploaded, delete old ones
                 existing_images.delete()
                 
-                # Add new images
+                # Add new images - both original and cropped
                 for index, image in enumerate(new_images):
+                    # Check if this image was cropped
+                    if index in cropped_indices:
+                        # Use the cropped version if available
+                        cropped_key = f'cropped_image_{index}'
+                        if cropped_key in request.FILES:
+                            image_to_save = request.FILES[cropped_key]
+                        else:
+                            image_to_save = image
+                    else:
+                        image_to_save = image
+                    
                     ProductImage.objects.create(
                         variant=variant,
-                        image=image,
+                        image=image_to_save,
                         is_primary=(index == 0)
                     )
         
