@@ -287,6 +287,9 @@
               </div>
               <div class="text-right">
                 <p class="font-medium">₹{{ item.variant.final_price|floatformat:2 }}</p>
+                {% if item.variant.discount_price and item.variant.discount_price < item.variant.price %}
+                <p class="text-xs text-zinc-500 line-through">₹{{ item.variant.price|floatformat:2 }}</p>
+                {% endif %}
                 <p class="text-zinc-400 text-sm">
                     Total: ₹{{ item.variant.final_price|multiply:item.quantity|floatformat:2 }}
                 </p>

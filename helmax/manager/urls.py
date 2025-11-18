@@ -74,6 +74,7 @@ urlpatterns = [
     path('apply-coupon/', views.apply_coupon, name='apply_coupon'),
     path('coupons/edit/<int:coupon_id>/', views.edit_coupon, name='edit_coupon'),
     path('get-coupon/<int:coupon_id>/', views.get_coupon_details, name='get_coupon_details'),
+    path('coupons/usage-details/<int:coupon_id>/', views.coupon_usage_details, name='coupon_usage_details'),
 
     path('return-requests/', views.admin_return_requests, name='admin_return_requests'),
     path('api/return-requests/', views.get_return_requests, name='get_return_requests'),

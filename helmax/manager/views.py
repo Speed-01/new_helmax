@@ -1395,9 +1395,19 @@ def update_item_status(request):
 
 @login_required(login_url='adminLogin')
 def admin_coupons(request):
-    """ Fetch all coupons ordered by newest first. """
+    """ Fetch all coupons ordered by newest first with usage statistics. """
     coupons = Coupon.objects.all().order_by('-created_at')
-    return render(request, 'admin_coupons.html', {'coupons': coupons})
+    
+    # Add usage statistics to each coupon
+    coupon_data = []
+    for coupon in coupons:
+        total_usage = CouponUsage.objects.filter(coupon=coupon).count()
+        coupon_data.append({
+            'coupon': coupon,
+            'total_usage': total_usage
+        })
+    
+    return render(request, 'admin_coupons.html', {'coupons': coupon_data})
 
 @login_required(login_url='adminLogin')
 @csrf_exempt
@@ -1543,6 +1553,10 @@ def edit_coupon(request, coupon_id):
         try:
             coupon = get_object_or_404(Coupon, id=coupon_id)
             
+            # Log old values for debugging
+            old_usage_limit = coupon.usage_limit
+            logger.info(f"Editing coupon {coupon.code} (ID: {coupon_id}). Old usage_limit: {old_usage_limit}")
+            
             # Check if code exists for other coupons
             if Coupon.objects.filter(code=request.POST.get('code')).exclude(id=coupon_id).exists():
                 messages.error(request, 'Coupon code already exists')
@@ -1558,10 +1572,40 @@ def edit_coupon(request, coupon_id):
             coupon.is_active = request.POST.get('is_active') == 'on'
             coupon.save()
             
-            messages.success(request, 'Coupon updated successfully')
+            # Log new values
+            logger.info(f"Coupon {coupon.code} updated. New usage_limit: {coupon.usage_limit}")
+            
+            messages.success(request, f'Coupon updated successfully. Usage limit changed from {old_usage_limit} to {coupon.usage_limit}')
         except Exception as e:
+            logger.error(f"Error updating coupon {coupon_id}: {str(e)}", exc_info=True)
             messages.error(request, f'Error updating coupon: {str(e)}')
     return redirect('admin_coupons')
+
+@login_required(login_url='adminLogin')
+def coupon_usage_details(request, coupon_id):
+    """Get detailed usage information for a specific coupon"""
+    try:
+        coupon = get_object_or_404(Coupon, id=coupon_id)
+        usages = CouponUsage.objects.filter(coupon=coupon).select_related('user', 'order').order_by('-used_at')
+        
+        usage_data = []
+        for usage in usages:
+            usage_data.append({
+                'username': usage.user.username,
+                'email': usage.user.email,
+                'order_id': usage.order.order_id,
+                'used_at': usage.used_at.strftime('%d %b %Y, %I:%M %p')
+            })
+        
+        return JsonResponse({
+            'total_usage': usages.count(),
+            'usage_limit': coupon.usage_limit,
+            'unique_users': usages.values('user').distinct().count(),
+            'usages': usage_data
+        })
+    except Exception as e:
+        logger.error(f"Error fetching coupon usage details: {str(e)}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=400)
 
 @login_required(login_url='adminLogin')
 def admin_return_requests(request):

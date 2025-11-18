@@ -123,7 +123,6 @@
               </div>
               <div class="text-right">
                 <p class="text-gray-400">Payment: <span class="text-white">{{ order.payment_method.name }}</span></p>
-                <p class="text-2xl font-bold text-[#ff6b00]">₹{{ order.total_amount }}</p>
               </div>
             </div>
 
@@ -184,17 +183,17 @@
             <div class="mt-4 border-t border-zinc-800 pt-4">
               <div class="flex justify-between text-gray-400">
                 <span>Subtotal:</span>
-                <span>₹{{ order.total_amount }}</span>
+                <span>₹{{ order.subtotal|floatformat:2 }}</span>
               </div>
-              {% if order.total_discount %}
-              <div class="flex justify-between text-gray-400">
-                <span>Discount:</span>
-                <span>-₹0.00</span>
+              {% if order.product_discount > 0 or order.calculated_product_discount > 0 or order.coupon_discount > 0 %}
+              <div class="flex justify-between text-green-400">
+                <span>Total Discount:</span>
+                <span>-₹{{ order.total_discount|floatformat:2 }}</span>
               </div>
               {% endif %}
               <div class="flex justify-between text-white font-bold mt-2">
                 <span>Total:</span>
-                <span>₹{{ order.total_amount }}</span>
+                <span>₹{{ order.actual_paid_amount|floatformat:2 }}</span>
               </div>
             </div>
 

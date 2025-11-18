@@ -318,8 +318,9 @@ class Cart(BaseModel):
     
     @property
     def final_price(self):
-        """Calculate final price after discounts."""
-        return max(Decimal('0.00'), self.total_price - self.total_discount).quantize(Decimal('0.01'))
+        """Calculate final price after coupon discount (product discounts already in total_price)."""
+        coupon_discount = self.calculate_coupon_discount()
+        return max(Decimal('0.00'), self.total_price - coupon_discount).quantize(Decimal('0.01'))
     
     def update_totals(self):
         """Update cart totals and validate items."""
@@ -466,8 +467,21 @@ class Order(BaseModel):
     ]
     
     @property
+    def calculated_product_discount(self):
+        """Calculate product discount from order items (for old orders or verification)"""
+        return sum(item.total_discount for item in self.order_items.all())
+    
+    @property
     def total_discount(self):
-        return self.product_discount + self.coupon_discount
+        # Use stored discount if available, otherwise calculate from items
+        product_disc = self.product_discount if self.product_discount > 0 else self.calculated_product_discount
+        return product_disc + self.coupon_discount
+    
+    @property
+    def actual_paid_amount(self):
+        """Calculate the actual amount paid (subtotal - all discounts)"""
+        product_disc = self.product_discount if self.product_discount > 0 else self.calculated_product_discount
+        return max(0, self.subtotal - product_disc - self.coupon_discount)
     
     @property
     def final_price(self):
@@ -475,11 +489,10 @@ class Order(BaseModel):
         
     @property
     def subtotal(self):
-        # Calculate subtotal before discounts
+        # Calculate subtotal from original prices (MRP)
         return sum(
-            item.variant.price * item.quantity
+            item.total_original_price if item.original_price > 0 else item.total_price
             for item in self.order_items.all()
-            if item.variant
         )
     
     PAYMENT_STATUSES = [
@@ -575,7 +588,8 @@ class OrderItem(models.Model):
     variant = models.ForeignKey(Variant, on_delete=models.SET_NULL, null=True)
     size = models.ForeignKey(Size, on_delete=models.SET_NULL, null=True)
     quantity = models.PositiveIntegerField()
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    price = models.DecimalField(max_digits=10, decimal_places=2)  # Price customer paid (after discount)
+    original_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # MRP before discount
     
     status = models.CharField(max_length=20, choices=ITEM_STATUSES, default='PROCESSING')
     return_status = models.CharField(max_length=20, choices=RETURN_STATUSES, default='NOT_REQUESTED')
@@ -587,6 +601,26 @@ class OrderItem(models.Model):
     delivered_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
     returned_at = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def item_discount(self):
+        """Discount per unit"""
+        return self.original_price - self.price if self.original_price > 0 else 0
+    
+    @property
+    def total_original_price(self):
+        """Total MRP for this item"""
+        return self.original_price * self.quantity
+    
+    @property
+    def total_price(self):
+        """Total price customer pays for this item"""
+        return self.price * self.quantity
+    
+    @property
+    def total_discount(self):
+        """Total discount for this item"""
+        return self.item_discount * self.quantity
 
     def can_return(self):
         if self.status != 'DELIVERED':

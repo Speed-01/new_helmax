@@ -163,14 +163,14 @@
               <p class="text-white">₹{{ order.subtotal }}</p>
             </div>
             
-            {% if order.product_discount %}
+            {% if order.product_discount > 0 or order.calculated_product_discount > 0 %}
             <div class="flex justify-between">
               <p class="text-gray-400">Product Discount</p>
-              <p class="text-green-400">-₹{{ order.product_discount }}</p>
+              <p class="text-green-400">-₹{% if order.product_discount > 0 %}{{ order.product_discount }}{% else %}{{ order.calculated_product_discount }}{% endif %}</p>
             </div>
             {% endif %}
             
-            {% if order.coupon_discount %}
+            {% if order.coupon_discount > 0 %}
             <div class="flex justify-between">
               <p class="text-gray-400">Coupon Discount</p>
               <p class="text-green-400">-₹{{ order.coupon_discount }}</p>
@@ -179,9 +179,14 @@
             
             <div class="border-t border-gray-800 pt-3 mt-3">
               <div class="flex justify-between">
-                <p class="text-gray-300 font-medium">Total Amount</p>
-                <p class="text-white font-bold">₹{{ order.total_amount }}</p>
+                <p class="text-gray-300 font-medium">Order Total</p>
+                <p class="text-white font-bold">₹{{ order.actual_paid_amount|floatformat:2 }}</p>
               </div>
+              {% if order.product_discount > 0 or order.calculated_product_discount > 0 or order.coupon_discount > 0 %}
+              <p class="text-xs text-gray-400 mt-1">
+                Total Savings: ₹{% if order.product_discount > 0 %}{{ order.product_discount|floatformat:2 }}{% else %}{{ order.calculated_product_discount|floatformat:2 }}{% endif %}{% if order.coupon_discount > 0 %} + ₹{{ order.coupon_discount|floatformat:2 }}{% endif %}
+              </p>
+              {% endif %}
             </div>
           </div>
           

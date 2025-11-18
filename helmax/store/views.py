@@ -1826,10 +1826,11 @@ def user_checkout(request):
             
             # Calculate totals using Decimal
             subtotal = cart.total_price
+            # Calculate product discount (includes ProductOffer, CategoryOffer, and manual discount_price)
             product_discount = Decimal(str(sum(
-                (item.variant.price - item.variant.discount_price) * item.quantity
+                (item.variant.price - item.variant.final_price) * item.quantity
                 for item in cart_items
-                if item.variant.discount_price
+                if item.variant.final_price < item.variant.price
             )))
             coupon_discount = cart.calculate_coupon_discount()
             total_discount = product_discount + coupon_discount
@@ -1848,7 +1849,19 @@ def user_checkout(request):
             coupon_data = []
             for coupon in coupons:
                 coupon_min_purchase = Decimal(str(coupon.minimum_purchase))
-                is_applicable = subtotal >= coupon_min_purchase
+                
+                # Check how many times the user has used this coupon
+                user_usage_count = CouponUsage.objects.filter(user=request.user, coupon=coupon).count()
+                
+                # Check if user can still use this coupon
+                can_use = user_usage_count < coupon.usage_limit
+                
+                # Check minimum purchase requirement
+                meets_minimum = subtotal >= coupon_min_purchase
+                
+                # Coupon is applicable if both conditions are met
+                is_applicable = can_use and meets_minimum
+                
                 amount_needed = coupon_min_purchase - subtotal if subtotal < coupon_min_purchase else Decimal('0')
                 
                 coupon_data.append({
@@ -1858,7 +1871,10 @@ def user_checkout(request):
                     'minimum_purchase': float(coupon.minimum_purchase),
                     'is_applicable': is_applicable,
                     'expiry_date': coupon.end_date,
-                    'amount_needed': float(amount_needed)
+                    'amount_needed': float(amount_needed),
+                    'usage_count': user_usage_count,
+                    'usage_limit': coupon.usage_limit,
+                    'can_use': can_use
                 })
             
             context = {
@@ -1923,10 +1939,21 @@ def place_order(request):
             else:
                 payment_method_id = cod_method.id
 
+            # Calculate discounts
+            cart_items = cart.items.all()
+            product_discount = Decimal(str(sum(
+                (item.variant.price - item.variant.final_price) * item.quantity
+                for item in cart_items
+                if item.variant.final_price < item.variant.price
+            )))
+            coupon_discount = cart.calculate_coupon_discount()
+
             # Create the order
             order = Order.objects.create(
                 user=request.user,
-                total_amount=cart.total_price,
+                total_amount=cart.final_price,
+                product_discount=product_discount,
+                coupon_discount=coupon_discount,
                 paymentmethod_id=payment_method_id,
                 full_name=address.full_name,
                 email=address.email,
@@ -1946,7 +1973,8 @@ def place_order(request):
                     variant=cart_item.variant,
                     size=cart_item.size,
                     quantity=cart_item.quantity,
-                    price=cart_item.variant.discount_price or cart_item.variant.price
+                    price=cart_item.variant.discount_price or cart_item.variant.price,  # Price paid
+                    original_price=cart_item.variant.price  # MRP
                 )
 
             # If Razorpay payment
@@ -2926,11 +2954,15 @@ def apply_coupon(request):
             # Check how many times the user has used this coupon
             user_usage_count = CouponUsage.objects.filter(user=request.user, coupon=coupon).count()
             
+            # Log current usage vs limit for debugging
+            logger.info(f"Coupon {coupon.code} (ID: {coupon.id}): user_usage_count={user_usage_count}, usage_limit={coupon.usage_limit}, user_id={request.user.id}")
+            
             # Check if user has reached their personal usage limit for this coupon
             if user_usage_count >= coupon.usage_limit:
+                logger.warning(f"User {request.user.id} has exceeded usage limit for coupon {coupon.code}. Used {user_usage_count} times, limit is {coupon.usage_limit}")
                 return JsonResponse({
                     'success': False,
-                    'message': f'You have already used this coupon {user_usage_count} times (maximum: {coupon.usage_limit})'
+                    'message': f'You have already used this coupon the maximum number of times. Used: {user_usage_count}/{coupon.usage_limit}'
                 })
                 
             # Log the usage count for debugging
@@ -3166,8 +3198,17 @@ def create_order(request):
             order_number = f'ORD-{timezone.now().strftime('%Y%m%d')}-{random.randint(1000, 9999)}'
             
             # Calculate totals
+            cart_items = cart.items.all()
             subtotal = cart.total_price
-            discount = cart.calculate_coupon_discount() if cart.coupon else 0
+            
+            # Calculate product discount (includes all offers)
+            product_discount = Decimal(str(sum(
+                (item.variant.price - item.variant.final_price) * item.quantity
+                for item in cart_items
+                if item.variant.final_price < item.variant.price
+            )))
+            
+            coupon_discount = cart.calculate_coupon_discount() if cart.coupon else 0
             delivery_charge = 0  # Free delivery
             final_amount = cart.final_price
             
@@ -3188,8 +3229,9 @@ def create_order(request):
                 pincode=address.pincode,
                 # Other order fields
                 payment_method=payment_method_obj,
-                total_amount=subtotal,
-                coupon_discount=discount,
+                total_amount=final_amount,
+                product_discount=product_discount,
+                coupon_discount=coupon_discount,
                 order_status='PENDING',
                 payment_status='PENDING'
             )
@@ -3198,9 +3240,11 @@ def create_order(request):
             for cart_item in cart.items.all():
                 OrderItem.objects.create(
                     order=order,
+                    product=cart_item.variant.product,
                     variant=cart_item.variant,
                     quantity=cart_item.quantity,
-                    price=cart_item.variant.final_price or cart_item.variant.price,
+                    price=cart_item.variant.final_price or cart_item.variant.price,  # Price paid
+                    original_price=cart_item.variant.price,  # MRP
                     size=cart_item.size
                 )
                 # Only reduce stock for COD orders here. For Razorpay, do it after payment success.
