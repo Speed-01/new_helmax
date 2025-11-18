@@ -39,7 +39,7 @@ function getCookie(name) {
 document.addEventListener('DOMContentLoaded', function() {
   const options = {
     key: '{{ razorpay_key }}',
-    amount: {{ amount }},
+    amount: parseInt('{{ amount }}'),
     currency: 'INR',
     name: 'Helmax',
     description: 'Retry Payment for Order #{{ order.order_id }}',

@@ -104,7 +104,7 @@ def home(request):
             'name': product.name,
             'price': float(first_variant.price),
             'discount_price': float(first_variant.discount_price) if first_variant.discount_price else None,
-            'image_url': image_url or '/static/images/default-product.jpg',
+            'image_url': image_url,  # Let template handle missing images
             'category': product.category.name if product.category else '',
             'brand': product.brand.name if product.brand else '',
         })
