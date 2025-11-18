@@ -565,13 +565,18 @@ def filter_products(request):
         'products': product_data
     })
 
-def get_variant_data(request, product_id, variant_id):
+def get_variant_data(request, variant_id, product_id=None):
+    query_filters = {
+        'id': variant_id,
+        'is_active': True
+    }
+    if product_id:
+        query_filters['product_id'] = product_id
+    
     variant = get_object_or_404(
         Variant.objects.select_related('product')
         .prefetch_related('images', 'sizes'),
-        product_id=product_id,
-        id=variant_id,
-        is_active=True
+        **query_filters
     )
     
     # Get primary image, with fallback
@@ -580,6 +585,7 @@ def get_variant_data(request, product_id, variant_id):
         primary_image = variant.images.first()
     
     data = {
+        'success': True,
         'id': variant.id,
         'color': variant.color,
         'price': str(variant.price),
@@ -993,9 +999,18 @@ def add_to_cart(request):
 
         try:
             variant = Variant.objects.get(id=variant_id)
+        except Variant.DoesNotExist:
+            return JsonResponse({'success': False, 'message': f'Variant with ID {variant_id} not found'}, status=404)
+        
+        try:
             size = Size.objects.get(name=size_name, product_variant=variant)
-        except (Variant.DoesNotExist, Size.DoesNotExist):
-            return JsonResponse({'success': False, 'message': 'Product variant or size not found'}, status=404)
+        except Size.DoesNotExist:
+            # Debug: show available sizes
+            available_sizes = Size.objects.filter(product_variant=variant).values_list('name', flat=True)
+            return JsonResponse({
+                'success': False, 
+                'message': f'Size "{size_name}" not found for this variant. Available sizes: {list(available_sizes)}'
+            }, status=404)
 
         # Check if the product, category, brand, and variant are active
         if not (variant.is_active and variant.product.is_active and variant.product.category.is_active and variant.product.brand.is_active):
@@ -1153,14 +1168,32 @@ def wishlist_view(request):
                 except Exception:
                     stock = 0
                 
+                # Calculate final price considering offers
+                original_price = float(variant.price or 0)
+                final_price = float(variant.final_price)
+                savings = original_price - final_price
+                
+                # Check if this variant is already in the cart
+                is_in_cart = False
+                try:
+                    cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
+                    if cart:
+                        is_in_cart = CartItem.objects.filter(cart=cart, variant=variant).exists()
+                except Exception:
+                    pass
+                
                 items_data.append({
                     'id': variant.id,
+                    'product_id': variant.product.id if variant.product else None,
                     'product_name': variant.product.name if variant.product else 'Unknown Product',
                     'color': variant.color or 'No Color',
-                    'price': variant.price or 0,
-                    'discount_price': variant.discount_price or variant.price or 0,
+                    'original_price': original_price,
+                    'final_price': final_price,
+                    'savings': savings,
                     'image_url': image_url,
-                    'stock': stock
+                    'stock': stock,
+                    'has_offer': variant.active_offer is not None,
+                    'is_in_cart': is_in_cart
                 })
             except Exception as item_error:
                 print(f"Error processing wishlist item: {str(item_error)}")
@@ -1202,16 +1235,23 @@ def wishlist_view(request):
                         similar_products.append({
                             'id': product.id,
                             'name': product.name if product.name else 'Unknown Product',
-                            'price': first_variant.price or 0,
-                            'discount_price': first_variant.discount_price or first_variant.price or 0,
+                            'original_price': float(first_variant.price or 0),
+                            'final_price': float(first_variant.final_price),
+                            'savings': float(first_variant.price or 0) - float(first_variant.final_price),
                             'image_url': image_url
                         })
                 except Exception as product_error:
                     print(f"Error processing similar product: {str(product_error)}")
 
+        # Calculate total value and savings for wishlist summary
+        wishlist_total = sum(item['final_price'] for item in items_data)
+        wishlist_savings = sum(item['savings'] for item in items_data)
+
         return render(request, 'wishlist.html', {
             'wishlist_items': items_data,
-            'similar_products': similar_products
+            'similar_products': similar_products,
+            'wishlist_total': wishlist_total,
+            'wishlist_savings': wishlist_savings
         })
         
     except Exception as e:
@@ -1321,14 +1361,24 @@ def sort_wishlist(request, sort_by):
         elif sort_by == 'name':
             items = items.order_by('product__name')
         
+        # Get user's cart for checking if items are already in cart
+        cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
+        cart_variant_ids = set()
+        if cart:
+            cart_variant_ids = set(CartItem.objects.filter(cart=cart).values_list('variant_id', flat=True))
+        
         items_data = [{
             'id': item.id,
+            'product_id': item.product.id if item.product else None,
             'product_name': item.product.name if item.product else 'Product Unavailable',
             'color': item.color,
-            'price': item.price,
-            'discount_price': item.discount_price,
+            'original_price': float(item.price or 0),
+            'final_price': float(item.final_price),
+            'savings': float(item.price or 0) - float(item.final_price),
             'image_url': item.images.filter(is_primary=True).first().image.url if item.images.filter(is_primary=True).exists() else item.images.first().image.url if item.images.exists() else None,
-            'stock': sum(size.stock for size in item.sizes.all())
+            'stock': sum(size.stock for size in item.sizes.all()),
+            'has_offer': item.active_offer is not None,
+            'is_in_cart': item.id in cart_variant_ids
         } for item in items]
         
         return JsonResponse({
@@ -2332,6 +2382,11 @@ def cancel_order(request, order_id):
     if request.method != 'POST':
         logger.error("Invalid request method for cancel_order")
         return JsonResponse({'success': False, 'message': 'Invalid request method'})
+    
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except json.JSONDecodeError:
+        data = {}
         
     try:
         with transaction.atomic():  # Use transaction to ensure data consistency

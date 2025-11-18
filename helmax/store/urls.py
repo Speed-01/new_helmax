@@ -22,7 +22,7 @@ urlpatterns = [
     path('api/filter-products/', views.filter_products, name='filter_products'),
     path('products/', views.product_list, name='product_list'),
     path('product/<int:product_id>/', views.product_detail, name='product_detail'),
-    path('product/<int:product_id>/variant/<int:variant_id>/', views.get_variant_data, name='get_variant_data'),
+    path('product/<int:product_id>/variant/<int:variant_id>/', views.get_variant_data, name='get_variant_data_with_product'),
     
     path('user-profile/<int:user_id>/', views.user_profile, name='user_profile'),
     # path('edit-profile/', views.edit_user_profile, name='edit_user_profile'),
@@ -59,7 +59,7 @@ urlpatterns = [
     path('remove-from-wishlist/<int:variant_id>/', views.remove_from_wishlist, name='remove_from_wishlist'),
     path('clear-wishlist/', views.clear_wishlist, name='clear_wishlist'),
     path('add-multiple-to-cart/', views.add_multiple_to_cart, name='add_multiple_to_cart'),
-    path('api/product/<int:variant_id>/', views.product_detail, name='get_product_details'),
+    path('api/product/<int:product_id>/', views.product_detail, name='get_product_details'),
     path('api/variant/<int:variant_id>/sizes/', views.get_variant_data, name='get_variant_data'),
     path('sort-wishlist/<str:sort_by>/', views.sort_wishlist, name='sort_wishlist'),
     path('api/similar-products/', views.load_similar_products, name='load_similar_products'),

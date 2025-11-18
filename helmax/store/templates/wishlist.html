@@ -141,27 +141,10 @@
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
                 <div>
                     <p class="text-sm text-gray-400">Wishlist Summary</p>
-                    {% with total_price=0 total_discount=0 %}
-                    {% for item in wishlist_items %}
-                        {% with item_price=item.price|default:0 %}
-                            {% with discount_price=item.discount_price|default:item_price %}
-                                {% with saving=item_price|sub:discount_price %}
-                                    <!-- Calculate running totals -->
-                                    {% with new_total_price=total_price|add:discount_price %}
-                                        {% with new_total_discount=total_discount|add:saving %}
-                                            <!-- Store updated values for next iteration -->
-                                            {% with total_price=new_total_price total_discount=new_total_discount %}{% endwith %}
-                                        {% endwith %}
-                                    {% endwith %}
-                                {% endwith %}
-                            {% endwith %}
-                        {% endwith %}
-                    {% endfor %}
-                    <p class="text-lg font-bold">Total Value: ₹{{ total_price }}</p>
-                    {% if total_discount > 0 %}
-                    <p class="text-sm text-green-500">You save: ₹{{ total_discount }}</p>
+                    <p class="text-lg font-bold">Total Value: ₹{{ wishlist_total|floatformat:2 }}</p>
+                    {% if wishlist_savings > 0 %}
+                    <p class="text-sm text-green-500">You save: ₹{{ wishlist_savings|floatformat:2 }}</p>
                     {% endif %}
-                    {% endwith %}
                 </div>
                 <button class="btn btn-primary mt-4 md:mt-0" onclick="moveAllToCart()">
                     Move All to Cart
@@ -177,17 +160,16 @@
             <div class="card" data-variant-id="{{ item.id }}">
                 <div class="relative aspect-square overflow-hidden group">
                     <img src="{{ item.image_url|default:'https://placehold.co/300x300' }}" alt="{{ item.product_name }}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
-                    {% if item.discount_price and item.discount_price < item.price %}
+                    {% if item.savings > 0 %}
                     <div class="absolute top-2 right-2 bg-primary text-black px-2 py-1 rounded text-sm font-bold">
-                        {% with discount_percent=item.price|sub:item.discount_price|div:item.price|mul:100|floatformat:0 %}
+                        {% widthratio item.savings item.original_price 100 as discount_percent %}
                         {{ discount_percent }}% OFF
-                        {% endwith %}
                     </div>
                     {% endif %}
                     <div class="absolute inset-0 bg-black bg-opacity-40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                        <button class="btn bg-white text-black mx-2 hover:bg-gray-200" onclick="quickView('{{ item.id }}')">
-                            Quick View
-                        </button>
+                        <a href="{% url 'product_detail' item.product_id %}" class="btn bg-white text-black mx-2 hover:bg-gray-200">
+                            View Details
+                        </a>
                     </div>
                 </div>
                 
@@ -202,18 +184,30 @@
                     <p class="text-sm text-gray-400 mb-2">{{ item.color }}</p>
                     
                     <div class="flex items-baseline gap-2 mb-4">
-                        <span class="text-lg font-bold">₹{{ item.discount_price|default:item.price }}</span>
-                        {% if item.discount_price and item.discount_price < item.price %}
-                        <span class="text-sm text-gray-400 line-through">₹{{ item.price }}</span>
+                        <span class="text-lg font-bold">₹{{ item.final_price|floatformat:2 }}</span>
+                        {% if item.savings > 0 %}
+                        <span class="text-sm text-gray-400 line-through">₹{{ item.original_price|floatformat:2 }}</span>
                         {% endif %}
                     </div>
 
                     <div class="space-y-2">
                         {% if item.stock > 0 %}
-                        <button class="btn btn-primary w-full" onclick="addToCart('{{ item.id }}')">
+                        <!-- Added to Cart Badge -->
+                        <div id="added-badge-{{ item.id }}" class="{% if not item.is_in_cart %}hidden{% endif %} flex items-center gap-2 text-green-500 text-sm font-medium mb-2">
+                            <i class='bx bx-check-circle text-lg'></i>
+                            <span>Added to Cart</span>
+                        </div>
+                        
+                        <!-- Add to Cart Button -->
+                        <button id="add-btn-{{ item.id }}" class="{% if item.is_in_cart %}hidden{% endif %} btn btn-primary w-full" onclick="addToCart('{{ item.id }}')">
                             <i class='bx bx-cart-add'></i>
                             Add to Cart
                         </button>
+                        
+                        <!-- View Cart Button -->
+                        <a id="view-cart-btn-{{ item.id }}" href="{% url 'view_cart' %}" class="{% if not item.is_in_cart %}hidden{% endif %} btn btn-outline w-full">
+                            View Cart
+                        </a>
                         {% else %}
                         <div class="w-full py-2 bg-red-500/20 text-red-500 text-center rounded text-sm font-medium">
                             Out of Stock
@@ -256,9 +250,9 @@
                     </div>
                     <p class="font-medium text-sm truncate">{{ product.name }}</p>
                     <div class="flex items-baseline gap-2">
-                        <p class="text-sm text-[#ff6b00]">₹{{ product.discount_price|default:product.price }}</p>
-                        {% if product.discount_price and product.discount_price < product.price %}
-                        <p class="text-xs text-gray-400 line-through">₹{{ product.price }}</p>
+                        <p class="text-sm text-[#ff6b00]">₹{{ product.final_price|floatformat:2 }}</p>
+                        {% if product.savings > 0 %}
+                        <p class="text-xs text-gray-400 line-through">₹{{ product.original_price|floatformat:2 }}</p>
                         {% endif %}
                     </div>
                 </a>
@@ -278,63 +272,7 @@
         </div>
     </div>
 
-    <!-- Quick View Modal (hidden by default) -->
-    <div id="quickViewModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
-        <div class="bg-zinc-900 rounded-lg max-w-4xl w-full mx-4 overflow-hidden">
-            <div class="flex justify-end p-4">
-                <button onclick="closeQuickView()" class="text-gray-400 hover:text-white">
-                    <i class='bx bx-x text-2xl'></i>
-                </button>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-                <div class="aspect-square">
-                    <img id="modalImage" src="https://placehold.co/500x500" alt="Product" class="w-full h-full object-cover rounded">
-                </div>
-                <div>
-                    <h2 id="modalTitle" class="text-2xl font-bold mb-2">Product Name</h2>
-                    <div class="flex items-center gap-1 mb-2">
-                        <i class='bx bxs-star text-yellow-500'></i>
-                        <span id="modalRating" class="text-sm">4.5</span>
-                        <span id="modalReviews" class="text-xs text-gray-400">(128 reviews)</span>
-                    </div>
-                    <p id="modalColor" class="text-gray-400 mb-4">Color: Black</p>
-                    
-                    <div class="flex items-baseline gap-2 mb-4">
-                        <span id="modalPrice" class="text-2xl font-bold">₹3,999</span>
-                        <span id="modalOriginalPrice" class="text-gray-400 line-through">₹4,999</span>
-                    </div>
-                    
-                    <div class="mb-6">
-                        <h3 class="font-medium mb-2">Select Size</h3>
-                        <div class="flex gap-2">
-                            <button class="w-10 h-10 rounded-full border border-gray-600 flex items-center justify-center hover:border-white">S</button>
-                            <button class="w-10 h-10 rounded-full border border-gray-600 flex items-center justify-center hover:border-white">M</button>
-                            <button class="w-10 h-10 rounded-full border border-gray-600 flex items-center justify-center hover:border-white">L</button>
-                            <button class="w-10 h-10 rounded-full border border-gray-600 flex items-center justify-center hover:border-white">XL</button>
-                        </div>
-                    </div>
-                    
-                    <div class="flex gap-4 mb-6">
-                        <div class="flex border border-gray-600 rounded">
-                            <button class="px-3 py-2 hover:bg-gray-800">-</button>
-                            <span class="px-4 py-2">1</span>
-                            <button class="px-3 py-2 hover:bg-gray-800">+</button>
-                        </div>
-                        <button class="btn btn-primary flex-1" onclick="addToCartFromModal()">
-                            Add to Cart
-                        </button>
-                    </div>
-                    
-                    <div class="border-t border-gray-700 pt-4">
-                        <h3 class="font-medium mb-2">Product Details</h3>
-                        <p class="text-gray-400 text-sm">
-                            Premium quality product with excellent craftsmanship. Made with high-quality materials for durability and comfort.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+
 
     <script>
         // Toast notification
@@ -379,15 +317,15 @@
             card.innerHTML = `
                 <div class="relative aspect-square overflow-hidden group">
                     <img src="${item.image_url || 'https://placehold.co/300x300'}" alt="${item.product_name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
-                    ${item.discount_price && item.discount_price < item.price ? `
+                    ${item.savings > 0 ? `
                         <div class="absolute top-2 right-2 bg-primary text-black px-2 py-1 rounded text-sm font-bold">
-                            ${Math.round((item.price - item.discount_price) / item.price * 100)}% OFF
+                            ${Math.round((item.savings / item.original_price) * 100)}% OFF
                         </div>
                     ` : ''}
                     <div class="absolute inset-0 bg-black bg-opacity-40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                        <button class="btn bg-white text-black mx-2 hover:bg-gray-200" onclick="quickView('${item.id}')">
-                            Quick View
-                        </button>
+                        <a href="/product/${item.product_id}/" class="btn bg-white text-black mx-2 hover:bg-gray-200">
+                            View Details
+                        </a>
                     </div>
                 </div>
                 
@@ -402,18 +340,30 @@
                     <p class="text-sm text-gray-400 mb-2">${item.color}</p>
                     
                     <div class="flex items-baseline gap-2 mb-4">
-                        <span class="text-lg font-bold">₹${item.discount_price || item.price}</span>
-                        ${item.discount_price && item.discount_price < item.price ? `
-                            <span class="text-sm text-gray-400 line-through">₹${item.price}</span>
+                        <span class="text-lg font-bold">₹${item.final_price.toFixed(2)}</span>
+                        ${item.savings > 0 ? `
+                            <span class="text-sm text-gray-400 line-through">₹${item.original_price.toFixed(2)}</span>
                         ` : ''}
                     </div>
 
                     <div class="space-y-2">
                         ${item.stock > 0 ? `
-                            <button class="btn btn-primary w-full" onclick="addToCart('${item.id}')">
+                            <!-- Added to Cart Badge -->
+                            <div id="added-badge-${item.id}" class="${item.is_in_cart ? '' : 'hidden'} flex items-center gap-2 text-green-500 text-sm font-medium mb-2">
+                                <i class='bx bx-check-circle text-lg'></i>
+                                <span>Added to Cart</span>
+                            </div>
+                            
+                            <!-- Add to Cart Button -->
+                            <button id="add-btn-${item.id}" class="${item.is_in_cart ? 'hidden' : ''} btn btn-primary w-full" onclick="addToCart('${item.id}')">
                                 <i class='bx bx-cart-add'></i>
                                 Add to Cart
                             </button>
+                            
+                            <!-- View Cart Button -->
+                            <a id="view-cart-btn-${item.id}" href="/cart/" class="${item.is_in_cart ? '' : 'hidden'} btn btn-outline w-full">
+                                View Cart
+                            </a>
                         ` : `
                             <div class="w-full py-2 bg-red-500/20 text-red-500 text-center rounded text-sm font-medium">
                                 Out of Stock
@@ -456,9 +406,9 @@
                             </div>
                             <p class="font-medium text-sm truncate">${product.name}</p>
                             <div class="flex items-baseline gap-2">
-                                <p class="text-sm text-[#ff6b00]">₹${product.discount_price || product.price}</p>
-                                ${product.discount_price && product.discount_price < product.price ? `
-                                    <p class="text-xs text-gray-400 line-through">₹${product.price}</p>
+                                <p class="text-sm text-[#ff6b00]">₹${product.final_price.toFixed(2)}</p>
+                                ${product.savings > 0 ? `
+                                    <p class="text-xs text-gray-400 line-through">₹${product.original_price.toFixed(2)}</p>
                                 ` : ''}
                             </div>
                         `;
@@ -500,70 +450,29 @@
             }, 3000);
         }
 
-        // Quick View Modal
-        function quickView(id) {
-            const modal = document.getElementById('quickViewModal');
-            modal.classList.remove('hidden');
-            
-            // Fetch product details via AJAX
-            fetch(`/api/product/${id}/`)
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('modalTitle').textContent = data.name;
-                    document.getElementById('modalPrice').textContent = `₹${data.discount_price || data.price}`;
-                    if (data.discount_price && data.discount_price < data.price) {
-                        document.getElementById('modalOriginalPrice').textContent = `₹${data.price}`;
-                        document.getElementById('modalOriginalPrice').classList.remove('hidden');
-                    } else {
-                        document.getElementById('modalOriginalPrice').classList.add('hidden');
-                    }
-                    document.getElementById('modalColor').textContent = `Color: ${data.color}`;
-                    document.getElementById('modalImage').src = data.image_url;
-                })
-                .catch(error => {
-                    console.error('Error fetching product details:', error);
-                    showToast('Error', 'Failed to load product details', 'error');
-                });
-        }
-        
-        function closeQuickView() {
-            const modal = document.getElementById('quickViewModal');
-            modal.classList.add('hidden');
-        }
-        
-        function addToCart(id) {
-        fetch(`/add-to-cart/${id}/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken'),
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                quantity: 1
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Added to cart', data.message || 'Item has been added to your cart');
-                // Update cart count in header if needed
-                if (data.cart_count) {
-                    document.querySelector('.cart-count').textContent = data.cart_count;
+        function addToCart(variantId) {
+            console.log('Fetching sizes for variant:', variantId);
+            // First fetch available sizes for this variant
+            fetch(`/api/variant/${variantId}/sizes/`, {
+                method: 'GET',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
                 }
-            } else {
-                showToast('Error', data.message || 'Failed to add item to cart', 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error adding to cart:', error);
-            showToast('Error', 'Failed to add item to cart', 'error');
-        });
-    }
-        
-        function addToCartFromModal() {
-            const id = document.getElementById('modalTitle').dataset.productId;
-            closeQuickView();
-            addToCart(id);
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Sizes fetched:', data);
+                if (data.success && data.sizes && data.sizes.length > 0) {
+                    // Show size selection modal
+                    showSizeSelectionModal(variantId, data.sizes);
+                } else {
+                    showToast('Error', 'No sizes available for this product', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching sizes:', error);
+                showToast('Error', 'Failed to get available sizes', 'error');
+            });
         }
         
         // Remove item
@@ -750,76 +659,7 @@
             }
         }
         
-        // Quick view function
-        function quickView(variantId) {
-            fetch(`/api/product/${variantId}/`, {
-                method: 'GET',
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const modal = document.getElementById('quickViewModal');
-                    document.getElementById('modalImage').src = data.image_url || 'https://placehold.co/500x500';
-                    document.getElementById('modalTitle').textContent = data.product_name;
-                    document.getElementById('modalColor').textContent = `Color: ${data.color || 'N/A'}`;
-                    document.getElementById('modalPrice').textContent = `₹${data.discount_price || data.price}`;
-                    
-                    if (data.discount_price && data.discount_price < data.price) {
-                        document.getElementById('modalOriginalPrice').textContent = `₹${data.price}`;
-                        document.getElementById('modalOriginalPrice').classList.remove('hidden');
-                    } else {
-                        document.getElementById('modalOriginalPrice').classList.add('hidden');
-                    }
-                    
-                    modal.classList.remove('hidden');
-                } else {
-                    showToast('Error', data.message || 'Failed to load product details', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error loading product details:', error);
-                showToast('Error', 'Failed to load product details', 'error');
-            });
-        }
-        
-        // Close quick view modal
-        function closeQuickView() {
-            document.getElementById('quickViewModal').classList.add('hidden');
-        }
-        
-        // Add to cart from modal
-        function addToCartFromModal() {
-            const variantId = document.querySelector('.card[data-variant-id]').dataset.variantId;
-            addToCart(variantId);
-            closeQuickView();
-        }
-        
-        // Add to cart function
-        function addToCart(variantId) {
-            // First fetch available sizes for this variant
-            fetch(`/api/variant/${variantId}/sizes/`, {
-                method: 'GET',
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.sizes && data.sizes.length > 0) {
-                    // Show size selection modal
-                    showSizeSelectionModal(variantId, data.sizes);
-                } else {
-                    showToast('Error', 'No sizes available for this product', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching sizes:', error);
-                showToast('Error', 'Failed to get available sizes', 'error');
-            });
-        }
+
         
         // Show size selection modal
         function showSizeSelectionModal(variantId, sizes) {
@@ -877,6 +717,7 @@
         
         // Add to cart with selected size
         function addToCartWithSize(variantId, sizeName) {
+            console.log('Adding to cart:', { variantId, sizeName });
             fetch('/cart/add/', {
                 method: 'POST',
                 headers: {
@@ -887,11 +728,13 @@
             })
             .then(response => response.json())
             .then(data => {
+                console.log('Add to cart response:', data);
                 // Remove size selection modal
                 document.getElementById('sizeSelectionModal').remove();
                 
                 if (data.success) {
                     showToast('Added to Cart', 'Item has been added to your cart');
+                    
                     // Update cart count in header if needed
                     if (data.cart_count) {
                         const cartCountElement = document.querySelector('.cart-count');
@@ -899,6 +742,17 @@
                             cartCountElement.textContent = data.cart_count;
                             cartCountElement.classList.remove('hidden');
                         }
+                    }
+                    
+                    // Show "Added to Cart" badge and "View Cart" button
+                    const addedBadge = document.getElementById(`added-badge-${variantId}`);
+                    const addBtn = document.getElementById(`add-btn-${variantId}`);
+                    const viewCartBtn = document.getElementById(`view-cart-btn-${variantId}`);
+                    
+                    if (addedBadge && addBtn && viewCartBtn) {
+                        addedBadge.classList.remove('hidden');
+                        addBtn.classList.add('hidden');
+                        viewCartBtn.classList.remove('hidden');
                     }
                 } else {
                     showToast('Error', data.message || 'Failed to add item to cart', 'error');
