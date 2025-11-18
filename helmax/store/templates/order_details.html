@@ -172,7 +172,13 @@
         </div>
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <script>
-  document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function() {
+      const retryBtn = document.getElementById('retry-payment-btn');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', function() {
+        const btn = this;
+        const orderId = btn.getAttribute('data-order-id');
+        btn.disabled = true;
         const originalText = btn.innerHTML;
         btn.innerHTML = '<i data-lucide="loader" class="icon mr-2 h-4 w-4 animate-spin"></i>Processing...';
         
@@ -197,59 +203,59 @@
               handler: function(response) {
                 // On payment success, verify with backend
                 fetch(`/payment/success/${orderId}/`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken')
-                  },
-                  body: JSON.stringify({
-                    razorpay_payment_id: response.razorpay_payment_id,
-                    razorpay_order_id: response.razorpay_order_id,
-                    razorpay_signature: response.razorpay_signature
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                      razorpay_payment_id: response.razorpay_payment_id,
+                      razorpay_order_id: response.razorpay_order_id,
+                      razorpay_signature: response.razorpay_signature
+                    })
                   })
-                })
-                .then(res => res.json())
-                .then(resData => {
-                  window.location.href = resData.redirect_url;
-                })
-                .catch(() => {
-                  window.location.href = '/my-orders/';
-                });
-              },
-              prefill: {
-                name: data.customer_name,
-                email: data.customer_email,
-                contact: data.customer_phone
-              },
-              theme: { color: '#ff6b00' }
-            };
-            const rzp = new Razorpay(options);
-            rzp.on('payment.failed', function () {
-              window.location.href = '/my-orders/';
-            });
-            rzp.open();
-          } else {
-            // Re-enable button and show error
+                  .then(res => res.json())
+                  .then(resData => {
+                    window.location.href = resData.redirect_url;
+                  })
+                  .catch(() => {
+                    window.location.href = '/my-orders/';
+                  });
+                },
+                prefill: {
+                  name: data.customer_name,
+                  email: data.customer_email,
+                  contact: data.customer_phone
+                },
+                theme: { color: '#ff6b00' }
+              };
+              const rzp = new Razorpay(options);
+              rzp.on('payment.failed', function () {
+                window.location.href = '/my-orders/';
+              });
+              rzp.open();
+            } else {
+              // Re-enable button and show error
+              btn.disabled = false;
+              btn.innerHTML = originalText;
+              alert(data.message || 'Payment retry failed');
+              if (data.redirect_url) {
+                window.location.href = data.redirect_url;
+              }
+            }
+          })
+          .catch(() => {
+            // Re-enable button
             btn.disabled = false;
             btn.innerHTML = originalText;
-            alert(data.message || 'Payment retry failed');
-            if (data.redirect_url) {
-              window.location.href = data.redirect_url;
-            }
-          }
-        })
-        .catch(() => {
-          // Re-enable button
-          btn.disabled = false;
-          btn.innerHTML = originalText;
-          alert('An error occurred. Please try again.');
+            alert('An error occurred. Please try again.');
+          });
         });
-      });
+      }
     });
-  });
   </script>
 
-        <!-- Order Status Card -->
+  <!-- Order Status Card -->
         <div class="mb-6 bg-zinc-900 rounded-lg overflow-hidden">
           <div class="p-4 border-b border-zinc-800">
             <h2 class="text-xl font-bold flex items-center">
@@ -313,7 +319,7 @@
               
               <!-- Progress bar -->
               <div class="absolute top-5 left-0 right-0 h-0.5 bg-zinc-800">
-                <div class="h-full bg-[#ff6b00] transition-all duration-500" style="width: {% if order.order_status == 'DELIVERED' %}100{% elif order.order_status == 'SHIPPED' %}66{% elif order.order_status == 'PROCESSING' %}33{% else %}0{% endif %}%"></div>
+                <div class="h-full bg-[#ff6b00] transition-all duration-500 {% if order.order_status == 'DELIVERED' %}w-full{% elif order.order_status == 'SHIPPED' %}w-2/3{% elif order.order_status == 'PROCESSING' %}w-1/3{% else %}w-0{% endif %}"></div>
               </div>
             </div>
             {% endif %}
@@ -626,8 +632,6 @@
       <p class="text-gray-300 mb-6">Are you sure you want to log out?</p>
       <form method="post" action="{% url 'confirm_logout' %}" class="flex justify-end space-x-4">
         {% csrf_token %}
-        <button type="button" class  %}" class="flex justify-end space-x-4">
-        {% csrf_token %}
         <button type="button" class="px-4 py-2 bg-zinc-600 text-white rounded-md hover:bg-zinc-700 transition-colors" onclick="closeLogoutModal()">Cancel</button>
         <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">Yes, log me out</button>
       </form>
@@ -637,22 +641,6 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
-  <script>
-    function getCookie(name) {
-      let cookieValue = null;
-      if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-          const cookie = cookies[i].trim();
-          if (cookie.substring(0, name.length + 1) === (name + '=')) {
-            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-            break;
-          }
-        }
-      }
-      return cookieValue;
-    }
-  </script>
   <script>
     // Initialize Lucide icons
     lucide.createIcons();

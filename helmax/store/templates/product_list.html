@@ -3,7 +3,10 @@
 {% load offer_filters %}
 
 {% block content %}
-<div class="min-h-screen bg-black text-white p-4 sm:p-6 lg:p-8">
+<div class="min-h-screen bg-black text-white p-4 sm:p-6 lg:p-8" 
+     data-is-authenticated="{{ request.user.is_authenticated|lower }}"
+     data-login-url="{% url 'Login' %}"
+     data-product-list-url="{% url 'product_list' %}">
     <div class="max-w-7xl mx-auto">
         <!-- Page Title and Filter Toggle for Mobile -->
         <div class="flex justify-between items-center mb-8">
@@ -171,7 +174,6 @@
                                         <button 
                                             class="wishlist-btn absolute top-2 left-2 w-8 h-8 flex items-center justify-center bg-black bg-opacity-50 rounded-full hover:bg-opacity-70 transition-all z-10"
                                             data-product-id="{{ product.id }}"
-                                            onclick="event.preventDefault(); event.stopPropagation(); toggleWishlist({{ product.id }}, this);"
                                         >
                                             <i class="fas fa-heart {% if product.id in wishlist_product_ids %}text-red-500{% else %}text-white{% endif %}"></i>
                                         </button>
@@ -298,12 +300,17 @@
         const filterToggle = document.getElementById('filter-toggle');
         const filterSidebar = document.getElementById('filter-sidebar');
         
+        // Get data from container element
+        const container = document.querySelector('[data-is-authenticated]');
+        const isAuthenticated = container.dataset.isAuthenticated === 'true';
+        const loginUrl = container.dataset.loginUrl;
+        const productListUrl = container.dataset.productListUrl;
+        
         // Wishlist toggle function
         window.toggleWishlist = function(productId, button) {
             // Check if user is authenticated
-            const isAuthenticated = {{ request.user.is_authenticated|lower }};
             if (!isAuthenticated) {
-                window.location.href = '{% url "Login" %}?next={% url "product_list" %}';
+                window.location.href = loginUrl + '?next=' + productListUrl;
                 return;
             }
             
@@ -400,6 +407,17 @@
                 filterSidebar.classList.toggle('hidden');
             });
         }
+        
+        // Event delegation for wishlist buttons
+        document.addEventListener('click', function(e) {
+            const wishlistBtn = e.target.closest('.wishlist-btn');
+            if (wishlistBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const productId = wishlistBtn.dataset.productId;
+                toggleWishlist(productId, wishlistBtn);
+            }
+        });
         
         // Collapsible filter sections
         const filterToggles = document.querySelectorAll('.filter-toggle');
@@ -546,7 +564,7 @@
             }
             
             // Redirect to filtered URL
-            window.location.href = `{% url 'product_list' %}?${queryParams.toString()}`;
+            window.location.href = productListUrl + '?' + queryParams.toString();
         }
     });
 </script>
