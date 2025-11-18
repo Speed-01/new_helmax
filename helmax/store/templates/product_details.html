@@ -193,10 +193,10 @@
                     <button 
                         id="wishlist-btn"
                         class="w-12 h-12 flex items-center justify-center bg-[#222222] rounded-sm hover:bg-[#333333] transition-colors"
-                        data-product-id="{{ product.id }}"
-                        onclick="toggleWishlist({{ product.id }}, this);"
+                        data-variant-id="{{ selected_variant_id }}"
+                        onclick="toggleWishlist({{ selected_variant_id }}, this);"
                     >
-                        <i class="fas fa-heart {% if product.id in wishlist_product_ids %}text-red-500{% else %}text-white{% endif %} text-xl"></i>
+                        <i class="fas fa-heart {% if selected_variant_id in wishlist_variant_ids %}text-red-500{% else %}text-white{% endif %} text-xl"></i>
                     </button>
                 </div>
             </div>
@@ -230,6 +230,7 @@
 </div>
 
 <script>
+// @ts-nocheck - Django template syntax
 document.addEventListener('DOMContentLoaded', function() {
     const mainImage = document.getElementById('main-image');
     const colorOptions = document.getElementById('color-options');
@@ -237,7 +238,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const quantityInput = document.getElementById('quantity');
     
     // Wishlist toggle function
-    window.toggleWishlist = function(productId, button) {
+    window.toggleWishlist = function(variantId, button) {
         // Check if user is authenticated
         const isAuthenticated = {{ request.user.is_authenticated|lower }};
         if (!isAuthenticated) {
@@ -246,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Send request to add/remove from wishlist
-        fetch(`/move-to-wishlist/${productId}/`, {
+        fetch(`/move-to-wishlist/${variantId}/`, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': getCookie('csrftoken'),
@@ -286,6 +287,28 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error updating wishlist:', error);
             showNotification('Failed to update wishlist', 'error');
         });
+    }
+    
+    // Update wishlist button based on variant ID
+    function updateWishlistButton(variantId) {
+        const wishlistButton = document.getElementById('wishlist-btn');
+        if (!wishlistButton) return;
+        
+        const heartIcon = wishlistButton.querySelector('i');
+        const wishlistVariantIds = {{ wishlist_variant_ids|safe }};
+        
+        // Update button data attribute and onclick
+        wishlistButton.setAttribute('data-variant-id', variantId);
+        wishlistButton.setAttribute('onclick', `toggleWishlist(${variantId}, this);`);
+        
+        // Update heart icon color based on wishlist status
+        if (wishlistVariantIds.includes(parseInt(variantId))) {
+            heartIcon.classList.remove('text-white');
+            heartIcon.classList.add('text-red-500');
+        } else {
+            heartIcon.classList.remove('text-red-500');
+            heartIcon.classList.add('text-white');
+        }
     }
     
     // Show notification function
@@ -562,6 +585,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 selectedSizeName = previousSelectedSize;
                 selectDefaultSize();
             }
+            
+            // Update wishlist button for new variant
+            updateWishlistButton(variantId);
 
         } catch (error) {
             console.error('Error fetching variant data:', error);

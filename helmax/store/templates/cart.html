@@ -85,9 +85,11 @@
                                 class="text-red-500 hover:text-red-400 transition-colors">
                             Remove
                         </button>
-                        <button onclick="moveToWishlist('{{ item.variant.id }}')" 
-                                class="text-gray-400 hover:text-[#ff6b00] transition-colors">
-                            Move to wishlist
+                        <button onclick="moveToWishlist('{{ item.variant.id }}', this)" 
+                                class="flex items-center gap-2 {% if item.variant.id in wishlist_variant_ids %}text-red-500{% else %}text-gray-400{% endif %} hover:text-[#ff6b00] transition-colors"
+                                data-variant-id="{{ item.variant.id }}">
+                            <i class="fas fa-heart {% if item.variant.id in wishlist_variant_ids %}text-red-500{% else %}{% endif %}"></i>
+                            <span>{% if item.variant.id in wishlist_variant_ids %}In Wishlist{% else %}Move to wishlist{% endif %}</span>
                         </button>
                     </div>
                 </div>
@@ -306,7 +308,19 @@
         });
     }
 
-    function moveToWishlist(variantId) {
+    function showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg ${type === 'success' ? 'bg-green-600' : 'bg-red-600'} text-white transform transition-all duration-300 z-50`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
+    }
+    
+    function moveToWishlist(variantId, button) {
         fetch(`/move-to-wishlist/${variantId}/`, {
             method: 'POST',
             headers: {
@@ -316,14 +330,43 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                location.reload();
+                // Update button UI
+                const heartIcon = button.querySelector('i');
+                const buttonText = button.querySelector('span');
+                
+                if (heartIcon.classList.contains('text-red-500')) {
+                    // Was in wishlist, now removed
+                    heartIcon.classList.remove('text-red-500');
+                    button.classList.remove('text-red-500');
+                    button.classList.add('text-gray-400');
+                    buttonText.textContent = 'Move to wishlist';
+                } else {
+                    // Added to wishlist
+                    heartIcon.classList.add('text-red-500');
+                    button.classList.remove('text-gray-400');
+                    button.classList.add('text-red-500');
+                    buttonText.textContent = 'In Wishlist';
+                }
+                
+                // Update wishlist count in header
+                const wishlistCountElement = document.querySelector('.wishlist-count');
+                if (wishlistCountElement) {
+                    if (data.wishlist_count > 0) {
+                        wishlistCountElement.textContent = data.wishlist_count;
+                        wishlistCountElement.classList.remove('hidden');
+                    } else {
+                        wishlistCountElement.classList.add('hidden');
+                    }
+                }
+                
+                showNotification(data.message, 'success');
             } else {
-                alert(data.message || 'Failed to move item to wishlist');
+                showNotification(data.message || 'Failed to update wishlist', 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('An error occurred. Please try again.');
+            showNotification('An error occurred. Please try again.', 'error');
         });
     }
 </script>

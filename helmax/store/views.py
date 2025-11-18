@@ -780,6 +780,7 @@ def product_list(request):
             'brand': product.brand.name if product.brand else 'No Brand',
             'description': product.description,
             'primary_variant': primary_variant,
+            'first_variant_id': variant_data[0]['id'] if variant_data else None,
             'total_stock': total_stock,
             'variants': variant_data,
             'rating': product.average_rating if hasattr(product, 'average_rating') else None,
@@ -816,15 +817,18 @@ def product_list(request):
         'search': search_query or ''
     }
 
-    # Wishlist product ids for UI (if user has wishlist)
+    # Wishlist product ids and variant ids for UI (if user has wishlist)
     wishlist_product_ids = []
+    wishlist_variant_ids = []
     try:
         if request.user.is_authenticated:
             wishlist = Wishlist.objects.filter(user=request.user).first()
             if wishlist:
                 wishlist_product_ids = list(wishlist.variants.values_list('product__id', flat=True))
+                wishlist_variant_ids = list(wishlist.variants.values_list('id', flat=True))
     except Exception:
         wishlist_product_ids = []
+        wishlist_variant_ids = []
 
     context = {
         'products': products_page,
@@ -833,6 +837,7 @@ def product_list(request):
         'pagination': pagination,
         'active_filters': active_filters,
         'wishlist_product_ids': wishlist_product_ids,
+        'wishlist_variant_ids': wishlist_variant_ids,
     }
     
     return render(request, 'product_list.html', context)
@@ -899,6 +904,20 @@ def product_detail(request, product_id):
     # Calculate total stock for the primary variant
     total_stock = sum(size['stock'] for size in sizes) if sizes else 0
     
+    # Get wishlist variant IDs for the current user
+    wishlist_variant_ids = []
+    if request.user.is_authenticated:
+        try:
+            wishlist = Wishlist.objects.filter(
+                user=request.user,
+                is_active=True
+            ).prefetch_related('variants').first()
+            
+            if wishlist:
+                wishlist_variant_ids = list(wishlist.variants.values_list('id', flat=True))
+        except Wishlist.DoesNotExist:
+            wishlist_variant_ids = []
+    
     context = {
         'product': product,
         'brand': product.brand.name,
@@ -909,6 +928,7 @@ def product_detail(request, product_id):
         'default_size_id': default_size_id,
         'total_stock': total_stock,
         'selected_variant_id': primary_variant.id if primary_variant else None,
+        'wishlist_variant_ids': wishlist_variant_ids,
     }
     
     return render(request, 'product_details.html', context)
@@ -952,12 +972,22 @@ def view_cart(request):
         else:
             continue
 
+    # Get wishlist variant IDs for UI
+    wishlist_variant_ids = []
+    try:
+        wishlist = Wishlist.objects.filter(user=request.user).first()
+        if wishlist:
+            wishlist_variant_ids = list(wishlist.variants.values_list('id', flat=True))
+    except Exception:
+        pass
+    
     context = {
         'cart': cart,
         'cart_items': cart_items,
         'total_price': cart.total_price,
         'total_discount': cart.total_discount,
-        'final_price': cart.final_price
+        'final_price': cart.final_price,
+        'wishlist_variant_ids': wishlist_variant_ids
     }
 
     return render(request, 'cart.html', context)
@@ -1487,6 +1517,12 @@ def add_multiple_to_cart(request):
         # Process each variant in the wishlist
         for variant in wishlist_variants:
             try:
+                # Check if this variant is already in cart (any size)
+                if CartItem.objects.filter(cart=cart, variant=variant).exists():
+                    skipped_count += 1
+                    error_messages.append(f"{variant.product.name} ({variant.color}): Already in cart")
+                    continue
+                
                 # Get available sizes with stock
                 available_sizes = variant.sizes.filter(stock__gt=0).order_by('name')
                 
@@ -1498,22 +1534,13 @@ def add_multiple_to_cart(request):
                 # Get the first available size
                 size = available_sizes.first()
                 
-                # Check if this variant+size combination is already in cart
-                cart_item, created = CartItem.objects.get_or_create(
+                # Add to cart (we already checked it's not there)
+                CartItem.objects.create(
                     cart=cart,
                     variant=variant,
                     size=size,
-                    defaults={'quantity': 1}
+                    quantity=1
                 )
-                
-                if not created:
-                    # If already in cart, increment quantity if stock allows
-                    if cart_item.quantity < size.stock:
-                        cart_item.quantity += 1
-                        cart_item.save()
-                    else:
-                        error_messages.append(f"{variant.product.name} ({variant.color}): Maximum stock reached")
-                        continue
                 
                 added_count += 1
                 
@@ -1525,11 +1552,14 @@ def add_multiple_to_cart(request):
         # Calculate total cart count
         cart_count = CartItem.objects.filter(cart=cart).aggregate(total=Sum('quantity'))['total'] or 0
         
+        # Check if all items were already in cart
+        already_in_cart_count = sum(1 for msg in error_messages if 'Already in cart' in msg)
+        
         # Prepare response
         if added_count > 0:
             message = f'{added_count} item(s) added to cart'
             if skipped_count > 0:
-                message += f', {skipped_count} item(s) could not be added'
+                message += f', {skipped_count} item(s) skipped'
             
             return JsonResponse({
                 'success': True, 
@@ -1540,10 +1570,21 @@ def add_multiple_to_cart(request):
                 'errors': error_messages[:5]  # Limit to first 5 errors
             })
         else:
+            # Check if all items were already in cart
+            if already_in_cart_count == wishlist_variants.count():
+                message = 'All wishlist items are already in your cart'
+            elif skipped_count > 0:
+                message = 'No new items could be added. Items may be out of stock or already in cart'
+            else:
+                message = 'No items available to add'
+                
             return JsonResponse({
-                'success': False, 
-                'message': 'No items could be added to cart', 
-                'errors': error_messages[:5]  # Limit to first 5 errors
+                'success': True,  # Changed to True to avoid showing error toast
+                'message': message,
+                'cart_count': cart_count,
+                'added_count': 0,
+                'skipped_count': skipped_count,
+                'info': error_messages[:5]  # Show as info instead of errors
             })
             
     except Exception as e:

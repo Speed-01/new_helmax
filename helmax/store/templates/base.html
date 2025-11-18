@@ -59,11 +59,11 @@
                 </button> {% endcomment %}
                 <button class="p-2 hover:text-primary">
                     <a href="{% url 'view_cart' %}" class="relative">
-                        <i class="fas fa-shopping-cart"></i>
-                        {% if cart_count %}
-                        <span class="absolute -top-2 -right-2 bg-[#ff6b00] text-black rounded-full w-5 h-5 flex items-center justify-center text-xs">
-                            {{ cart_count }}
-                        </span>
+                        <i class="fas fa-shopping-cart text-2xl"></i>
+                        {% if request.user.is_authenticated %}
+                            <span class="cart-count absolute -top-2 -right-2 bg-[#ff6b00] text-black text-xs rounded-full w-5 h-5 flex items-center justify-center {% if cart_count == 0 %}hidden{% endif %}">
+                                {{ cart_count|default:0 }}
+                            </span>
                         {% endif %}
                     </a>
                 </button>
@@ -72,9 +72,9 @@
                 <button class="p-2 hover:text-primary">
                     <a href="{% url 'wishlist' %}" class="relative">
                         <i class="fas fa-heart text-2xl"></i>
-                        {% if request.user.is_authenticated and wishlist_count > 0 %}
-                            <span class="wishlist-count absolute -top-2 -right-2 bg-yellow-500 text-black text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                                {{ wishlist_count }}
+                        {% if request.user.is_authenticated %}
+                            <span class="wishlist-count absolute -top-2 -right-2 bg-yellow-500 text-black text-xs rounded-full w-5 h-5 flex items-center justify-center {% if wishlist_count == 0 %}hidden{% endif %}">
+                                {{ wishlist_count|default:0 }}
                             </span>
                         {% endif %}
                     </a>

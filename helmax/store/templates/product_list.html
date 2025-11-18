@@ -174,8 +174,9 @@
                                         <button 
                                             class="wishlist-btn absolute top-2 left-2 w-8 h-8 flex items-center justify-center bg-black bg-opacity-50 rounded-full hover:bg-opacity-70 transition-all z-10"
                                             data-product-id="{{ product.id }}"
+                                            data-variant-id="{{ product.first_variant_id }}"
                                         >
-                                            <i class="fas fa-heart {% if product.id in wishlist_product_ids %}text-red-500{% else %}text-white{% endif %}"></i>
+                                            <i class="fas fa-heart {% if product.first_variant_id in wishlist_variant_ids %}text-red-500{% else %}text-white{% endif %}"></i>
                                         </button>
                                     </div>
                                     <div class="p-4">
@@ -314,8 +315,15 @@
                 return;
             }
             
+            // Get variant ID from button
+            const variantId = button.dataset.variantId;
+            if (!variantId) {
+                showNotification('Product variant not found', 'error');
+                return;
+            }
+            
             // Send request to add/remove from wishlist
-            fetch(`/move-to-wishlist/${productId}/`, {
+            fetch(`/move-to-wishlist/${variantId}/`, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': getCookie('csrftoken'),

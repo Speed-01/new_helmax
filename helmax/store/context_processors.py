@@ -11,7 +11,8 @@ def get_cloudinary_defaults():
 def payment_context(request):
     context = {
         'razorpay_key_id': settings.RAZORPAY_KEY_ID,
-        'wishlist_count': 0
+        'wishlist_count': 0,
+        'cart_count': 0
     }
     # Add Cloudinary defaults
     context.update(get_cloudinary_defaults())
@@ -23,6 +24,18 @@ def payment_context(request):
                 is_active=True,
                 product__is_active=True
             ).count()
+        except Exception:
+            pass
+        
+        # Get cart count
+        try:
+            from manager.models import Cart, CartItem
+            from django.db.models import Sum
+            cart = Cart.objects.filter(user=request.user, is_ordered=False).first()
+            if cart:
+                context['cart_count'] = CartItem.objects.filter(cart=cart).aggregate(
+                    total=Sum('quantity')
+                )['total'] or 0
         except Exception:
             pass
             
