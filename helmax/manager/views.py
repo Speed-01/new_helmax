@@ -110,20 +110,24 @@ def get_top_brands(request):
 def adminLogin(request):
     if request.user.is_authenticated:
         return redirect("admin_dashboard")
+    
+    username_value = ''
     if request.method == "POST":
         username = request.POST.get("username")
         password = request.POST.get("password")
+        username_value = username  # Store for re-rendering
+        
         user = authenticate(username=username, password=password)
         if user is None:
             messages.error(request, "Invalid username or password")
-            return redirect("adminLogin")
+            return render(request, "adminLogin.html", {'username': username_value})
         elif user and user.is_superuser:
             login(request, user)
             return redirect("admin_dashboard")
         else:
-            messages.error(request, f"{user} have no access to this page")
-            return redirect("adminLogin")
-    return render(request, "adminLogin.html")
+            messages.error(request, f"{user.username} has no access to this page")
+            return render(request, "adminLogin.html", {'username': username_value})
+    return render(request, "adminLogin.html", {'username': username_value})
 
 
 @csrf_exempt  

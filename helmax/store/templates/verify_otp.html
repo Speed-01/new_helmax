@@ -176,6 +176,11 @@
             
             hiddenInput.value = otp;
             
+            // Clear signup form data from localStorage on successful OTP submission
+            ['first_name', 'last_name', 'email', 'phone'].forEach(fieldId => {
+                localStorage.removeItem(`signup_${fieldId}`);
+            });
+            
             this.submit();
         });
     </script>

@@ -1019,10 +1019,11 @@ document.addEventListener('DOMContentLoaded', function() {
           addressesContainer.appendChild(newAddressElement);
         }
         
-        // Reset the form
+        // Reset the form only on success
         document.getElementById('addressForm').reset();
       } else {
         showNotification(data.message || 'Failed to add address', 'error');
+        // Form values are preserved automatically since we're not resetting
       }
     })
     .catch(error => {

@@ -273,14 +273,11 @@ document.getElementById('addressForm').addEventListener('submit', async function
             toggleAddressForm();
             window.location.reload();
         } else {
-            if (data.errors) {
-                // Display form validation errors
-                Object.entries(data.errors).forEach(([field, errors]) => {
-                    alert(`${field}: ${errors.join(', ')}`);
-                });
-            } else {
-                alert(data.message);
-            }
+            // Show error message
+            alert(data.message || 'Please correct the errors and try again');
+            
+            // Note: Form values are already preserved in the input fields
+            // because we're not resetting the form or reloading the page
         }
     } catch (error) {
         console.error('Error:', error);

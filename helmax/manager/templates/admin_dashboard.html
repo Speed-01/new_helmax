@@ -448,6 +448,9 @@
         setInterval(fetchOrderStatusSummary, 300000);
         setInterval(fetchRecentOrders, 300000);
         setInterval(fetchLowStockProducts, 300000);
+        
+        // Clear admin login username from localStorage after successful login
+        localStorage.removeItem('admin_username');
     });
 </script>
 {% endblock %}

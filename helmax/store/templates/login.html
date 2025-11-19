@@ -60,7 +60,7 @@
             <form class="login-form" action="{% url 'Login' %}" method="POST">
                 {% csrf_token %}
                 <div class="form-group">
-                    <input type="email" name="email" placeholder="Email" required>
+                    <input type="email" name="email" placeholder="Email" value="{{ email|default:'' }}" required>
                 </div>
                 
                 <div class="form-group relative">
@@ -171,6 +171,36 @@
             .catch(error => console.error('Error:', error));
         } 
     </script>
+    <script>
+        // Restore email from localStorage on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const emailInput = document.querySelector('input[name="email"]');
+            const savedEmail = localStorage.getItem('login_email');
+            
+            // Restore from localStorage if no server-side value
+            if (emailInput && savedEmail && !emailInput.value) {
+                emailInput.value = savedEmail;
+            }
+            
+            // Save email to localStorage on input
+            if (emailInput) {
+                emailInput.addEventListener('input', function() {
+                    localStorage.setItem('login_email', this.value);
+                });
+            }
+            
+            // Save before form submission
+            const loginForm = document.querySelector('.login-form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', function() {
+                    if (emailInput) {
+                        localStorage.setItem('login_email', emailInput.value);
+                    }
+                });
+            }
+        });
+    </script>
+    
     <style>
         /* Custom Google Sign-In Button */
         .google-btn {

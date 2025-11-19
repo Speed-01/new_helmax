@@ -135,8 +135,17 @@ def home(request):
 
 
 def signup(request):
+    form_data = {}
     if request.method == 'POST':
         form = SignupForm(request.POST)
+        # Store form data for re-rendering
+        form_data = {
+            'first_name': request.POST.get('first_name', ''),
+            'last_name': request.POST.get('last_name', ''),
+            'email': request.POST.get('email', ''),
+            'phone': request.POST.get('phone', '')
+        }
+        
         if form.is_valid():
             signup_data = form.cleaned_data
             request.session['signup_data'] = signup_data
@@ -154,15 +163,17 @@ def signup(request):
                 return redirect('verify_otp')
             except Exception as e:
                 messages.error(request, f"Failed to send OTP. Please try again. Error: {str(e)}")
-                return redirect('signup')
+                return render(request, 'signup.html', {'form': form, 'form_data': form_data})
         else:
             for field, errors in form.errors.items():
+                field_name = field.replace('_', ' ').title()
                 for error in errors:
-                    messages.error(request, f"{field}: {error}")
+                    messages.error(request, f"{field_name}: {error}")
+            return render(request, 'signup.html', {'form': form, 'form_data': form_data})
     else:
         form = SignupForm()
     
-    return render(request, 'signup.html', {'form': form})
+    return render(request, 'signup.html', {'form': form, 'form_data': form_data})
 
 
 
@@ -306,21 +317,24 @@ def login(request):
         messages.success(request, "Your account was created successfully! Please log in.")
         del request.session['signup_success']
         print("signup_success")  
+    
+    email_value = ''
     if request.method == 'POST':
         email = request.POST.get('email')
         password = request.POST.get('password')
+        email_value = email  # Store for re-rendering
         
         user = authenticate(request, email=email, password=password)
         if user is not None:
             # Check if user is admin/staff
             if user.is_staff or user.is_superuser:
                 messages.error(request, "Admin users should use the admin login page.")
-                return redirect('adminLogin')
+                return render(request, 'login.html', {'email': email_value})
             auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
             return redirect('home')
         else:
             messages.error(request, "Invalid email or password.")
-            return render(request, 'login.html')
+            return render(request, 'login.html', {'email': email_value})
 
     if request.user.is_authenticated:
         # Check if authenticated user is admin/staff
@@ -329,7 +343,7 @@ def login(request):
             return redirect('adminLogin')
         return redirect('home')
     
-    return render(request, 'login.html')
+    return render(request, 'login.html', {'email': email_value})
 
 
 
@@ -1625,6 +1639,10 @@ def user_profile(request, user_id):
             })
         
         # Update user profile
+        # Split full_name into first_name and last_name
+        name_parts = full_name.split(' ', 1)
+        user.first_name = name_parts[0]
+        user.last_name = name_parts[1] if len(name_parts) > 1 else ''
         user.full_name = full_name
         user.phone = phone
         user.save()
@@ -1633,9 +1651,14 @@ def user_profile(request, user_id):
         return redirect('user_profile', user_id=user.id)
     
     # GET request
+    # Combine first_name and last_name if full_name is not set
+    display_full_name = user.full_name
+    if not display_full_name:
+        display_full_name = f"{user.first_name} {user.last_name}".strip() if user.first_name or user.last_name else ""
+    
     context = {
         'user': user,
-        'full_name': user.full_name or user.get_full_name(),
+        'full_name': display_full_name,
         'email': user.email,
         'phone': user.phone or '',
         'referral_code': user.referral_code or 'N/A',
@@ -1673,13 +1696,22 @@ def userManageAddress(request):
             except Exception as e:
                 return JsonResponse({
                     'success': False,
-                    'message': str(e)
+                    'message': str(e),
+                    'form_data': request.POST.dict()
                 })
         else:
+            # Get first error message for each field
+            error_messages = []
+            for field, errors in form.errors.items():
+                field_name = field.replace('_', ' ').title()
+                for error in errors:
+                    error_messages.append(f"{field_name}: {error}")
+            
             return JsonResponse({
                 'success': False,
-                'message': 'Invalid form data',
-                'errors': form.errors
+                'message': error_messages[0] if error_messages else 'Invalid form data',
+                'errors': form.errors,
+                'form_data': request.POST.dict()
             })
 
     context = {
@@ -3378,7 +3410,19 @@ def add_address_checkout(request):
             if not all([address_type, full_name, email, phone, address_line1, city, state, pincode]):
                 return JsonResponse({
                     'success': False,
-                    'message': 'Please fill all required fields'
+                    'message': 'Please fill all required fields',
+                    'form_data': {
+                        'address_type': address_type,
+                        'full_name': full_name,
+                        'email': email,
+                        'phone': phone,
+                        'address_line1': address_line1,
+                        'address_line2': address_line2,
+                        'city': city,
+                        'state': state,
+                        'pincode': pincode,
+                        'is_default': is_default
+                    }
                 })
             
             # Create new address

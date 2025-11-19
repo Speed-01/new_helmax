@@ -26,11 +26,20 @@
         {% endfor %}
         {% endif %}
 
+        <!-- DEBUG: Remove this after testing -->
+        {% if form_data %}
+        <div class="bg-blue-500 text-white p-2 rounded text-xs mb-2">
+            DEBUG: Form data present - Email: {{ form_data.email }}
+        </div>
+        {% endif %}
+
         <form method="POST" action="{% url 'signup' %}" class="space-y-4" id="signupForm">
+            {% csrf_token %}
             {% csrf_token %}
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <input type="text" name="first_name" id="first_name" required
+                        value="{{ form_data.first_name|default:'' }}"
                         class="w-full bg-black bg-opacity-50 text-white border {% if form.first_name.errors %}border-red-500{% else %}border-gray-600{% endif %} rounded-md p-3 focus:outline-none focus:border-yellow-500"
                         placeholder="First Name">
                     {% if form.first_name.errors %}
@@ -39,6 +48,7 @@
                 </div>
                 <div>
                     <input type="text" name="last_name" id="last_name" required
+                        value="{{ form_data.last_name|default:'' }}"
                         class="w-full bg-black bg-opacity-50 text-white border {% if form.last_name.errors %}border-red-500{% else %}border-gray-600{% endif %} rounded-md p-3 focus:outline-none focus:border-yellow-500"
                         placeholder="Last Name">
                     {% if form.last_name.errors %}
@@ -48,6 +58,7 @@
             </div>
             <div>
                 <input type="email" name="email" id="email" required
+                    value="{{ form_data.email|default:'' }}"
                     class="w-full bg-black bg-opacity-50 text-white border {% if form.email.errors %}border-red-500{% else %}border-gray-600{% endif %} rounded-md p-3 focus:outline-none focus:border-yellow-500"
                     placeholder="Email Address">
                 {% if form.email.errors %}
@@ -56,6 +67,7 @@
             </div>
             <div>
                 <input type="tel" name="phone" id="phone" required
+                    value="{{ form_data.phone|default:'' }}"
                     class="w-full bg-black bg-opacity-50 text-white border {% if form.phone.errors %}border-red-500{% else %}border-gray-600{% endif %} rounded-md p-3 focus:outline-none focus:border-yellow-500"
                     placeholder="Phone Number">
                 {% if form.phone.errors %}
@@ -135,7 +147,46 @@
         icon.classList.toggle("fa-eye-slash", isPassword);
     }
     
+    // Restore form values from localStorage on page load
+    function restoreFormValues() {
+        const fields = ['first_name', 'last_name', 'email', 'phone'];
+        fields.forEach(fieldId => {
+            const savedValue = localStorage.getItem(`signup_${fieldId}`);
+            const input = document.getElementById(fieldId);
+            // Only restore from localStorage if the field is empty (no server-side value)
+            if (input && savedValue && !input.value) {
+                input.value = savedValue;
+            }
+        });
+    }
+
+    // Save form values to localStorage whenever they change
+    function setupFormValuePersistence() {
+        const fields = ['first_name', 'last_name', 'email', 'phone'];
+        fields.forEach(fieldId => {
+            const input = document.getElementById(fieldId);
+            if (input) {
+                input.addEventListener('input', function() {
+                    localStorage.setItem(`signup_${fieldId}`, this.value);
+                });
+            }
+        });
+    }
+
+    // Clear localStorage when signup is successful
+    function clearSignupData() {
+        const fields = ['first_name', 'last_name', 'email', 'phone'];
+        fields.forEach(fieldId => {
+            localStorage.removeItem(`signup_${fieldId}`);
+        });
+    }
+    
     document.addEventListener('DOMContentLoaded', function () {
+        // Restore saved form values
+        restoreFormValues();
+        
+        // Setup persistence for future changes
+        setupFormValuePersistence();
         // Auto-hide Django messages
         const djangoMessages = document.querySelectorAll('.django-message');
         djangoMessages.forEach(msg => {
@@ -195,6 +246,17 @@
                 return 'Password must contain at least one number';
             return '';
         }
+        // Save form values before submission
+        form.addEventListener('submit', function (e) {
+            // Save current values to localStorage
+            ['first_name', 'last_name', 'email', 'phone'].forEach(fieldId => {
+                const input = document.getElementById(fieldId);
+                if (input) {
+                    localStorage.setItem(`signup_${fieldId}`, input.value);
+                }
+            });
+        });
+        
         // Validate form on submit
         form.addEventListener('submit', function (e) {
             let isValid = true;

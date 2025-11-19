@@ -327,6 +327,7 @@
                                 type="text"
                                 id="username"
                                 name="username"
+                                value="{{ username|default:'' }}"
                                 placeholder="Enter your username"
                                 required
                                 class="input-field w-full p-3 pl-10"
@@ -405,6 +406,34 @@
                 toggleIcon.classList.add('fa-eye');
             }
         }
+        
+        // Restore username from localStorage on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const usernameInput = document.getElementById('username');
+            const savedUsername = localStorage.getItem('admin_username');
+            
+            // Restore from localStorage if no server-side value
+            if (usernameInput && savedUsername && !usernameInput.value) {
+                usernameInput.value = savedUsername;
+            }
+            
+            // Save username to localStorage on input
+            if (usernameInput) {
+                usernameInput.addEventListener('input', function() {
+                    localStorage.setItem('admin_username', this.value);
+                });
+            }
+            
+            // Save before form submission
+            const loginForm = document.querySelector('form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', function() {
+                    if (usernameInput) {
+                        localStorage.setItem('admin_username', usernameInput.value);
+                    }
+                });
+            }
+        });
     </script>
 </body>
 </html>

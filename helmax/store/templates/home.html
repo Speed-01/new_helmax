@@ -10,6 +10,21 @@
 </form>
 {% endblock %}
 
+{% block extra_js %}
+<script>
+    // Clear login and signup data from localStorage after successful login
+    document.addEventListener('DOMContentLoaded', function() {
+        // Clear login email
+        localStorage.removeItem('login_email');
+        
+        // Clear signup form data
+        ['first_name', 'last_name', 'email', 'phone'].forEach(fieldId => {
+            localStorage.removeItem(`signup_${fieldId}`);
+        });
+    });
+</script>
+{% endblock %}
+
 {% block content %}
 
 <!-- Hero Section -->
