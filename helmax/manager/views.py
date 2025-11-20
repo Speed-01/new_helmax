@@ -1219,11 +1219,28 @@ def admin_orders_api(request):
                     }
                 )
             
+            # Determine actual order status based on item statuses
+            item_statuses = [item.status for item in order.order_items.all()]
+            
+            # If all items are returned, show RETURNED
+            if item_statuses and all(status == 'RETURNED' for status in item_statuses):
+                display_status = 'RETURNED'
+            # If all items are cancelled, show CANCELLED
+            elif item_statuses and all(status == 'CANCELLED' for status in item_statuses):
+                display_status = 'CANCELLED'
+            # If some items are returned or cancelled, show PARTIAL_RETURN or PARTIAL_CANCEL
+            elif 'RETURNED' in item_statuses:
+                display_status = 'PARTIAL_RETURN'
+            elif 'CANCELLED' in item_statuses and not all(status == 'CANCELLED' for status in item_statuses):
+                display_status = 'PARTIAL_CANCEL'
+            else:
+                display_status = order.order_status
+            
             orders_data.append({
                 'id': order.order_id,
                 'username': order.user.username if order.user else 'N/A',
                 'payment_method': order.payment_method.name if order.payment_method else 'N/A',
-                'status': order.order_status,
+                'status': display_status,
                 'subtotal': float(order.subtotal),
                 'total_discount': total_discount,
                 'total_price': float(order.total_amount) if order.total_amount else 0.0,
@@ -1243,7 +1260,31 @@ def admin_orders_api(request):
 @login_required(login_url='adminLogin')
 def order_detail(request, order_id):
     order = get_object_or_404(Order, order_id=order_id)
-    return render(request, 'order_detail.html', {'order': order})
+    
+    # Determine actual order status based on item statuses
+    item_statuses = [item.status for item in order.order_items.all()]
+    
+    # If all items are returned, the order is effectively returned
+    if item_statuses and all(status == 'RETURNED' for status in item_statuses):
+        actual_status = 'RETURNED'
+    # If all items are cancelled, the order is effectively cancelled
+    elif item_statuses and all(status == 'CANCELLED' for status in item_statuses):
+        actual_status = 'CANCELLED'
+    # If some items are returned
+    elif 'RETURNED' in item_statuses:
+        actual_status = 'PARTIAL_RETURN'
+    # If some items are cancelled but not all
+    elif 'CANCELLED' in item_statuses and not all(status == 'CANCELLED' for status in item_statuses):
+        actual_status = 'PARTIAL_CANCEL'
+    else:
+        actual_status = order.order_status
+    
+    return render(request, 'order_detail.html', {
+        'order': order,
+        'actual_status': actual_status,
+        'has_returned_items': 'RETURNED' in item_statuses,
+        'has_cancelled_items': 'CANCELLED' in item_statuses
+    })
 
 
 logger = logging.getLogger(__name__)
@@ -1744,9 +1785,10 @@ def handle_return_request(request, return_request_id):
                 
                 # Update order item
                 order_item = return_request.order_item
-                order_item.status = 'Returned'
+                order_item.status = 'RETURNED'  # Changed from 'Returned' to 'RETURNED'
                 order_item.return_status = 'APPROVED'
                 order_item.admin_response = admin_response
+                order_item.returned_at = timezone.now()  # Set returned timestamp
                 order_item.save()
                 
                 # Restore stock
