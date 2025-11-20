@@ -220,9 +220,18 @@
                 <p><span class="font-medium text-gray-400">Reason:</span> <span id="returnReason" class="text-white"></span></p>
             </div>
         </div>
-        <textarea id="adminResponse" rows="4" 
-                  class="w-full bg-[#2A2A2A] text-white rounded p-3 mb-4 focus:outline-none focus:ring-2 focus:ring-yellow-500 border border-[#333333]"
-                  placeholder="Enter your response..."></textarea>
+        <div class="mb-4">
+            <textarea id="adminResponse" rows="4" 
+                      class="w-full bg-[#2A2A2A] text-white rounded p-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 border border-[#333333]"
+                      placeholder="Enter your response (10-500 characters)..."
+                      maxlength="500"></textarea>
+            <div class="flex justify-between items-center mt-1 text-xs">
+                <span class="text-gray-500">Minimum 10 characters required</span>
+                <span id="charCount" class="text-gray-400">
+                    <span id="currentChars">0</span> / 500
+                </span>
+            </div>
+        </div>
         <div class="flex justify-end space-x-3">
             <button type="button" id="cancelModalBtn" 
                     class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded text-white transition-colors">
@@ -454,6 +463,37 @@
         }, 3000);
     }
 
+    function showValidationError(message) {
+        // Remove any existing validation error
+        const existingError = document.getElementById('validationError');
+        if (existingError) {
+            existingError.remove();
+        }
+
+        // Create new validation error
+        const errorElement = document.createElement('div');
+        errorElement.id = 'validationError';
+        errorElement.className = 'mt-2 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-400 text-sm flex items-start gap-2';
+        errorElement.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+            <span>${message}</span>
+        `;
+
+        // Insert after textarea
+        elements.adminResponse.parentNode.insertBefore(errorElement, elements.adminResponse.nextSibling);
+
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (document.getElementById('validationError')) {
+                errorElement.style.opacity = '0';
+                errorElement.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => errorElement.remove(), 300);
+            }
+        }, 5000);
+    }
+
     function showError(message) {
         console.error('Error:', message);
         
@@ -554,26 +594,58 @@
     function submitResponse() {
         const responseText = elements.adminResponse.value.trim();
         
+        // Validation 1: Check if response is empty
         if (!responseText) {
-            alert('Please enter a response');
+            showValidationError('Please enter a response message');
+            elements.adminResponse.focus();
+            return;
+        }
+
+        // Validation 2: Check minimum length (at least 10 characters)
+        if (responseText.length < 10) {
+            showValidationError('Response must be at least 10 characters long');
+            elements.adminResponse.focus();
+            return;
+        }
+
+        // Validation 3: Check maximum length (max 500 characters)
+        if (responseText.length > 500) {
+            showValidationError('Response must not exceed 500 characters');
+            elements.adminResponse.focus();
+            return;
+        }
+
+        // Validation 4: Check for valid characters (no special characters only)
+        const validTextPattern = /^[a-zA-Z0-9\s\.,!?'-]+$/;
+        if (!validTextPattern.test(responseText)) {
+            showValidationError('Response contains invalid characters. Please use only letters, numbers, and basic punctuation');
+            elements.adminResponse.focus();
+            return;
+        }
+
+        // Validation 5: Check if it's not just spaces or punctuation
+        const meaningfulText = responseText.replace(/[\s\.,!?'-]/g, '');
+        if (meaningfulText.length < 5) {
+            showValidationError('Please provide a meaningful response with actual content');
+            elements.adminResponse.focus();
             return;
         }
 
         if (!state.currentRequestId) {
-            alert('Error: Missing request ID. Please try again.');
+            showValidationError('Error: Missing request ID. Please try again.');
             closeModal();
             return;
         }
 
         if (!['approve', 'reject'].includes(state.currentAction)) {
-            alert('Error: Invalid action. Please try again.');
+            showValidationError('Error: Invalid action. Please try again.');
             closeModal();
             return;
         }
 
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
         if (!csrfToken) {
-            alert('Security token not found. Please refresh the page.');
+            showValidationError('Security token not found. Please refresh the page.');
             closeModal();
             return;
         }
@@ -1015,6 +1087,32 @@
                 } else if (event.key === 'Enter' && event.ctrlKey) {
                     submitResponse();
                 }
+            }
+        });
+
+        // Character counter for response textarea
+        elements.adminResponse.addEventListener('input', () => {
+            const currentLength = elements.adminResponse.value.length;
+            const charCountSpan = document.getElementById('currentChars');
+            const charCountContainer = document.getElementById('charCount');
+            
+            if (charCountSpan) {
+                charCountSpan.textContent = currentLength;
+                
+                // Change color based on character count
+                if (currentLength < 10) {
+                    charCountContainer.className = 'text-red-400';
+                } else if (currentLength > 450) {
+                    charCountContainer.className = 'text-yellow-400';
+                } else {
+                    charCountContainer.className = 'text-green-400';
+                }
+            }
+
+            // Remove validation error on input
+            const existingError = document.getElementById('validationError');
+            if (existingError) {
+                existingError.remove();
             }
         });
 
