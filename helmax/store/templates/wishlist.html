@@ -1,25 +1,11 @@
-<!DOCTYPE html>
+{% extends "base.html" %}
 {% load custom_filters %}
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Wishlist</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#ff6b00',
-                        'primary-hover': '#ff7d1a',
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
+
+{% block title %}My Wishlist - Helmax{% endblock %}
+
+{% block extra_css %}
+<link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+<style>
         /* Custom component classes */
         .btn {
             padding: 0.5rem 1rem;
@@ -93,10 +79,11 @@
         .dropdown:hover .dropdown-content {
             display: block;
         }
-    </style>
-</head>
-<body class="min-h-screen bg-black text-white">
-    <div class="max-w-7xl mx-auto px-4 py-8">
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-8">
         <!-- Header -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
             <div>
@@ -844,5 +831,5 @@
             });
         }
     </script>
-</body>
-</html> 
+</div>
+{% endblock %} 
