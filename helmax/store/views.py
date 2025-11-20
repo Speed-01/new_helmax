@@ -217,10 +217,16 @@ def verify_otp(request):
                     print("user is created")
                     print("the user.......", user)
                     
+                    # Set the backend attribute for the user before logging in
+                    user.backend = 'django.contrib.auth.backends.ModelBackend'
+                    
+                    # Log the user in automatically after successful signup
+                    auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+                    
                     request.session.pop('signup_data', None)
                     otp_instance.delete()
 
-                    messages.success(request, 'Account created successfully! Please log in.')
+                    messages.success(request, 'Account created successfully! You are now logged in.')
                     return redirect('home')
 
                 except Exception as e:
@@ -331,6 +337,7 @@ def login(request):
                 messages.error(request, "Admin users should use the admin login page.")
                 return render(request, 'login.html', {'email': email_value})
             auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+            messages.success(request, f"Welcome back, {user.first_name or user.username}! You have successfully logged in.")
             return redirect('home')
         else:
             messages.error(request, "Invalid email or password.")

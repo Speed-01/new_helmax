@@ -8,11 +8,39 @@ def send_otp_email(email, otp, purpose="signup"):
     Send OTP email for signup or password reset
     """
     if purpose == "signup":
-        subject = "Your OTP for Signup in Helmax"
-        message = f"Your OTP is {otp}. It is valid for 1 minutes."
+        subject = "Welcome to Helmax - Verify Your Email Address"
+        message = f"""Hello,
+
+Thank you for signing up with Helmax!
+
+To complete your registration, please use the following One-Time Password (OTP):
+
+    {otp}
+
+This OTP is valid for 1 minute only.
+
+If you did not request this registration, please ignore this email.
+
+Best regards,
+The Helmax Team
+"""
     else:  
-        subject = "Password Reset OTP"
-        message = f"Your OTP for password reset is {otp}. Valid for 1 minutes."
+        subject = "Helmax - Password Reset Request"
+        message = f"""Hello,
+
+We received a request to reset your password for your Helmax account.
+
+Please use the following One-Time Password (OTP) to reset your password:
+
+    {otp}
+
+This OTP is valid for 1 minute only.
+
+If you did not request a password reset, please ignore this email or contact support if you have concerns.
+
+Best regards,
+The Helmax Team
+"""
 
     send_mail(
         subject=subject,
@@ -20,7 +48,6 @@ def send_otp_email(email, otp, purpose="signup"):
         from_email=settings.EMAIL_HOST_USER,
         recipient_list=[email],
         fail_silently=False,
-
     )
 
 def update_order_status(order, new_status):

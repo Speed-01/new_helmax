@@ -26,13 +26,6 @@
         {% endfor %}
         {% endif %}
 
-        <!-- DEBUG: Remove this after testing -->
-        {% if form_data %}
-        <div class="bg-blue-500 text-white p-2 rounded text-xs mb-2">
-            DEBUG: Form data present - Email: {{ form_data.email }}
-        </div>
-        {% endif %}
-
         <form method="POST" action="{% url 'signup' %}" class="space-y-4" id="signupForm">
             {% csrf_token %}
             {% csrf_token %}
