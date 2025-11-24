@@ -4,13 +4,13 @@ from django.contrib import messages
 from django.utils.timezone import now
 from manager.forms import SignupForm, OTPVerificationForm, PasswordResetRequestForm,SetPasswordForm
 from .forms import AddressForm
-from manager.models import OTP,User,Category, Brand, Size, Product, Variant, ProductImage, Review, Address, Cart, CartItem,PaymentMethod, Coupon, CouponUsage, Wishlist, ReturnRequest, Wallet, WalletTransaction,OrderStatusHistory
+from manager.models import OTP,User,Category, Brand, Size, Product, Variant, ProductImage, Review, ReviewImage, ReviewHelpful, Address, Cart, CartItem,PaymentMethod, Coupon, CouponUsage, Wishlist, ReturnRequest, Wallet, WalletTransaction,OrderStatusHistory
 from datetime import timezone
 from django.views.decorators.cache import never_cache
 from django.http import  JsonResponse
 from manager.models import (
     OTP, User, Category, Brand, Size, Product, Variant, ProductImage,   
-    Review, Address, Cart, CartItem, Coupon, CouponUsage, PaymentMethod,
+    Review, ReviewImage, ReviewHelpful, Address, Cart, CartItem, Coupon, CouponUsage, PaymentMethod,
     Order, OrderItem, Wishlist, ReturnRequest, Wallet, WalletTransaction
 )
 import os
@@ -2452,6 +2452,16 @@ def order_details(request, order_id):
         order_items = order.order_items.all()
         logger.debug(f"Fetched order details for order {order_id}")
         
+        # Add has_review flag and review data to each order item
+        for item in order_items:
+            try:
+                review = Review.objects.get(order_item=item, user=request.user)
+                item.has_review = True
+                item.review = review
+            except Review.DoesNotExist:
+                item.has_review = False
+                item.review = None
+        
         # Prepare timeline events
         timeline = []
         
@@ -3536,3 +3546,202 @@ def wallet_view(request):
         'transactions': transactions
     }
     return render(request, 'wallet.html', context)
+
+
+# ============================================
+# REVIEWS AND RATINGS VIEWS
+# ============================================
+
+@login_required
+def submit_review(request, order_item_id):
+    """Submit a review for a purchased product"""
+    if request.method == 'POST':
+        try:
+            order_item = get_object_or_404(OrderItem, id=order_item_id, order__user=request.user)
+            
+            # Check if item is delivered
+            if order_item.status != 'DELIVERED':
+                return JsonResponse({
+                    'success': False,
+                    'message': 'You can only review delivered items'
+                }, status=400)
+            
+            # Check if review already exists
+            if Review.objects.filter(product=order_item.product, user=request.user, order_item=order_item).exists():
+                return JsonResponse({
+                    'success': False,
+                    'message': 'You have already reviewed this product'
+                }, status=400)
+            
+            # Get form data
+            rating = int(request.POST.get('rating', 0))
+            title = request.POST.get('title', '')
+            comment = request.POST.get('comment', '')
+            
+            # Validate rating
+            if rating < 1 or rating > 5:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Rating must be between 1 and 5'
+                }, status=400)
+            
+            # Create review
+            review = Review.objects.create(
+                product=order_item.product,
+                user=request.user,
+                order_item=order_item,
+                rating=rating,
+                title=title,
+                comment=comment,
+                is_verified_purchase=True
+            )
+            
+            # Handle image uploads if any
+            images = request.FILES.getlist('images')
+            for image in images[:5]:  # Limit to 5 images
+                ReviewImage.objects.create(review=review, image=image)
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Review submitted successfully!'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+
+
+@login_required
+def mark_review_helpful(request, review_id):
+    """Mark a review as helpful"""
+    if request.method == 'POST':
+        try:
+            review = get_object_or_404(Review, id=review_id)
+            
+            # Check if user already marked this helpful
+            helpful, created = ReviewHelpful.objects.get_or_create(
+                review=review,
+                user=request.user
+            )
+            
+            if created:
+                # Increase helpful count
+                review.helpful_count += 1
+                review.save(update_fields=['helpful_count'])
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Marked as helpful',
+                    'helpful_count': review.helpful_count,
+                    'is_helpful': True
+                })
+            else:
+                # Remove helpful mark
+                helpful.delete()
+                review.helpful_count = max(0, review.helpful_count - 1)
+                review.save(update_fields=['helpful_count'])
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Removed helpful mark',
+                    'helpful_count': review.helpful_count,
+                    'is_helpful': False
+                })
+                
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': 'Unable to update review. Please try again.'
+            }, status=500)
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+
+
+def get_product_reviews(request, product_id):
+    """Get reviews for a product with pagination"""
+    try:
+        product = get_object_or_404(Product, id=product_id)
+        
+        # Get filter and sort parameters
+        rating_filter = request.GET.get('rating', '')
+        sort_by = request.GET.get('sort', 'recent')
+        page = int(request.GET.get('page', 1))
+        per_page = 10
+        
+        # Base queryset with optimization
+        reviews = Review.objects.filter(
+            product=product, 
+            is_approved=True
+        ).select_related('user').prefetch_related('images')
+        
+        # Apply rating filter
+        if rating_filter and rating_filter != '':
+            try:
+                reviews = reviews.filter(rating=int(rating_filter))
+            except (ValueError, TypeError):
+                pass  # Ignore invalid rating values
+        
+        # Apply sorting
+        if sort_by == 'recent':
+            reviews = reviews.order_by('-created_at')
+        elif sort_by == 'helpful':
+            reviews = reviews.order_by('-helpful_count', '-created_at')
+        elif sort_by == 'rating_high':
+            reviews = reviews.order_by('-rating', '-created_at')
+        elif sort_by == 'rating_low':
+            reviews = reviews.order_by('rating', '-created_at')
+        
+        # Pagination
+        paginator = Paginator(reviews, per_page)
+        reviews_page = paginator.get_page(page)
+        
+        # Check if user has marked reviews as helpful (if authenticated)
+        user_helpful_review_ids = set()
+        if request.user.is_authenticated:
+            user_helpful_review_ids = set(
+                ReviewHelpful.objects.filter(
+                    user=request.user,
+                    review__in=reviews_page
+                ).values_list('review_id', flat=True)
+            )
+        
+        # Prepare review data
+        reviews_data = []
+        for review in reviews_page:
+            review_images = [{'image': img.image.url} for img in review.images.all()]
+            reviews_data.append({
+                'id': review.id,
+                'user_name': review.user.username if review.user.username else review.user.first_name or 'Anonymous',
+                'rating': review.rating,
+                'title': review.title,
+                'comment': review.comment,
+                'is_verified_purchase': review.is_verified_purchase,
+                'created_at': review.created_at.strftime('%B %d, %Y'),
+                'helpful_count': review.helpful_count,
+                'images': review_images,
+                'user_found_helpful': review.id in user_helpful_review_ids
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'reviews': reviews_data,
+            'total_reviews': paginator.count,
+            'total_pages': paginator.num_pages,
+            'current_page': page,
+            'has_next': reviews_page.has_next(),
+            'average_rating': product.get_average_rating(),
+            'rating_distribution': product.get_rating_distribution()
+        })
+        
+    except ValueError:
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid page number'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'Unable to load reviews. Please try again.'
+        }, status=500)

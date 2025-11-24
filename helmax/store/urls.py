@@ -85,4 +85,9 @@ urlpatterns = [
     path('orders/items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),
     path('order-details/<str:order_id>/', views.order_details, name='order_details'),
     path('download-invoice/<str:order_id>/', views.download_invoice, name='download_invoice'),
+    
+    ######### Reviews ########
+    path('review/submit/<int:order_item_id>/', views.submit_review, name='submit_review'),
+    path('review/helpful/<int:review_id>/', views.mark_review_helpful, name='mark_review_helpful'),
+    path('api/reviews/<int:product_id>/', views.get_product_reviews, name='get_product_reviews'),
 ]

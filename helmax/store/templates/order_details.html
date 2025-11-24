@@ -424,7 +424,7 @@
           <div class="p-6">
             <div class="space-y-6" id="orderItems">
               {% for item in order.order_items.all %}
-              <div class="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4 pb-6 border-b border-zinc-800" id="item-{{ item.id }}">
+              <div class="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4 pb-6 border-b border-zinc-800" id="item-{{ item.id }}" data-item-id="{{ item.id }}">
                 <div class="flex-shrink-0">
                   <img 
                     src="{{ item.variant.images.first.image.url }}" 
@@ -483,12 +483,66 @@
                     {% endif %}
 
                     {% if item.status == 'DELIVERED' and item.return_status == 'NOT_REQUESTED' %}
-                    <button 
-                      onclick="openReturnModal('{{ item.id }}')" 
-                      class="px-3 py-2 bg-[#ff6b00] hover:bg-[#ff8533] text-black font-medium rounded-md text-sm transition-colors">
-                      <i data-lucide="rotate-ccw" class="icon mr-1 inline-block h-4 w-4"></i>
-                      Return Item
-                    </button>
+                    <div class="flex space-x-2">
+                      <button 
+                        onclick="openReturnModal('{{ item.id }}')" 
+                        class="px-3 py-2 bg-[#ff6b00] hover:bg-[#ff8533] text-black font-medium rounded-md text-sm transition-colors">
+                        <i data-lucide="rotate-ccw" class="icon mr-1 inline-block h-4 w-4"></i>
+                        Return Item
+                      </button>
+                      {% if not item.has_review %}
+                      <button 
+                        onclick="openReviewModal('{{ item.id }}', '{{ item.variant.product.name }}', '{{ item.variant.images.first.image.url }}')" 
+                        class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md text-sm transition-colors">
+                        <i data-lucide="star" class="icon mr-1 inline-block h-4 w-4"></i>
+                        Write Review
+                      </button>
+                      {% else %}
+                      <button 
+                        onclick="viewReview('{{ item.id }}')" 
+                        class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md text-sm transition-colors">
+                        <i data-lucide="eye" class="icon mr-1 inline-block h-4 w-4"></i>
+                        View Review
+                      </button>
+                      {% endif %}
+                    </div>
+                    
+                    <!-- Show review if exists -->
+                    {% if item.has_review and item.review %}
+                    <div class="mt-3 p-3 bg-zinc-800 rounded-md border border-zinc-700">
+                      <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center space-x-2">
+                          <span class="text-sm font-medium text-white">Your Review:</span>
+                          <div class="flex">
+                            {% for i in "12345" %}
+                              <svg class="w-4 h-4 {% if forloop.counter <= item.review.rating %}text-yellow-400{% else %}text-gray-600{% endif %}" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                              </svg>
+                            {% endfor %}
+                          </div>
+                          {% if item.review.is_approved %}
+                          <span class="text-xs bg-green-600 text-white px-2 py-1 rounded">Approved</span>
+                          {% else %}
+                          <span class="text-xs bg-yellow-600 text-white px-2 py-1 rounded">Pending Approval</span>
+                          {% endif %}
+                        </div>
+                      </div>
+                      <h4 class="text-sm font-medium text-white mb-1">{{ item.review.title }}</h4>
+                      <p class="text-sm text-gray-300">{{ item.review.comment|truncatewords:20 }}</p>
+                      {% if item.review.images.count > 0 %}
+                      <div class="flex space-x-2 mt-2">
+                        {% for img in item.review.images.all|slice:":3" %}
+                        <img src="{{ img.image.url }}" alt="Review image" class="w-12 h-12 object-cover rounded border border-gray-600">
+                        {% endfor %}
+                        {% if item.review.images.count > 3 %}
+                        <div class="w-12 h-12 bg-zinc-700 rounded flex items-center justify-center text-xs text-gray-400">
+                          +{{ item.review.images.count|add:"-3" }}
+                        </div>
+                        {% endif %}
+                      </div>
+                      {% endif %}
+                    </div>
+                    {% endif %}
                     {% elif item.return_status == 'REQUESTED' or item.return_status == 'PENDING' %}
                     <div class="text-yellow-500 text-center py-2 bg-yellow-900/30 border border-yellow-800 rounded-md text-sm">
                       <i data-lucide="clock" class="icon mr-1 inline-block h-4 w-4"></i>
@@ -610,6 +664,120 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Review Modal -->
+  <div id="reviewModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center overflow-y-auto">
+    <div class="bg-[#1A1A1A] p-6 rounded-lg max-w-2xl w-full mx-4 my-8">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-white">Write a Review</h2>
+        <button onclick="closeReviewModal()" class="text-gray-400 hover:text-white">
+          <i data-lucide="x" class="icon"></i>
+        </button>
+      </div>
+      
+      <!-- Product Info -->
+      <div class="flex items-center space-x-4 mb-6 pb-4 border-b border-gray-700">
+        <img id="reviewProductImage" src="" alt="Product" class="w-16 h-16 object-cover rounded">
+        <div>
+          <p id="reviewProductName" class="text-white font-medium"></p>
+        </div>
+      </div>
+      
+      <form id="reviewForm" class="space-y-4" enctype="multipart/form-data">
+        <input type="hidden" id="reviewOrderItemId" name="orderItemId">
+        
+        <!-- Star Rating -->
+        <div class="space-y-2">
+          <label class="block text-sm font-medium text-gray-300">Rating <span class="text-red-500">*</span></label>
+          <div class="flex items-center space-x-2">
+            <div class="flex space-x-1" id="starRating">
+              <button type="button" class="star-btn text-4xl text-gray-600 hover:text-yellow-400 transition-colors" data-rating="1">★</button>
+              <button type="button" class="star-btn text-4xl text-gray-600 hover:text-yellow-400 transition-colors" data-rating="2">★</button>
+              <button type="button" class="star-btn text-4xl text-gray-600 hover:text-yellow-400 transition-colors" data-rating="3">★</button>
+              <button type="button" class="star-btn text-4xl text-gray-600 hover:text-yellow-400 transition-colors" data-rating="4">★</button>
+              <button type="button" class="star-btn text-4xl text-gray-600 hover:text-yellow-400 transition-colors" data-rating="5">★</button>
+            </div>
+            <span id="ratingText" class="text-gray-400"></span>
+          </div>
+          <input type="hidden" id="reviewRating" name="rating" required>
+        </div>
+        
+        <!-- Review Title -->
+        <div class="space-y-2">
+          <label class="block text-sm font-medium text-gray-300">Review Title <span class="text-red-500">*</span></label>
+          <input type="text" id="reviewTitle" name="title" 
+                 class="w-full bg-[#242424] text-white border border-[#2A2A2A] rounded-md px-3 py-2" 
+                 placeholder="Summarize your experience..."
+                 maxlength="100"
+                 required>
+        </div>
+        
+        <!-- Review Comment -->
+        <div class="space-y-2">
+          <label class="block text-sm font-medium text-gray-300">Your Review <span class="text-red-500">*</span></label>
+          <textarea id="reviewComment" name="comment" 
+                    class="w-full bg-[#242424] text-white border border-[#2A2A2A] rounded-md px-3 py-2 min-h-[120px]" 
+                    placeholder="Share your experience with this product..."
+                    maxlength="1000"
+                    required></textarea>
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-gray-500">Share details about quality, fit, and your experience</span>
+            <span class="text-gray-400">
+              <span id="reviewCurrentChars">0</span> / 1000
+            </span>
+          </div>
+        </div>
+        
+        <!-- Review Images -->
+        <div class="space-y-2">
+          <label class="block text-sm font-medium text-gray-300">Add Photos (Optional)</label>
+          <div class="flex items-center space-x-4">
+            <label for="reviewImages" class="cursor-pointer flex items-center space-x-2 px-4 py-2 bg-[#242424] border border-[#2A2A2A] rounded-md hover:bg-[#2A2A2A] transition-colors">
+              <i data-lucide="camera" class="icon"></i>
+              <span class="text-white">Upload Images</span>
+            </label>
+            <input type="file" id="reviewImages" name="images" accept="image/*" multiple class="hidden" onchange="previewImages(this)">
+            <span class="text-gray-400 text-sm">Max 5 images</span>
+          </div>
+          <div id="imagePreview" class="flex flex-wrap gap-2 mt-2"></div>
+        </div>
+        
+        <div class="flex justify-end space-x-2 pt-4 border-t border-gray-700">
+          <button type="button" onclick="closeReviewModal()" 
+                  class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors">
+            Cancel
+          </button>
+          <button type="submit" 
+                  class="px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition-colors">
+            Submit Review
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- View Review Modal -->
+  <div id="viewReviewModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center overflow-y-auto">
+    <div class="bg-[#1A1A1A] p-6 rounded-lg max-w-2xl w-full mx-4 my-8">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-white">Your Review</h2>
+        <button onclick="closeViewReviewModal()" class="text-gray-400 hover:text-white">
+          <i data-lucide="x" class="icon"></i>
+        </button>
+      </div>
+      
+      <div id="reviewContent" class="space-y-4">
+        <!-- Review content will be populated by JavaScript -->
+      </div>
+      
+      <div class="flex justify-end mt-6 pt-4 border-t border-gray-700">
+        <button onclick="closeViewReviewModal()" 
+                class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors">
+          Close
+        </button>
+      </div>
     </div>
   </div>
 
@@ -935,6 +1103,256 @@
         }
       }
       return cookieValue;
+    }
+    
+    // Review Modal functionality
+    let selectedRating = 0;
+    
+    function openReviewModal(orderItemId, productName, productImage) {
+      document.getElementById('reviewOrderItemId').value = orderItemId;
+      document.getElementById('reviewProductName').textContent = productName;
+      document.getElementById('reviewProductImage').src = productImage;
+      document.getElementById('reviewModal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      
+      // Reset form
+      document.getElementById('reviewForm').reset();
+      selectedRating = 0;
+      updateStarRating(0);
+      document.getElementById('imagePreview').innerHTML = '';
+      
+      // Reinitialize lucide icons
+      setTimeout(() => lucide.createIcons(), 100);
+    }
+    
+    function closeReviewModal() {
+      document.getElementById('reviewModal').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+    
+    // Star rating functionality
+    const starButtons = document.querySelectorAll('.star-btn');
+    const ratingTexts = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+    
+    starButtons.forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const rating = parseInt(this.dataset.rating);
+        selectedRating = rating;
+        document.getElementById('reviewRating').value = rating;
+        document.getElementById('ratingText').textContent = ratingTexts[rating];
+        updateStarRating(rating);
+      });
+      
+      btn.addEventListener('mouseenter', function() {
+        const rating = parseInt(this.dataset.rating);
+        updateStarRating(rating);
+      });
+    });
+    
+    document.getElementById('starRating').addEventListener('mouseleave', function() {
+      updateStarRating(selectedRating);
+    });
+    
+    function updateStarRating(rating) {
+      starButtons.forEach((btn, index) => {
+        if (index < rating) {
+          btn.classList.remove('text-gray-600');
+          btn.classList.add('text-yellow-400');
+        } else {
+          btn.classList.remove('text-yellow-400');
+          btn.classList.add('text-gray-600');
+        }
+      });
+    }
+    
+    // Character counter for review comment
+    document.getElementById('reviewComment').addEventListener('input', function() {
+      document.getElementById('reviewCurrentChars').textContent = this.value.length;
+    });
+    
+    // Image preview functionality
+    function previewImages(input) {
+      const preview = document.getElementById('imagePreview');
+      preview.innerHTML = '';
+      
+      if (input.files) {
+        const filesArray = Array.from(input.files).slice(0, 5); // Max 5 images
+        
+        filesArray.forEach((file, index) => {
+          const reader = new FileReader();
+          
+          reader.onload = function(e) {
+            const div = document.createElement('div');
+            div.className = 'relative';
+            div.innerHTML = `
+              <img src="${e.target.result}" class="w-20 h-20 object-cover rounded border border-gray-700">
+              <button type="button" onclick="removeImage(${index})" class="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-700">×</button>
+            `;
+            preview.appendChild(div);
+          };
+          
+          reader.readAsDataURL(file);
+        });
+      }
+    }
+    
+    function removeImage(index) {
+      const input = document.getElementById('reviewImages');
+      const dt = new DataTransfer();
+      const files = input.files;
+      
+      for (let i = 0; i < files.length; i++) {
+        if (i !== index) {
+          dt.items.add(files[i]);
+        }
+      }
+      
+      input.files = dt.files;
+      previewImages(input);
+    }
+    
+    // Review form submission
+    document.getElementById('reviewForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      // Validate rating
+      if (selectedRating === 0) {
+        alert('Please select a rating (1-5 stars)');
+        return;
+      }
+      
+      // Validate title
+      const title = document.getElementById('reviewTitle').value.trim();
+      if (title.length < 3) {
+        alert('Review title must be at least 3 characters long');
+        return;
+      }
+      
+      // Validate comment
+      const comment = document.getElementById('reviewComment').value.trim();
+      if (comment.length < 10) {
+        alert('Review comment must be at least 10 characters long');
+        return;
+      }
+      
+      // Disable submit button to prevent double submission
+      const submitBtn = this.querySelector('button[type="submit"]');
+      const originalText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+      
+      const formData = new FormData();
+      const orderItemId = document.getElementById('reviewOrderItemId').value;
+      formData.append('rating', selectedRating);
+      formData.append('title', title);
+      formData.append('comment', comment);
+      
+      // Add images
+      const images = document.getElementById('reviewImages').files;
+      for (let i = 0; i < Math.min(images.length, 5); i++) {
+        formData.append('images', images[i]);
+      }
+      
+      fetch(`/review/submit/${orderItemId}/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+        },
+        body: formData
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          // Show success message with custom styling
+          const successMsg = document.createElement('div');
+          successMsg.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-600 text-white px-8 py-6 rounded-lg shadow-2xl z-[60] text-center';
+          successMsg.innerHTML = `
+            <div class="text-4xl mb-3">✓</div>
+            <h3 class="text-xl font-bold mb-2">Review Submitted!</h3>
+            <p class="text-sm">Your review will be visible after admin approval.</p>
+          `;
+          document.body.appendChild(successMsg);
+          
+          closeReviewModal();
+          
+          // Remove message and reload after 2.5 seconds
+          setTimeout(() => {
+            successMsg.remove();
+            location.reload();
+          }, 2500);
+        } else {
+          alert(data.message || 'Failed to submit review. Please try again.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Unable to submit review. Please check your connection and try again.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      });
+    });
+    
+    // View review functionality
+    function viewReview(orderItemId) {
+      // Find the item element
+      const itemElement = document.querySelector(`[data-item-id="${orderItemId}"]`);
+      if (!itemElement) {
+        alert('Review not found');
+        return;
+      }
+      
+      // Get review data from the rendered review div
+      const reviewDiv = itemElement.querySelector('.bg-zinc-800');
+      if (!reviewDiv) {
+        alert('Review details not available');
+        return;
+      }
+      
+      // Clone and enhance the review content for modal display
+      const reviewContent = document.getElementById('reviewContent');
+      const clone = reviewDiv.cloneNode(true);
+      
+      // Make it look better in the modal
+      clone.classList.remove('mt-3', 'p-3', 'bg-zinc-800', 'border-zinc-700');
+      clone.classList.add('p-4', 'bg-[#222222]', 'rounded-lg', 'border', 'border-gray-700');
+      
+      // Expand truncated text
+      const commentPara = clone.querySelector('p.text-sm.text-gray-300');
+      if (commentPara) {
+        commentPara.classList.remove('truncate');
+      }
+      
+      // Enlarge images
+      const images = clone.querySelectorAll('img');
+      images.forEach(img => {
+        img.classList.remove('w-12', 'h-12');
+        img.classList.add('w-24', 'h-24', 'cursor-pointer');
+        img.onclick = function() {
+          window.open(this.src, '_blank');
+        };
+      });
+      
+      reviewContent.innerHTML = '';
+      reviewContent.appendChild(clone);
+      
+      document.getElementById('viewReviewModal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      
+      // Reinitialize lucide icons
+      setTimeout(() => lucide.createIcons(), 100);
+    }
+    
+    function closeViewReviewModal() {
+      document.getElementById('viewReviewModal').classList.add('hidden');
+      document.body.style.overflow = '';
     }
   </script>
 </body>

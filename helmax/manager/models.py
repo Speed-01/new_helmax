@@ -61,7 +61,7 @@ class OTP(models.Model):
     email = models.EmailField()
     otp = models.CharField(max_length=6)
     created_at = models.DateTimeField(default=timezone.now)
-    expiration_time = models.DateTimeField(default=timezone.now() + timedelta(minutes=1))
+    expiration_time = models.DateTimeField(null=True, blank=True)
 
     def generate_otp(self):
         self.otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
@@ -146,6 +146,26 @@ class Product(models.Model):
             discount = (offer.discount_percentage / 100) * original_price
             return original_price - discount
         return original_price
+    
+    def get_average_rating(self):
+        """Calculate average rating for this product"""
+        reviews = self.reviews.filter(is_approved=True)
+        if reviews.exists():
+            total = sum(review.rating for review in reviews)
+            return round(total / reviews.count(), 1)
+        return 0
+    
+    def get_rating_distribution(self):
+        """Get count of reviews for each star rating"""
+        reviews = self.reviews.filter(is_approved=True)
+        distribution = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
+        for review in reviews:
+            distribution[review.rating] += 1
+        return distribution
+    
+    def get_total_reviews(self):
+        """Get total number of approved reviews"""
+        return self.reviews.filter(is_approved=True).count()
 
 
 class Variant(models.Model):
@@ -222,23 +242,6 @@ class ProductImage(models.Model):
         if not self.is_primary and not ProductImage.objects.filter(variant=self.variant, is_primary=True).exists():
             self.is_primary = True
             super().save(update_fields=['is_primary'])
-      
-
-class Review(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    rating = models.IntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(5)]
-    )
-    comment = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('product', 'user')
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"{self.user.username}'s review for {self.product.name}"
 
 
 ########### Cart Models ####################
@@ -799,3 +802,69 @@ class ReferralUsage(models.Model):
 
     class Meta:
         unique_together = ('referrer', 'referee', 'offer')
+
+
+class Review(models.Model):
+    """
+    Product reviews with ratings
+    """
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews')
+    order_item = models.ForeignKey(OrderItem, on_delete=models.SET_NULL, null=True, blank=True, related_name='review')
+    
+    rating = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Rating from 1 to 5 stars"
+    )
+    title = models.CharField(max_length=200, blank=True, null=True)
+    comment = models.TextField()
+    
+    # Review status
+    is_verified_purchase = models.BooleanField(default=False)
+    is_approved = models.BooleanField(default=True)  # For moderation
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Helpful votes
+    helpful_count = models.IntegerField(default=0)
+    
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('product', 'user', 'order_item')  # One review per purchase
+        indexes = [
+            models.Index(fields=['product', 'is_approved', '-created_at']),
+            models.Index(fields=['product', 'is_approved', '-helpful_count']),
+            models.Index(fields=['product', 'is_approved', 'rating']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.product.name} ({self.rating}★)"
+
+
+class ReviewImage(models.Model):
+    """
+    Images attached to reviews
+    """
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name='images')
+    image = CloudinaryField('review_image')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Image for review #{self.review.id}"
+
+
+class ReviewHelpful(models.Model):
+    """
+    Track which users found reviews helpful
+    """
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name='helpful_votes')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('review', 'user')
+    
+    def __str__(self):
+        return f"{self.user.username} found review #{self.review.id} helpful"

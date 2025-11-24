@@ -197,3 +197,34 @@ class ReferralUsageAdmin(admin.ModelAdmin):
     list_display = ('referrer', 'referee', 'offer', 'created_at', 'is_confirmed')
     list_filter = ('is_confirmed', 'created_at')
     search_fields = ('referrer__username', 'referee__username')
+
+
+@admin.register(Review)
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ('user', 'product', 'rating', 'is_verified_purchase', 'is_approved', 'created_at', 'helpful_count')
+    list_filter = ('rating', 'is_verified_purchase', 'is_approved', 'created_at')
+    search_fields = ('user__username', 'product__name', 'comment')
+    readonly_fields = ('created_at', 'updated_at', 'helpful_count')
+    actions = ['approve_reviews', 'disapprove_reviews']
+    
+    def approve_reviews(self, request, queryset):
+        queryset.update(is_approved=True)
+    approve_reviews.short_description = "Approve selected reviews"
+    
+    def disapprove_reviews(self, request, queryset):
+        queryset.update(is_approved=False)
+    disapprove_reviews.short_description = "Disapprove selected reviews"
+
+
+@admin.register(ReviewImage)
+class ReviewImageAdmin(admin.ModelAdmin):
+    list_display = ('review', 'uploaded_at')
+    list_filter = ('uploaded_at',)
+    search_fields = ('review__user__username', 'review__product__name')
+
+
+@admin.register(ReviewHelpful)
+class ReviewHelpfulAdmin(admin.ModelAdmin):
+    list_display = ('review', 'user', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('review__user__username', 'user__username')
