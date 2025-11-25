@@ -80,10 +80,11 @@ urlpatterns = [
     path('payment/check-status/<str:order_id>/', views.payment_success, name='check_payment_status'),
     path('wallet/', views.wallet_view, name='wallet'),
     path('api/order-items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),
+    path('api/order-items/<int:item_id>/cancel/', views.cancel_order_item, name='cancel_order_item'),
+    path('api/orders/<str:order_id>/cancel-all-items/', views.cancel_all_items, name='cancel_all_items'),
     path('orders/<int:order_id>/detail/', views.order_detail, name='order_detail'),
     path('api/orders/<int:order_id>/cancel/', views.cancel_order, name='cancel_order'),
     path('orders/items/<int:item_id>/return/', views.create_return_request, name='create_return_request'),
-    path('order-details/<str:order_id>/', views.order_details, name='order_details'),
     path('download-invoice/<str:order_id>/', views.download_invoice, name='download_invoice'),
     
     ######### Reviews ########

@@ -2196,8 +2196,8 @@ def payment_success(request, order_id=None):
                 order.payment_attempts += 1
                 order.last_payment_attempt = timezone.now()
                 
-                # Set or update payment expiry time (10 minutes from now)
-                order.payment_expiry_time = timezone.now() + timezone.timedelta(minutes=10)
+                # Set or update payment expiry time (1 hour from now)
+                order.payment_expiry_time = timezone.now() + timezone.timedelta(hours=1)
                 order.save()
                 
                 # Return JSON with error status and payment retry information
@@ -2291,7 +2291,7 @@ def retry_payment(request, order_id):
         order.payment_status = 'PAYMENT_PENDING'
         order.payment_attempts += 1
         order.last_payment_attempt = now
-        order.payment_expiry_time = now + timezone.timedelta(minutes=10)  # Reset to 10 minutes from now
+        order.payment_expiry_time = now + timezone.timedelta(hours=1)  # Reset to 1 hour from now
         order.save()
         
         logger.info(f"Updated order {order.order_id}: old_razorpay_id={old_razorpay_id}, new_razorpay_id={order.razorpay_order_id}")
@@ -2369,7 +2369,7 @@ def retry_payment_form(request, order_id):
         order.payment_status = 'PAYMENT_PENDING'
         order.payment_attempts += 1
         order.last_payment_attempt = now
-        order.payment_expiry_time = now + timezone.timedelta(minutes=10)
+        order.payment_expiry_time = now + timezone.timedelta(hours=1)
         order.save()
         
         # Render checkout with Razorpay details
@@ -2454,13 +2454,22 @@ def order_details(request, order_id):
         
         # Add has_review flag and review data to each order item
         for item in order_items:
-            try:
-                review = Review.objects.get(order_item=item, user=request.user)
+            # Check if review exists for this order item
+            review = Review.objects.filter(
+                order_item=item, 
+                user=request.user
+            ).select_related('user').prefetch_related('images').first()
+            
+            if review:
                 item.has_review = True
                 item.review = review
-            except Review.DoesNotExist:
+                logger.debug(f"Review found for order_item {item.id} (review_id: {review.id})")
+                print(f"DEBUG: Review exists for item {item.id}, product: {item.product.name}")
+            else:
                 item.has_review = False
                 item.review = None
+                logger.debug(f"No review found for order_item {item.id}")
+                print(f"DEBUG: No review for item {item.id}, product: {item.product.name}, status: {item.status}")
         
         # Prepare timeline events
         timeline = []
@@ -2607,32 +2616,57 @@ def cancel_order_item(request, item_id):
                 order_item.size.stock += order_item.quantity
                 order_item.size.save()
             
-            # Recalculate order total
+            # Recalculate order total based on remaining active items
             active_items = order.order_items.exclude(status__in=['CANCELLED', 'RETURNED'])
-            new_total = sum(item.price * item.quantity for item in active_items)
-            order.total_amount = new_total
+            
+            if active_items.exists():
+                # Calculate what customer paid for remaining items
+                # Sum up the actual paid amount for each remaining item
+                new_total = sum(item.get_refundable_amount() for item in active_items)
+                order.total_amount = new_total
+            else:
+                # All items cancelled
+                order.total_amount = Decimal('0')
+            
             order.save()
             
             # If payment was made, add to wallet
             if order.payment_status == 'PAID':
                 wallet, created = Wallet.objects.get_or_create(user=request.user)
-                refund_amount = order_item.price * order_item.quantity
+                
+                # Calculate actual refundable amount (what customer actually paid for this item)
+                refund_amount = order_item.get_refundable_amount()
                 
                 wallet.balance += refund_amount
                 wallet.save()
                 
                 # Record transaction
+                item_price_before_coupon = order_item.price * order_item.quantity
+                
+                description = f'Refund for cancelled item #{order_item.id}'
+                if order.coupon_discount > 0:
+                    description += f' (Item price: ₹{item_price_before_coupon:.2f}, Actual paid after all discounts: ₹{refund_amount:.2f})'
+                
                 WalletTransaction.objects.create(
                     wallet=wallet,
                     amount=refund_amount,
                     transaction_type='REFUND',
-                    description=f'Refund for cancelled item #{order_item.id}'
+                    description=description
                 )
-            
-            return JsonResponse({
-                'success': True,
-                'message': 'Item cancelled successfully'
-            })
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Item cancelled successfully',
+                    'refund_amount': float(refund_amount),
+                    'item_price_before_coupon': float(item_price_before_coupon),
+                    'order_had_coupon': order.coupon_discount > 0
+                })
+            else:
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Item cancelled successfully',
+                    'refund_amount': 0
+                })
             
     except OrderItem.DoesNotExist:
         return JsonResponse({
@@ -2644,6 +2678,116 @@ def cancel_order_item(request, item_id):
         return JsonResponse({
             'success': False,
             'message': 'An error occurred while cancelling the item'
+        })
+
+@login_required
+@require_POST
+def cancel_all_items(request, order_id):
+    """
+    Cancel all eligible items in an order at once.
+    Only cancels items that are in PROCESSING or SHIPPED status.
+    """
+    try:
+        order = get_object_or_404(Order, order_id=order_id)
+        
+        # Verify ownership
+        if order.user != request.user:
+            return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=403)
+        
+        # Get all eligible items for cancellation
+        eligible_items = order.order_items.filter(status__in=['PROCESSING', 'SHIPPED'])
+        
+        if not eligible_items.exists():
+            return JsonResponse({
+                'success': False, 
+                'message': 'No items available for cancellation. Items must be in Processing or Shipped status.'
+            })
+        
+        with transaction.atomic():
+            total_refund = Decimal('0')
+            cancelled_count = 0
+            
+            # Process each eligible item
+            for order_item in eligible_items:
+                # Update item status
+                order_item.status = 'CANCELLED'
+                order_item.cancelled_at = timezone.now()
+                order_item.save()
+                
+                # Restore stock if size exists
+                if order_item.size:
+                    order_item.size.stock += order_item.quantity
+                    order_item.size.save()
+                
+                # Calculate refund for this item
+                if order.payment_status == 'PAID':
+                    refund_amount = order_item.get_refundable_amount()
+                    total_refund += refund_amount
+                
+                cancelled_count += 1
+            
+            # Recalculate order total based on remaining active items
+            active_items = order.order_items.exclude(status__in=['CANCELLED', 'RETURNED'])
+            
+            if active_items.exists():
+                # Calculate what customer paid for remaining items
+                new_total = sum(item.get_refundable_amount() for item in active_items)
+                order.total_amount = new_total
+            else:
+                # All items cancelled - update order status
+                order.total_amount = Decimal('0')
+                order.order_status = 'CANCELLED'
+                order.cancelled_at = timezone.now()
+            
+            order.save()
+            
+            # Process refund if payment was made
+            if order.payment_status == 'PAID' and total_refund > 0:
+                wallet, created = Wallet.objects.get_or_create(user=request.user)
+                
+                wallet.balance += total_refund
+                wallet.save()
+                
+                # Record transaction
+                description = f'Refund for {cancelled_count} cancelled item(s) from order #{order.order_id}'
+                if order.coupon_discount > 0:
+                    description += f' (Total refunded: ₹{total_refund:.2f} after all discounts)'
+                
+                WalletTransaction.objects.create(
+                    wallet=wallet,
+                    amount=total_refund,
+                    transaction_type='REFUND',
+                    description=description
+                )
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'{cancelled_count} item(s) cancelled successfully',
+                    'cancelled_count': cancelled_count,
+                    'refund_amount': float(total_refund),
+                    'all_cancelled': not active_items.exists(),
+                    'new_total': float(order.total_amount)
+                })
+            else:
+                return JsonResponse({
+                    'success': True,
+                    'message': f'{cancelled_count} item(s) cancelled successfully',
+                    'cancelled_count': cancelled_count,
+                    'refund_amount': 0,
+                    'all_cancelled': not active_items.exists(),
+                    'new_total': float(order.total_amount)
+                })
+            
+    except Order.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Order not found'
+        })
+    except Exception as e:
+        logger.error(f"Error cancelling all items in order {order_id}: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'An error occurred while cancelling items. Please try again.'
         })
 
 @login_required
@@ -3340,8 +3484,8 @@ def create_order(request):
             
             # Return appropriate response based on payment method
             if payment_method == 'razorpay':
-                # Set payment expiry time to 10 minutes from now
-                order.payment_expiry_time = timezone.now() + timezone.timedelta(minutes=10)
+                # Set payment expiry time to 1 hour from now
+                order.payment_expiry_time = timezone.now() + timezone.timedelta(hours=1)
                 order.save()
                 # Create Razorpay order
                 client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
@@ -3557,32 +3701,63 @@ def submit_review(request, order_item_id):
     """Submit a review for a purchased product"""
     if request.method == 'POST':
         try:
-            order_item = get_object_or_404(OrderItem, id=order_item_id, order__user=request.user)
+            # Validate order item exists and belongs to user
+            try:
+                order_item = OrderItem.objects.select_related('product', 'order').get(
+                    id=order_item_id, 
+                    order__user=request.user
+                )
+            except OrderItem.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Order item not found. Please refresh the page and try again.'
+                }, status=404)
             
             # Check if item is delivered
             if order_item.status != 'DELIVERED':
                 return JsonResponse({
                     'success': False,
-                    'message': 'You can only review delivered items'
+                    'message': 'Reviews can only be submitted for delivered items. Please wait for your order to be delivered.'
                 }, status=400)
             
             # Check if review already exists
             if Review.objects.filter(product=order_item.product, user=request.user, order_item=order_item).exists():
                 return JsonResponse({
                     'success': False,
-                    'message': 'You have already reviewed this product'
+                    'message': 'You have already submitted a review for this item. Each item can only be reviewed once.'
                 }, status=400)
             
-            # Get form data
-            rating = int(request.POST.get('rating', 0))
-            title = request.POST.get('title', '')
-            comment = request.POST.get('comment', '')
+            # Get and validate form data
+            try:
+                rating = int(request.POST.get('rating', 0))
+            except (ValueError, TypeError):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Please select a valid rating between 1 and 5 stars.'
+                }, status=400)
+            
+            title = request.POST.get('title', '').strip()
+            comment = request.POST.get('comment', '').strip()
             
             # Validate rating
             if rating < 1 or rating > 5:
                 return JsonResponse({
                     'success': False,
-                    'message': 'Rating must be between 1 and 5'
+                    'message': 'Please select a rating between 1 and 5 stars.'
+                }, status=400)
+            
+            # Validate title
+            if not title or len(title) < 3:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Review title must be at least 3 characters long.'
+                }, status=400)
+            
+            # Validate comment
+            if not comment or len(comment) < 10:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Review comment must be at least 10 characters long.'
                 }, status=400)
             
             # Create review
@@ -3598,21 +3773,43 @@ def submit_review(request, order_item_id):
             
             # Handle image uploads if any
             images = request.FILES.getlist('images')
-            for image in images[:5]:  # Limit to 5 images
+            if len(images) > 5:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Maximum 5 images allowed per review. Please remove some images and try again.'
+                }, status=400)
+            
+            for image in images:
+                # Validate image size (max 5MB)
+                if image.size > 5 * 1024 * 1024:
+                    review.delete()  # Remove the review if image upload fails
+                    return JsonResponse({
+                        'success': False,
+                        'message': f'Image "{image.name}" is too large. Maximum file size is 5MB per image.'
+                    }, status=400)
+                
                 ReviewImage.objects.create(review=review, image=image)
             
             return JsonResponse({
                 'success': True,
-                'message': 'Review submitted successfully!'
+                'message': 'Thank you! Your review has been submitted successfully and will be visible after admin approval.'
             })
             
         except Exception as e:
+            # Log the actual error for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error submitting review for order_item_id {order_item_id}: {str(e)}", exc_info=True)
+            
             return JsonResponse({
                 'success': False,
-                'message': str(e)
+                'message': 'We encountered an error while submitting your review. Please try again in a moment. If the problem persists, contact support.'
             }, status=500)
     
-    return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+    return JsonResponse({
+        'success': False, 
+        'message': 'Invalid request. Please refresh the page and try again.'
+    }, status=405)
 
 
 @login_required

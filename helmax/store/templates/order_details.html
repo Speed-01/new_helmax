@@ -159,11 +159,13 @@
         <!-- Order Actions -->
         <div class="mb-6 bg-zinc-900 rounded-lg overflow-hidden">
           <div class="p-6">
-            <div class="flex space-x-4">
+            <div class="flex flex-wrap gap-4">
                 {% if order.order_status != 'CANCELLED' and order.order_status != 'DELIVERED' %}
-                <button id="cancelOrderBtn" class="px-6 py-2 border border-red-800 text-red-500 hover:bg-red-900/20 rounded-md transition-colors flex items-center">
-                  <i data-lucide="x" class="icon mr-2 h-4 w-4"></i>
-                  Cancel Order
+                <button 
+                  onclick="openConfirmationModal('{{ order.order_id }}', 'Cancel All Items', 'Are you sure you want to cancel all eligible items in this order? Only items in Processing or Shipped status will be cancelled. This action cannot be undone.', 'cancelAllItems')" 
+                  class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors flex items-center font-medium">
+                  <i data-lucide="x-circle" class="icon mr-2 h-4 w-4"></i>
+                  Cancel All Items
                 </button>
                 {% endif %}
               </div>
@@ -883,6 +885,10 @@
         confirmCallback = function() {
           cancelItem(currentItemId);
         };
+      } else if (callbackName === 'cancelAllItems') {
+        confirmCallback = function() {
+          cancelAllItems(currentItemId);
+        };
       }
       
       document.getElementById('confirmButton').onclick = function() {
@@ -1069,9 +1075,22 @@
           
           // Show refund message if applicable
           if (data.refund_amount > 0) {
-            const refundMsg = document.createElement('p');
-            refundMsg.className = 'text-green-500 text-sm mt-2';
-            refundMsg.textContent = `₹${data.refund_amount.toFixed(2)} has been refunded to your wallet`;
+            const refundMsg = document.createElement('div');
+            refundMsg.className = 'bg-green-50 border border-green-200 rounded-lg p-3 mt-2';
+            
+            let refundHtml = `<p class="text-green-700 font-semibold">₹${data.refund_amount.toFixed(2)} has been refunded to your wallet</p>`;
+            
+            // Show breakdown if order had coupon discount
+            if (data.order_had_coupon && data.item_price_before_coupon) {
+              const discount = data.item_price_before_coupon - data.refund_amount;
+              refundHtml += `
+                <p class="text-xs text-gray-600 mt-1">
+                  Item price: ₹${data.item_price_before_coupon.toFixed(2)} | Total discounts applied: ₹${discount.toFixed(2)}
+                </p>
+              `;
+            }
+            
+            refundMsg.innerHTML = refundHtml;
             itemElement.appendChild(refundMsg);
           }
           
@@ -1086,6 +1105,81 @@
       .catch(error => {
         console.error('Error:', error);
         alert('An error occurred while cancelling the item');
+      });
+    }
+    
+    function cancelAllItems(orderId) {
+      const confirmButton = document.getElementById('confirmButton');
+      confirmButton.disabled = true;
+      confirmButton.innerHTML = '<i data-lucide="loader" class="icon mr-2 h-4 w-4 animate-spin inline-block"></i>Processing...';
+      
+      fetch(`/api/orders/${orderId}/cancel-all-items/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        closeConfirmationModal();
+        confirmButton.disabled = false;
+        confirmButton.innerHTML = 'Confirm';
+        
+        if (data.success) {
+          // Show success message with refund details
+          const messageDiv = document.createElement('div');
+          messageDiv.className = 'mb-6 p-4 bg-green-900/30 border border-green-500 rounded-lg';
+          
+          let messageHtml = `
+            <div class="flex items-start gap-3">
+              <svg class="h-6 w-6 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <div class="flex-1">
+                <p class="text-green-300 font-semibold">${data.message}</p>
+          `;
+          
+          if (data.refund_amount > 0) {
+            messageHtml += `
+              <p class="text-green-200 mt-2">
+                <span class="font-bold">₹${data.refund_amount.toFixed(2)}</span> has been refunded to your wallet
+              </p>
+            `;
+          }
+          
+          messageHtml += `
+              </div>
+            </div>
+          `;
+          
+          messageDiv.innerHTML = messageHtml;
+          
+          // Insert message at the top of the page
+          const container = document.querySelector('main > div');
+          container.insertBefore(messageDiv, container.firstChild);
+          
+          // Auto-hide message after 5 seconds
+          setTimeout(() => {
+            messageDiv.style.opacity = '0';
+            messageDiv.style.transition = 'opacity 0.5s';
+            setTimeout(() => messageDiv.remove(), 500);
+          }, 5000);
+          
+          // Reload page to show updated statuses
+          setTimeout(() => {
+            location.reload();
+          }, 2000);
+        } else {
+          alert(data.message || 'Failed to cancel items');
+        }
+      })
+      .catch(error => {
+        closeConfirmationModal();
+        confirmButton.disabled = false;
+        confirmButton.innerHTML = 'Confirm';
+        console.error('Error:', error);
+        alert('An error occurred while cancelling items. Please try again.');
       });
     }
     
@@ -1262,13 +1356,15 @@
         body: formData
       })
       .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
+        // Parse response as JSON regardless of status
+        return response.json().then(data => ({
+          ok: response.ok,
+          status: response.status,
+          data: data
+        }));
       })
-      .then(data => {
-        if (data.success) {
+      .then(result => {
+        if (result.ok && result.data.success) {
           // Show success message with custom styling
           const successMsg = document.createElement('div');
           successMsg.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-600 text-white px-8 py-6 rounded-lg shadow-2xl z-[60] text-center';
@@ -1287,14 +1383,16 @@
             location.reload();
           }, 2500);
         } else {
-          alert(data.message || 'Failed to submit review. Please try again.');
+          // Show the actual error message from the backend
+          const errorMsg = result.data.message || 'Failed to submit review. Please try again.';
+          alert(errorMsg);
           submitBtn.disabled = false;
           submitBtn.textContent = originalText;
         }
       })
       .catch(error => {
         console.error('Error:', error);
-        alert('Unable to submit review. Please check your connection and try again.');
+        alert('Network error. Please check your internet connection and try again.');
         submitBtn.disabled = false;
         submitBtn.textContent = originalText;
       });

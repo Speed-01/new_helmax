@@ -192,12 +192,17 @@ def generate_invoice_pdf(order):
     product_discount = float(getattr(order, 'product_discount', 0) or 0)
     coupon_discount = float(getattr(order, 'coupon_discount', 0) or 0)
     
-    # Calculate cancelled/returned amount for display
+    # Calculate cancelled/returned amount (actual refunded amount, not item price)
     cancelled_refunded = 0
     for it in items:
         item_status = getattr(it, 'status', 'PENDING')
         if item_status in ['CANCELLED', 'RETURNED']:
-            cancelled_refunded += (it.quantity or 0) * float(it.price or 0)
+            # Use the actual refundable amount (excludes proportional coupon discount)
+            try:
+                cancelled_refunded += float(it.get_refundable_amount())
+            except:
+                # Fallback to simple calculation if method not available
+                cancelled_refunded += (it.quantity or 0) * float(it.price or 0)
     
     total_discount = product_discount + coupon_discount
     final_amount = subtotal - total_discount

@@ -4,6 +4,7 @@
 import json
 import logging
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 # ────────────────────────────────────────────────
 # Django core imports
@@ -216,7 +217,7 @@ def add_category(request):
         name = request.POST.get('category_name')
         if name:  
             if Category.objects.filter(name__iexact=name).exists():
-                
+                messages.error(request, "Category with this name already exists.")
                 error_message = "Category with this name already exists."
                 return render(request, 'admincategory.html', {
                     'categories': Category.objects.all(),
@@ -225,7 +226,7 @@ def add_category(request):
                 })
             else:
                 Category.objects.create(name=name)
-                print("Category added successfully")
+                messages.success(request, "Category added successfully!")
         return redirect('admin_category')  
     return redirect('admin_category')
 
@@ -237,6 +238,7 @@ def edit_category(request, category_id):
         name = request.POST.get('category_name')
         if name:
             if Category.objects.filter(name__iexact=name).exclude(id=category_id).exists():
+                messages.error(request, "Category with this name already exists.")
                 error_message = "Category with this name already exists."
                 return render(request, 'admincategory.html', {
                     'categories': Category.objects.all(),
@@ -247,7 +249,7 @@ def edit_category(request, category_id):
             else:
                 category.name = name
                 category.save()
-                print("Category updated successfully")
+                messages.success(request, "Category updated successfully!")
         return redirect('admin_category')
     return render(request, 'edit_category.html', {'category': category})
 
@@ -1714,9 +1716,35 @@ def get_return_requests(request):
         # Format the data for the response
         return_requests_data = []
         for request in return_requests:
-            order_id = request.order_item.order.order_id if request.order_item and hasattr(request.order_item, 'order') and request.order_item.order else 'N/A'
-            product_name = request.order_item.variant.product.name if request.order_item and hasattr(request.order_item, 'variant') and hasattr(request.order_item.variant, 'product') else 'N/A'
-            variant_color = request.order_item.variant.color if request.order_item and hasattr(request.order_item, 'variant') else ''
+            # Safely get order_id
+            order_id = 'N/A'
+            if request.order_item:
+                try:
+                    order_id = request.order_item.order.order_id
+                except (AttributeError, Exception):
+                    order_id = 'N/A'
+            
+            # Safely get product information
+            product_name = 'N/A'
+            variant_color = ''
+            if request.order_item:
+                try:
+                    product_name = request.order_item.variant.product.name if request.order_item.variant else request.order_item.product.name
+                    variant_color = request.order_item.variant.color if request.order_item.variant else ''
+                except (AttributeError, Exception):
+                    product_name = 'N/A'
+            
+            # Calculate refund amount
+            refund_amount = 0
+            item_price = 0
+            if request.order_item:
+                try:
+                    if request.order_item.order.payment_status == 'PAID':
+                        refund_amount = float(request.order_item.get_refundable_amount())
+                        item_price = float(request.order_item.price * request.order_item.quantity)
+                except (AttributeError, Exception):
+                    refund_amount = 0
+                    item_price = 0
             
             return_requests_data.append({
                 'id': request.id,
@@ -1728,7 +1756,10 @@ def get_return_requests(request):
                 'description': request.description,
                 'status': request.status,
                 'created_at': request.created_at.strftime('%Y-%m-%d %H:%M'),
-                'admin_response': request.admin_response or ''
+                'admin_response': request.admin_response or '',
+                'refund_amount': refund_amount,
+                'item_price': item_price,
+                'quantity': request.order_item.quantity if request.order_item else 0
             })
         
         return JsonResponse({
@@ -1795,21 +1826,45 @@ def handle_return_request(request, return_request_id):
                 if order_item.size:
                     order_item.size.stock += order_item.quantity
                     order_item.size.save()
+                
+                # Recalculate order total based on remaining active items
+                order = order_item.order
+                active_items = order.order_items.exclude(status__in=['CANCELLED', 'RETURNED'])
+                
+                if active_items.exists():
+                    # Calculate what customer paid for remaining items
+                    # Sum up the actual paid amount for each remaining item
+                    new_total = sum(item.get_refundable_amount() for item in active_items)
+                    order.total_amount = new_total
+                else:
+                    # All items cancelled/returned
+                    order.total_amount = Decimal('0')
+                    order.order_status = 'RETURNED'
+                
+                order.save()
                     
                 # Process refund if payment was made
-                if order_item.order.payment_status == 'PAID':
-                    wallet, created = Wallet.objects.get_or_create(user=order_item.order.user)
-                    refund_amount = order_item.price * order_item.quantity
+                if order.payment_status == 'PAID':
+                    wallet, created = Wallet.objects.get_or_create(user=order.user)
+                    
+                    # Calculate actual refundable amount (what customer actually paid for this item)
+                    refund_amount = order_item.get_refundable_amount()
                     
                     wallet.balance += refund_amount
                     wallet.save()
                     
                     # Record transaction
+                    item_price_before_coupon = order_item.price * order_item.quantity
+                    
+                    description = f'Refund for returned item #{order_item.id}'
+                    if order.coupon_discount > 0:
+                        description += f' (Item price: ₹{item_price_before_coupon:.2f}, Actual paid after all discounts: ₹{refund_amount:.2f})'
+                    
                     WalletTransaction.objects.create(
                         wallet=wallet,
                         amount=refund_amount,
                         transaction_type='RETURN_REFUND',
-                        description=f'Refund for returned item #{order_item.id}'
+                        description=description
                     )
             else:  # reject
                 # Update return request

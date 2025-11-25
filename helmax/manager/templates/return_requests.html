@@ -78,22 +78,7 @@
                                 <td class="px-6 py-4"><div class="h-4 w-32 bg-[#222222] rounded animate-pulse"></div></td>
                                 <td class="px-6 py-4"><div class="h-4 w-40 bg-[#222222] rounded animate-pulse"></div></td>
                                 <td class="px-6 py-4"><div class="h-6 w-20 bg-[#222222] rounded-full animate-pulse"></div></td>
-                                <td class="px-6 py-4"><div class="h-8 w-32 bg-[#222222] rounded animate-pulse"></div></td>
-                            </tr>
-                            <tr class="border-b border-[#222222]">
-                                <td class="px-6 py-4"><div class="h-4 w-16 bg-[#222222] rounded animate-pulse"></div></td>
-                                <td class="px-6 py-4"><div class="h-4 w-24 bg-[#222222] rounded animate-pulse"></div></td>
-                                <td class="px-6 py-4"><div class="h-4 w-32 bg-[#222222] rounded animate-pulse"></div></td>
-                                <td class="px-6 py-4"><div class="h-4 w-40 bg-[#222222] rounded animate-pulse"></div></td>
-                                <td class="px-6 py-4"><div class="h-6 w-20 bg-[#222222] rounded-full animate-pulse"></div></td>
-                                <td class="px-6 py-4"><div class="h-8 w-32 bg-[#222222] rounded animate-pulse"></div></td>
-                            </tr>
-                            <tr class="border-b border-[#222222]">
-                                <td class="px-6 py-4"><div class="h-4 w-16 bg-[#222222] rounded animate-pulse"></div></td>
-                                <td class="px-6 py-4"><div class="h-4 w-24 bg-[#222222] rounded animate-pulse"></div></td>
-                                <td class="px-6 py-4"><div class="h-4 w-32 bg-[#222222] rounded animate-pulse"></div></td>
-                                <td class="px-6 py-4"><div class="h-4 w-40 bg-[#222222] rounded animate-pulse"></div></td>
-                                <td class="px-6 py-4"><div class="h-6 w-20 bg-[#222222] rounded-full animate-pulse"></div></td>
+                                <td class="px-6 py-4"><div class="h-4 w-20 bg-[#222222] rounded animate-pulse"></div></td>
                                 <td class="px-6 py-4"><div class="h-8 w-32 bg-[#222222] rounded animate-pulse"></div></td>
                             </tr>
                         </tbody>
@@ -131,6 +116,9 @@
                                         Status
                                         <span class="sort-icon ml-1"></span>
                                     </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                    Refund Amount
                                 </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                                     Actions
@@ -202,8 +190,8 @@
 </div>
 
 <!-- Response Modal -->
-<div id="responseModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-[#1A1A1A] rounded-lg p-6 max-w-md w-full mx-4 border border-[#333333]">
+<div id="responseModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-[#1A1A1A] rounded-lg p-6 max-w-md w-full mx-4 border border-[#333333]" onclick="event.stopPropagation()">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-xl font-semibold text-white" id="modalTitle">Enter Response</h3>
             <button type="button" id="closeModalBtn" class="text-gray-400 hover:text-white transition-colors">
@@ -544,8 +532,6 @@
         
         apiUrl += `&sort_field=${state.sortField}&sort_direction=${state.sortDirection}`;
         
-        console.log('Fetching data from:', apiUrl);
-        
         fetch(apiUrl, {
             method: 'GET',
             headers: {
@@ -560,8 +546,6 @@
             return response.json();
         })
         .then(data => {
-            console.log('Data received:', data);
-            
             if (data.success) {
                 state.returnRequests = data.return_requests;
                 state.totalItems = data.total_items;
@@ -650,16 +634,12 @@
             return;
         }
 
-        console.log('Submitting:', {
-            requestId: state.currentRequestId,
-            action: state.currentAction,
-            response: responseText
-        });
+        // Disable submit button to prevent double submission
+        elements.submitResponseBtn.disabled = true;
+        elements.submitResponseBtn.textContent = 'Processing...';
 
         state.isLoading = true;
-        updateUI();
-        closeModal();
-
+        
         const requestUrl = `/manager/handle-return-request/${state.currentRequestId}/`;
         
         fetch(requestUrl, {
@@ -686,7 +666,14 @@
         .then(data => {
             state.isLoading = false;
             
+            // Re-enable button
+            elements.submitResponseBtn.disabled = false;
+            elements.submitResponseBtn.textContent = 'Submit';
+            
             if (data.success) {
+                // Close modal on success
+                closeModal();
+                
                 const requestIndex = state.returnRequests.findIndex(req => 
                     String(req.id) === String(state.currentRequestId)
                 );
@@ -705,6 +692,11 @@
         })
         .catch(error => {
             state.isLoading = false;
+            
+            // Re-enable button
+            elements.submitResponseBtn.disabled = false;
+            elements.submitResponseBtn.textContent = 'Submit';
+            
             console.error('Submit error:', error);
             showError(`Error: ${error.message}`);
             updateUI();
@@ -739,33 +731,46 @@
 
         elements.emptyState.classList.add('hidden');
 
+        // Helper function to generate action buttons (DRY principle)
+        const getActionsContent = (request, isMobile = false) => {
+            if (request.status === 'PENDING') {
+                const baseClasses = isMobile 
+                    ? 'flex-1 rounded py-2 text-white text-sm font-medium transition-colors'
+                    : 'px-3 py-1.5 rounded text-white text-sm font-medium transition-colors';
+                return `
+                    <div class="flex space-x-2">
+                        <button onclick="handleReturn('${request.id}', 'approve')" 
+                                class="${baseClasses} bg-green-600 hover:bg-green-700">
+                            Approve
+                        </button>
+                        <button onclick="handleReturn('${request.id}', 'reject')"
+                                class="${baseClasses} bg-red-600 hover:bg-red-700">
+                            Reject
+                        </button>
+                    </div>
+                `;
+            }
+            const containerClass = isMobile ? 'text-gray-400 p-3 bg-[#0A0A0A] rounded' : 'text-gray-400';
+            return `
+                <div class="${containerClass}">
+                    <div class="font-semibold text-xs mb-1">Admin Response:</div>
+                    <p class="text-sm">${request.admin_response || 'No response provided'}</p>
+                </div>
+            `;
+        };
+
         // Populate desktop table
         requests.forEach(request => {
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-[#111111] transition-colors duration-200';
             
-            let actionsContent = '';
-            if (request.status === 'PENDING') {
-                actionsContent = `
-                    <div class="flex space-x-2">
-                        <button onclick="handleReturn('${request.id}', 'approve')" 
-                                class="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-white text-sm font-medium transition-colors">
-                            Approve
-                        </button>
-                        <button onclick="handleReturn('${request.id}', 'reject')"
-                                class="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-white text-sm font-medium transition-colors">
-                            Reject
-                        </button>
-                    </div>
-                `;
-            } else {
-                actionsContent = `
-                    <div class="text-gray-400">
-                        <div class="font-semibold text-xs mb-1">Admin Response:</div>
-                        <p class="text-sm">${request.admin_response || 'No response provided'}</p>
-                    </div>
-                `;
-            }
+            // Format refund amount display
+            const refundDisplay = request.refund_amount > 0 
+                ? `<div class="text-sm">
+                     <div class="font-semibold text-yellow-400">₹${request.refund_amount.toFixed(2)}</div>
+                     <div class="text-xs text-gray-500">Item: ₹${request.item_price.toFixed(2)}</div>
+                   </div>`
+                : `<span class="text-gray-500 text-sm">Not paid</span>`;
             
             tr.innerHTML = `
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">${request.order_id}</td>
@@ -777,8 +782,11 @@
                         ${getStatusDisplay(request.status)}
                     </span>
                 </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    ${refundDisplay}
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    ${actionsContent}
+                    ${getActionsContent(request, false)}
                 </td>
             `;
             elements.returnRequestsTableBody.appendChild(tr);
@@ -788,29 +796,6 @@
         requests.forEach(request => {
             const card = document.createElement('div');
             card.className = 'bg-[#0F0F0F] border border-[#222222] rounded-lg overflow-hidden hover:border-[#333333] transition-colors';
-            
-            let actionsContent = '';
-            if (request.status === 'PENDING') {
-                actionsContent = `
-                    <div class="flex space-x-2">
-                        <button onclick="handleReturn('${request.id}', 'approve')" 
-                                class="flex-1 bg-green-600 hover:bg-green-700 rounded py-2 text-white text-sm font-medium transition-colors">
-                            Approve
-                        </button>
-                        <button onclick="handleReturn('${request.id}', 'reject')"
-                                class="flex-1 bg-red-600 hover:bg-red-700 rounded py-2 text-white text-sm font-medium transition-colors">
-                            Reject
-                        </button>
-                    </div>
-                `;
-            } else {
-                actionsContent = `
-                    <div class="text-gray-400 p-3 bg-[#0A0A0A] rounded">
-                        <div class="font-semibold text-xs mb-1">Admin Response:</div>
-                        <p class="text-sm">${request.admin_response || 'No response provided'}</p>
-                    </div>
-                `;
-            }
             
             card.innerHTML = `
                 <div class="p-4 border-b border-[#222222] flex justify-between items-center">
@@ -833,7 +818,7 @@
                     </div>
                 </div>
                 <div class="p-4 bg-[#0A0A0A] border-t border-[#222222]">
-                    ${actionsContent}
+                    ${getActionsContent(request, true)}
                 </div>
             `;
             elements.mobileCardView.appendChild(card);
@@ -941,10 +926,7 @@
         state.currentRequestId = requestId;
         state.currentAction = action;
         
-        console.log(`Processing: Request ID ${requestId}, Action: ${action}`);
-        
         if (!state.returnRequests || state.returnRequests.length === 0) {
-            console.log('No data loaded, fetching...');
             fetchReturnRequests(1, '', () => handleReturn(requestId, action));
             return;
         }
@@ -959,8 +941,6 @@
             return;
         }
         
-        console.log('Found request:', request);
-        
         elements.modalTitle.textContent = action === 'approve' 
             ? 'Approve Return Request' 
             : 'Reject Return Request';
@@ -969,17 +949,40 @@
         elements.productName.textContent = request.product;
         elements.returnReason.textContent = request.reason;
         
+        // Show modal - use classList like working user modal
         elements.responseModal.classList.remove('hidden');
-        elements.responseModal.classList.add('flex');
-        elements.adminResponse.focus();
+        document.body.style.overflow = 'hidden';
+        
+        // Focus on textarea
+        setTimeout(() => {
+            elements.adminResponse.focus();
+        }, 100);
     }
 
     function closeModal() {
-        console.log('Closing modal');
-        elements.responseModal.classList.add('hidden');
-        elements.responseModal.classList.remove('flex');
-        elements.adminResponse.value = '';
+        if (!elements.responseModal) {
+            console.error('Modal element not found!');
+            return;
+        }
         
+        // Hide modal - use classList like working user modal
+        elements.responseModal.classList.add('hidden');
+        
+        // Clear textarea
+        if (elements.adminResponse) {
+            elements.adminResponse.value = '';
+        }
+        
+        // Restore body scroll
+        document.body.style.overflow = '';
+        
+        // Reset submit button state
+        if (elements.submitResponseBtn) {
+            elements.submitResponseBtn.disabled = false;
+            elements.submitResponseBtn.textContent = 'Submit';
+        }
+        
+        // Clear state
         state.currentRequestId = null;
         state.currentAction = null;
     }
@@ -988,7 +991,13 @@
     // EVENT LISTENERS SETUP
     // ===========================
     
+    let eventListenersSetup = false;
+    
     function setupEventListeners() {
+        if (eventListenersSetup) {
+            return;
+        }
+        eventListenersSetup = true;
         // Search input
         elements.searchInput.addEventListener('input', debounce(() => {
             state.searchQuery = elements.searchInput.value;
@@ -1059,32 +1068,46 @@
             });
         });
 
-        // Modal event listeners
-        if (elements.closeModalBtn) {
-            elements.closeModalBtn.addEventListener('click', closeModal);
-        }
+        // Modal event listeners - using named functions to prevent duplicates
+        const handleCloseClick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeModal();
+        };
 
-        if (elements.cancelModalBtn) {
-            elements.cancelModalBtn.addEventListener('click', closeModal);
-        }
+        const handleCancelClick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeModal();
+        };
 
-        if (elements.submitResponseBtn) {
-            elements.submitResponseBtn.addEventListener('click', submitResponse);
-        }
+        const handleSubmitClick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            submitResponse();
+        };
 
-        // Close modal when clicking outside
-        elements.responseModal.addEventListener('click', (event) => {
+        const handleBackdropClick = (event) => {
             if (event.target === elements.responseModal) {
                 closeModal();
             }
-        });
+        };
+
+        // Attach event listeners with once: false to allow multiple uses
+        elements.closeModalBtn?.addEventListener('click', handleCloseClick);
+        elements.cancelModalBtn?.addEventListener('click', handleCancelClick);
+        elements.submitResponseBtn?.addEventListener('click', handleSubmitClick);
+        elements.responseModal?.addEventListener('click', handleBackdropClick);
 
         // Keyboard support
         document.addEventListener('keydown', (event) => {
-            if (!elements.responseModal.classList.contains('hidden')) {
+            // Check if modal is visible using classList like working user modal
+            if (elements.responseModal && !elements.responseModal.classList.contains('hidden')) {
                 if (event.key === 'Escape') {
+                    event.preventDefault();
                     closeModal();
                 } else if (event.key === 'Enter' && event.ctrlKey) {
+                    event.preventDefault();
                     submitResponse();
                 }
             }
@@ -1125,8 +1148,6 @@
     // ===========================
     
     function init() {
-        console.log('Initializing Return Requests Manager...');
-        
         // Verify all critical elements exist
         const criticalElements = [
             'searchInput', 'statusFilterSelect', 'filterButton', 'filterMenu',
@@ -1144,8 +1165,6 @@
         
         setupEventListeners();
         fetchReturnRequests();
-        
-        console.log('Initialization complete');
     }
 
     // Make handleReturn available globally for onclick attributes

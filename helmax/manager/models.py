@@ -622,8 +622,58 @@ class OrderItem(models.Model):
     
     @property
     def total_discount(self):
-        """Total discount for this item"""
+        """Total discount for this item (product discount only, not coupon)"""
         return self.item_discount * self.quantity
+    
+    def get_refundable_amount(self):
+        """
+        Calculate the actual refundable amount for this item based on what customer ACTUALLY PAID.
+        
+        Logic:
+        1. Calculate ORIGINAL order total (sum of all items before any cancellations/returns)
+        2. Calculate this item's proportion of the original order
+        3. Apply proportion to ORIGINAL order.total_amount to get this item's share
+        
+        Example:
+        Original Order (3 items):
+        - Item A: ₹3897
+        - Item B: ₹1000  
+        - Item C: ₹500
+        - Total before coupon: ₹5397
+        - Coupon: -₹539.70
+        - Customer paid: ₹4857.30
+        
+        Item A proportion: 3897/5397 = 72.2%
+        Item A refund: 72.2% × ₹4857.30 = ₹3,507.00
+        
+        Even if Item B is already cancelled, Item A's refund stays ₹3,507.00
+        """
+        # Get all order items (ALL items, including cancelled/returned)
+        all_items = self.order.order_items.all()
+        
+        # Calculate ORIGINAL total before coupon (sum of ALL item prices)
+        original_total_before_coupon = sum(
+            Decimal(str(item.price)) * item.quantity for item in all_items
+        )
+        
+        if original_total_before_coupon <= 0:
+            return Decimal('0')
+        
+        # Calculate this item's price (after product discount, before coupon)
+        item_price = Decimal(str(self.price)) * self.quantity
+        
+        # Calculate this item's proportion of the ORIGINAL order
+        item_proportion = item_price / original_total_before_coupon
+        
+        # Calculate ORIGINAL amount customer paid (before any refunds)
+        # This is: original_total_before_coupon - original_coupon_discount
+        original_coupon = Decimal(str(self.order.coupon_discount)) if self.order.coupon_discount else Decimal('0')
+        original_paid = original_total_before_coupon - original_coupon
+        
+        # Calculate refund as proportion of ORIGINAL paid amount
+        refundable = item_proportion * original_paid
+        
+        return refundable.quantize(Decimal('0.01'))
 
     def can_return(self):
         if self.status != 'DELIVERED':
