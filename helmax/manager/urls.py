@@ -100,4 +100,8 @@ urlpatterns = [
     # Wallet Management URLs
     path('wallet/', views.admin_wallet, name='admin_wallet'),
     path('wallet/transaction/<int:transaction_id>/', views.admin_wallet_transaction_detail, name='admin_wallet_transaction_detail'),
+    
+    # Log Management URLs
+    path('logs/', views.view_logs, name='view_logs'),
+    path('logs/clear/', views.clear_logs, name='clear_logs'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

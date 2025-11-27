@@ -22,3 +22,7 @@ myworld
 
 # Ignore media files (user uploads, invoices, etc.)
 helmax/media/
+
+# Ignore log files
+helmax/logs/
+*.log

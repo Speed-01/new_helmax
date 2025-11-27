@@ -3004,3 +3004,9 @@ def generate_ledger(request):
     }
     
     return render(request, 'admin_ledger.html', context)
+
+
+# ────────────────────────────────────────────────
+# Log Management Views
+# ────────────────────────────────────────────────
+from .log_views import view_logs, clear_logs
