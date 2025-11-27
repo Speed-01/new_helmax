@@ -150,6 +150,128 @@ function showSuccessMessage(message) {
     }, 3000);
 }
 
+// Validation Functions
+function validateAddressField(field, value, fieldName) {
+    const trimmed = value.trim();
+    
+    switch(field) {
+        case 'full_name':
+            if (!trimmed) return 'Full name is required';
+            if (trimmed.length < 3) return 'Full name must be at least 3 characters';
+            if (trimmed.length > 50) return 'Full name must not exceed 50 characters';
+            if (!/^[a-zA-Z\s]+$/.test(trimmed)) return 'Full name should only contain letters and spaces';
+            return null;
+            
+        case 'phone':
+            if (!trimmed) return 'Phone number is required';
+            if (!/^[0-9]{10}$/.test(trimmed)) return 'Phone number must be exactly 10 digits';
+            if (trimmed[0] === '0') return 'Phone number should not start with 0';
+            return null;
+            
+        case 'address_line1':
+            if (!trimmed) return 'Address Line 1 is required';
+            if (trimmed.length < 10) return 'Address Line 1 must be at least 10 characters';
+            if (trimmed.length > 100) return 'Address Line 1 must not exceed 100 characters';
+            return null;
+            
+        case 'address_line2':
+            if (trimmed && trimmed.length > 100) return 'Address Line 2 must not exceed 100 characters';
+            return null;
+            
+        case 'pincode':
+            if (!trimmed) return 'Pincode is required';
+            if (!/^[1-9][0-9]{5}$/.test(trimmed)) return 'Pincode must be a valid 6-digit number';
+            return null;
+            
+        case 'city':
+            if (!trimmed) return 'City is required';
+            if (trimmed.length < 2) return 'City must be at least 2 characters';
+            if (trimmed.length > 50) return 'City must not exceed 50 characters';
+            if (!/^[a-zA-Z\s]+$/.test(trimmed)) return 'City should only contain letters and spaces';
+            return null;
+            
+        case 'state':
+            if (!trimmed) return 'State is required';
+            if (trimmed.length < 2) return 'State must be at least 2 characters';
+            if (trimmed.length > 50) return 'State must not exceed 50 characters';
+            if (!/^[a-zA-Z\s]+$/.test(trimmed)) return 'State should only contain letters and spaces';
+            return null;
+            
+        case 'address_type':
+            if (!trimmed) return 'Please select an address type';
+            return null;
+            
+        default:
+            return null;
+    }
+}
+
+function showFieldError(fieldElement, message) {
+    // Remove existing error
+    const existingError = fieldElement.parentElement.querySelector('.field-error');
+    if (existingError) existingError.remove();
+    
+    if (message) {
+        fieldElement.classList.add('border-red-500', 'border-2');
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'field-error text-red-400 text-sm mt-1';
+        errorDiv.textContent = message;
+        fieldElement.parentElement.appendChild(errorDiv);
+        return false;
+    } else {
+        fieldElement.classList.remove('border-red-500', 'border-2');
+        return true;
+    }
+}
+
+// Form validation on submit
+document.querySelector('form').addEventListener('submit', function(e) {
+    let isValid = true;
+    const fields = [
+        { element: document.querySelector('[name="address_type"]'), name: 'address_type' },
+        { element: document.querySelector('[name="full_name"]'), name: 'full_name' },
+        { element: document.querySelector('[name="phone"]'), name: 'phone' },
+        { element: document.querySelector('[name="address_line1"]'), name: 'address_line1' },
+        { element: document.querySelector('[name="address_line2"]'), name: 'address_line2' },
+        { element: document.querySelector('[name="pincode"]'), name: 'pincode' },
+        { element: document.querySelector('[name="city"]'), name: 'city' },
+        { element: document.querySelector('[name="state"]'), name: 'state' }
+    ];
+    
+    fields.forEach(field => {
+        if (field.element) {
+            const error = validateAddressField(field.name, field.element.value, field.element.placeholder || field.name);
+            if (!showFieldError(field.element, error)) {
+                isValid = false;
+            }
+        }
+    });
+    
+    if (!isValid) {
+        e.preventDefault();
+        return false;
+    }
+});
+
+// Real-time validation
+document.querySelectorAll('input, select').forEach(field => {
+    field.addEventListener('blur', function() {
+        if (this.name) {
+            const error = validateAddressField(this.name, this.value, this.placeholder || this.name);
+            showFieldError(this, error);
+        }
+    });
+});
+
+// Restrict phone and pincode to numbers only
+document.querySelector('[name="phone"]')?.addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+});
+
+document.querySelector('[name="pincode"]')?.addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
+});
+
 {% if messages %}
     {% for message in messages %}
         showSuccessMessage("{{ message }}");

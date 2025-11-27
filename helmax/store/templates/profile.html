@@ -90,25 +90,21 @@
         {% if messages %}
             <div id="message-container" class="max-w-3xl mx-auto mb-4">
                 {% for message in messages %}
-                    <div class="
-                        {% if message.tags == 'success' %}bg-green-500
-                        {% elif message.tags == 'error' %}bg-red-500
-                        {% else %}bg-blue-500
-                        {% endif %} 
-                        text-white px-4 py-2 rounded-lg mb-2 fade-out">
+                    {% if message.tags == 'success' %}
+                    <div class="bg-green-500 text-white px-4 py-2 rounded-lg mb-2">
                         {{ message }}
                     </div>
+                    {% endif %}
                 {% endfor %}
             </div>
 
             <script>
-                // Wait for 2 seconds, then fade out the messages
                 setTimeout(function () {
                     var messageContainer = document.getElementById("message-container");
                     if (messageContainer) {
                         messageContainer.style.transition = "opacity 0.5s";
                         messageContainer.style.opacity = "0";
-                        setTimeout(() => messageContainer.remove(), 500);  // Remove after fade out
+                        setTimeout(() => messageContainer.remove(), 500);
                     }
                 }, 2000);
             </script>
@@ -140,6 +136,7 @@
                                    value="{{ full_name }}" 
                                    class="w-full text-white px-3 py-2 rounded-lg bg-zinc-800 border-none" 
                                    readonly>
+                            <p id="fullNameError" class="text-red-400 text-sm mt-1" style="display: none;"></p>
                         </div>
                         <div class="space-y-2">
                             <p class="text-gray-400">Email:</p>
@@ -151,6 +148,7 @@
                                    value="{{ phone }}" 
                                    class="w-full text-white px-3 py-2 rounded-lg bg-zinc-800 border-none" 
                                    readonly>
+                            <p id="phoneError" class="text-red-400 text-sm mt-1" style="display: none;"></p>
                         </div>
                     </div>
 
@@ -190,39 +188,76 @@
 
 {% block scripts %}
 <script>
+    // Validation Functions
+    function validateFullName(name) {
+        const trimmed = name.trim();
+        if (trimmed.length === 0) return 'Full name is required';
+        if (trimmed.length < 3) return 'Full name must be at least 3 characters';
+        if (trimmed.length > 50) return 'Full name must not exceed 50 characters';
+        if (!/^[a-zA-Z\s]+$/.test(trimmed)) return 'Full name should only contain letters and spaces';
+        const alphaCount = (trimmed.match(/[a-zA-Z]/g) || []).length;
+        if (alphaCount < 2) return 'Full name must contain at least 2 letters';
+        return null;
+    }
+
+    function validatePhone(phone) {
+        const trimmed = phone.trim();
+        if (trimmed.length === 0) return 'Phone number is required';
+        if (!/^[0-9]{10}$/.test(trimmed)) return 'Phone number must be exactly 10 digits';
+        if (trimmed[0] === '0') return 'Phone number should not start with 0';
+        if (/^(\d)\1{9}$/.test(trimmed)) return 'Please enter a valid phone number';
+        return null;
+    }
+
+    function showError(errorId, message) {
+        const errorEl = document.getElementById(errorId);
+        if (!errorEl) return;
+        if (message) {
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            errorEl.style.color = '#ef4444';
+            errorEl.style.fontSize = '14px';
+            errorEl.style.marginTop = '4px';
+        } else {
+            errorEl.style.display = 'none';
+            errorEl.textContent = '';
+        }
+    }
+
     function toggleEdit() {
         const fullName = document.getElementById('fullName');
         const phone = document.getElementById('phone');
         const editButton = document.getElementById('editButton');
         const saveButton = document.getElementById('saveButton');
 
-        // Toggle edit mode
         if (fullName.readOnly) {
             // Enable editing
             fullName.readOnly = false;
             phone.readOnly = false;
-            
-            // Add styling for editable fields
-            [fullName, phone].forEach(element => {
-                element.classList.add('border', 'border-[#ff6b00]', 'bg-[#1a1a1a]');
+            [fullName, phone].forEach(el => {
+                el.classList.add('border', 'border-[#ff6b00]', 'bg-[#1a1a1a]');
             });
-            
-            // Show save button, hide edit button
+            // Clear any existing errors
+            document.getElementById('fullNameError').style.display = 'none';
+            document.getElementById('phoneError').style.display = 'none';
             editButton.classList.add('hidden');
             saveButton.classList.remove('hidden');
+            fullName.focus();
+            fullName.select();
         } else {
-            // Disable editing
+            // Cancel editing - restore original values and disable fields
             fullName.readOnly = true;
             phone.readOnly = true;
-            
-            // Remove styling from fields
-            [fullName, phone].forEach(element => {
-                element.classList.remove('border', 'border-[#ff6b00]', 'bg-[#1a1a1a]');
+            [fullName, phone].forEach(el => {
+                el.classList.remove('border', 'border-[#ff6b00]', 'bg-[#1a1a1a]');
             });
-            
-            // Show edit button, hide save button
+            document.getElementById('fullNameError').style.display = 'none';
+            document.getElementById('phoneError').style.display = 'none';
             editButton.classList.remove('hidden');
             saveButton.classList.add('hidden');
+            
+            // Restore original values on cancel
+            location.reload();
         }
     }
 
@@ -234,11 +269,121 @@
         document.getElementById('logoutModal').classList.add('hidden');
     }
 
-    // Close the modal when clicking outside of it
     window.onclick = function(event) {
-        if (event.target == document.getElementById('logoutModal')) {
-            closeModal();
+        const modal = document.getElementById('logoutModal');
+        if (event.target === modal) closeModal();
+    };
+
+    // Wait for DOM to be ready
+    document.addEventListener('DOMContentLoaded', function() {
+        // Form submission validation
+        document.getElementById('profileForm').addEventListener('submit', function(e) {
+        const fullName = document.getElementById('fullName');
+        const phone = document.getElementById('phone');
+        let isValid = true;
+
+        // Clear previous errors
+        showError('fullNameError', '');
+        showError('phoneError', '');
+
+        // Validate full name
+        const nameError = validateFullName(fullName.value);
+        if (nameError) {
+            showError('fullNameError', nameError);
+            isValid = false;
         }
-    }
+
+        // Validate phone
+        const phoneError = validatePhone(phone.value);
+        if (phoneError) {
+            showError('phoneError', phoneError);
+            isValid = false;
+        }
+
+        // Block submission if errors exist
+        if (!isValid) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }
+    });
+
+    // Full name field handlers
+    const fullNameField = document.getElementById('fullName');
+    
+    fullNameField.addEventListener('keydown', function(e) {
+        if (this.readOnly) return;
+        if ([8, 9, 27, 13, 46, 37, 38, 39, 40].includes(e.keyCode)) return;
+        if ((e.ctrlKey || e.metaKey) && [65, 67, 86, 88].includes(e.keyCode)) return;
+        if (!/^[a-zA-Z\s]$/.test(e.key)) {
+            e.preventDefault();
+        }
+    });
+
+    fullNameField.addEventListener('input', function(e) {
+        if (this.readOnly) return;
+        const cursorPos = this.selectionStart;
+        const oldLen = this.value.length;
+        this.value = this.value.replace(/[^a-zA-Z\s]/g, '');
+        const newLen = this.value.length;
+        this.setSelectionRange(Math.max(0, cursorPos - (oldLen - newLen)), Math.max(0, cursorPos - (oldLen - newLen)));
+        
+        // Show live validation errors while typing
+        const error = validateFullName(this.value);
+        if (error) {
+            showError('fullNameError', error);
+        } else {
+            showError('fullNameError', '');
+        }
+    });
+
+    fullNameField.addEventListener('blur', function() {
+        if (this.readOnly) return;
+        const error = validateFullName(this.value);
+        if (error) {
+            showError('fullNameError', error);
+        } else {
+            showError('fullNameError', '');
+        }
+    });
+
+    // Phone field handlers
+    const phoneField = document.getElementById('phone');
+    
+    phoneField.addEventListener('keydown', function(e) {
+        if (this.readOnly) return;
+        if ([8, 9, 27, 13, 46, 37, 38, 39, 40].includes(e.keyCode)) return;
+        if ((e.ctrlKey || e.metaKey) && [65, 67, 86, 88].includes(e.keyCode)) return;
+        if (!/^[0-9]$/.test(e.key)) {
+            e.preventDefault();
+        } else if (this.value.length >= 10) {
+            e.preventDefault();
+        }
+    });
+
+    phoneField.addEventListener('input', function(e) {
+        if (this.readOnly) return;
+        this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+        
+        // Show live validation errors while typing
+        const error = validatePhone(this.value);
+        if (error) {
+            showError('phoneError', error);
+        } else {
+            showError('phoneError', '');
+        }
+    });
+
+    phoneField.addEventListener('blur', function() {
+        if (this.readOnly) return;
+        const error = validatePhone(this.value);
+        if (error) {
+            showError('phoneError', error);
+        } else {
+            showError('phoneError', '');
+        }
+    });
+
+    }); // End DOMContentLoaded
 </script>   
 {% endblock %}

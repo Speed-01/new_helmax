@@ -253,10 +253,123 @@ function showSuccessMessage(message) {
         toast.classList.add('translate-x-full');
     }, 3000);
 }
+                                                                                                                        
+// Validation Functions
+function validateAddressField(field, value, fieldName) {
+    const trimmed = value.trim();
+    
+    switch(field) {
+        case 'full_name':
+            if (!trimmed) return `${fieldName} is required`;
+            if (trimmed.length < 3) return `${fieldName} must be at least 3 characters`;
+            if (trimmed.length > 50) return `${fieldName} must not exceed 50 characters`;
+            if (!/^[a-zA-Z\s]+$/.test(trimmed)) return `${fieldName} should only contain letters and spaces`;
+            return null;
+            
+        case 'email':
+            if (!trimmed) return 'Email is required';
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return 'Please enter a valid email address';
+            return null;
+            
+        case 'phone':
+            if (!trimmed) return 'Phone number is required';
+            if (!/^[0-9]{10}$/.test(trimmed)) return 'Phone number must be exactly 10 digits';
+            if (trimmed[0] === '0') return 'Phone number should not start with 0';
+            return null;
+            
+        case 'address_line1':
+            if (!trimmed) return 'Address Line 1 is required';
+            if (trimmed.length < 10) return 'Address Line 1 must be at least 10 characters';
+            if (trimmed.length > 100) return 'Address Line 1 must not exceed 100 characters';
+            return null;
+            
+        case 'address_line2':
+            if (trimmed && trimmed.length > 100) return 'Address Line 2 must not exceed 100 characters';
+            return null;
+            
+        case 'pincode':
+            if (!trimmed) return 'Pincode is required';
+            if (!/^[1-9][0-9]{5}$/.test(trimmed)) return 'Pincode must be a valid 6-digit number';
+            return null;
+            
+        case 'city':
+            if (!trimmed) return 'City is required';
+            if (trimmed.length < 2) return 'City must be at least 2 characters';
+            if (trimmed.length > 50) return 'City must not exceed 50 characters';
+            if (!/^[a-zA-Z\s]+$/.test(trimmed)) return 'City should only contain letters and spaces';
+            return null;
+            
+        case 'state':
+            if (!trimmed) return 'State is required';
+            if (trimmed.length < 2) return 'State must be at least 2 characters';
+            if (trimmed.length > 50) return 'State must not exceed 50 characters';
+            if (!/^[a-zA-Z\s]+$/.test(trimmed)) return 'State should only contain letters and spaces';
+            return null;
+            
+        case 'address_type':
+            if (!trimmed) return 'Please select an address type';
+            return null;
+            
+        default:
+            return null;
+    }
+}
+
+function showFieldError(fieldName, message) {
+    const field = document.querySelector(`[name="${fieldName}"]`);
+    if (!field) return;
+    
+    // Remove existing error
+    const existingError = field.parentElement.querySelector('.field-error');
+    if (existingError) existingError.remove();
+    
+    if (message) {
+        field.classList.add('border-red-500', 'border-2');
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'field-error text-red-400 text-sm mt-1';
+        errorDiv.textContent = message;
+        field.parentElement.appendChild(errorDiv);
+    } else {
+        field.classList.remove('border-red-500', 'border-2');
+    }
+}
+
+function validateAddressForm(formData) {
+    let isValid = true;
+    const fields = [
+        { name: 'address_type', label: 'Address Type' },
+        { name: 'full_name', label: 'Full Name' },
+        { name: 'email', label: 'Email' },
+        { name: 'phone', label: 'Phone' },
+        { name: 'address_line1', label: 'Address Line 1' },
+        { name: 'address_line2', label: 'Address Line 2' },
+        { name: 'pincode', label: 'Pincode' },
+        { name: 'city', label: 'City' },
+        { name: 'state', label: 'State' }
+    ];
+    
+    fields.forEach(field => {
+        const value = formData.get(field.name) || '';
+        const error = validateAddressField(field.name, value, field.label);
+        if (error) {
+            showFieldError(field.name, error);
+            isValid = false;
+        } else {
+            showFieldError(field.name, null);
+        }
+    });
+    
+    return isValid;
+}
 
 document.getElementById('addressForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const formData = new FormData(this);
+    
+    // Validate form before submission
+    if (!validateAddressForm(formData)) {
+        return;
+    }
     
     try {
         const response = await fetch('{% url "userManageAddress" %}', {
@@ -336,6 +449,23 @@ async function deleteAddress(addressId) {
         }
     }
 }
+
+// Add real-time validation for address form fields
+document.querySelectorAll('#addressForm input, #addressForm select').forEach(field => {
+    field.addEventListener('blur', function() {
+        const error = validateAddressField(this.name, this.value, this.placeholder || this.name);
+        showFieldError(this.name, error);
+    });
+});
+
+// Restrict phone and pincode to numbers only
+document.querySelector('#addressForm [name="phone"]')?.addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+});
+
+document.querySelector('#addressForm [name="pincode"]')?.addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
+});
 </script>
 {% endblock %}
 

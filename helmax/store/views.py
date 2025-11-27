@@ -1628,15 +1628,32 @@ def user_profile(request, user_id):
         
         # Validation
         errors = []
+        
+        # Full name validation
         if not full_name:
             errors.append("Full name cannot be empty.")
+        elif len(full_name) < 3:
+            errors.append("Full name must be at least 3 characters.")
+        elif len(full_name) > 50:
+            errors.append("Full name must not exceed 50 characters.")
+        elif not re.match(r'^[a-zA-Z\s]+$', full_name):
+            errors.append("Full name should only contain letters and spaces.")
+        else:
+            # Count alphabetic characters
+            alpha_count = sum(1 for c in full_name if c.isalpha())
+            if alpha_count < 2:
+                errors.append("Full name must contain at least 2 letters.")
         
-        if phone and not re.match(r'^\+?1?\d{9,15}$', phone):
-            errors.append("Invalid phone number format.")
+        # Phone validation
+        if not phone:
+            errors.append("Phone number is required.")
+        elif not re.match(r'^[1-9][0-9]{9}$', phone):
+            errors.append("Phone number must be exactly 10 digits and cannot start with 0.")
+        elif re.match(r'^(\d)\1{9}$', phone):
+            errors.append("Please enter a valid phone number.")
         
         if errors:
-            for error in errors:
-                messages.error(request, error)
+            # Don't use messages.error - let frontend validation handle it
             return render(request, 'profile.html', {
                 'user': user,
                 'full_name': full_name,

@@ -988,9 +988,125 @@ document.addEventListener('DOMContentLoaded', function() {
   // All DOM-ready code is inside this listener
   switchTab('delivery');
   
+  // Validation Functions for Address Form
+  function validateCheckoutAddressField(field, value, fieldName) {
+    const trimmed = value.trim();
+    
+    switch(field) {
+        case 'full_name':
+            if (!trimmed) return 'Full name is required';
+            if (trimmed.length < 3) return 'Full name must be at least 3 characters';
+            if (trimmed.length > 50) return 'Full name must not exceed 50 characters';
+            if (!/^[a-zA-Z\s]+$/.test(trimmed)) return 'Full name should only contain letters and spaces';
+            return null;
+            
+        case 'email':
+            if (!trimmed) return 'Email is required';
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return 'Please enter a valid email address';
+            return null;
+            
+        case 'phone':
+            if (!trimmed) return 'Phone number is required';
+            if (!/^[0-9]{10}$/.test(trimmed)) return 'Phone number must be exactly 10 digits';
+            if (trimmed[0] === '0') return 'Phone number should not start with 0';
+            return null;
+            
+        case 'address_line1':
+            if (!trimmed) return 'Address Line 1 is required';
+            if (trimmed.length < 10) return 'Address Line 1 must be at least 10 characters';
+            if (trimmed.length > 100) return 'Address Line 1 must not exceed 100 characters';
+            return null;
+            
+        case 'address_line2':
+            if (trimmed && trimmed.length > 100) return 'Address Line 2 must not exceed 100 characters';
+            return null;
+            
+        case 'pincode':
+            if (!trimmed) return 'Pincode is required';
+            if (!/^[1-9][0-9]{5}$/.test(trimmed)) return 'Pincode must be a valid 6-digit number';
+            return null;
+            
+        case 'city':
+            if (!trimmed) return 'City is required';
+            if (trimmed.length < 2) return 'City must be at least 2 characters';
+            if (trimmed.length > 50) return 'City must not exceed 50 characters';
+            if (!/^[a-zA-Z\s]+$/.test(trimmed)) return 'City should only contain letters and spaces';
+            return null;
+            
+        case 'state':
+            if (!trimmed) return 'State is required';
+            if (trimmed.length < 2) return 'State must be at least 2 characters';
+            if (trimmed.length > 50) return 'State must not exceed 50 characters';
+            if (!/^[a-zA-Z\s]+$/.test(trimmed)) return 'State should only contain letters and spaces';
+            return null;
+            
+        case 'address_type':
+            if (!trimmed) return 'Please select an address type';
+            return null;
+            
+        default:
+            return null;
+    }
+  }
+
+  function showCheckoutFieldError(fieldId, message) {
+    const field = document.getElementById(fieldId);
+    if (!field) return;
+    
+    // Remove existing error
+    const existingError = field.parentElement.querySelector('.checkout-field-error');
+    if (existingError) existingError.remove();
+    
+    if (message) {
+        field.classList.add('!border-red-500', 'border-2');
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'checkout-field-error text-red-400 text-xs mt-1';
+        errorDiv.textContent = message;
+        field.parentElement.appendChild(errorDiv);
+    } else {
+        field.classList.remove('!border-red-500', 'border-2');
+    }
+  }
+
+  function validateCheckoutAddressForm() {
+    let isValid = true;
+    const fields = [
+        { id: 'address_type', name: 'address_type' },
+        { id: 'full_name', name: 'full_name' },
+        { id: 'email', name: 'email' },
+        { id: 'phone', name: 'phone' },
+        { id: 'address_line1', name: 'address_line1' },
+        { id: 'address_line2', name: 'address_line2' },
+        { id: 'pincode', name: 'pincode' },
+        { id: 'city', name: 'city' },
+        { id: 'state', name: 'state' }
+    ];
+    
+    fields.forEach(field => {
+        const element = document.getElementById(field.id);
+        if (element) {
+            const value = element.value || '';
+            const error = validateCheckoutAddressField(field.name, value, field.id);
+            if (error) {
+                showCheckoutFieldError(field.id, error);
+                isValid = false;
+            } else {
+                showCheckoutFieldError(field.id, null);
+            }
+        }
+    });
+    
+    return isValid;
+  }
+
   // Handle address form submission
   document.getElementById('addressForm').addEventListener('submit', function(e) {
     e.preventDefault();
+    
+    // Validate form before submission
+    if (!validateCheckoutAddressForm()) {
+        return;
+    }
     
     const formData = new FormData(this);
     
@@ -1327,6 +1443,35 @@ document.getElementById('apply-coupon').addEventListener('click', async function
       console.error('Error:', error);
     });
   });
+
+  // Add real-time validation for checkout address form fields
+  const checkoutFormFields = ['address_type', 'full_name', 'email', 'phone', 'address_line1', 'address_line2', 'pincode', 'city', 'state'];
+  
+  checkoutFormFields.forEach(fieldName => {
+    const field = document.getElementById(fieldName);
+    if (field) {
+      field.addEventListener('blur', function() {
+        const error = validateCheckoutAddressField(fieldName, this.value, fieldName);
+        showCheckoutFieldError(fieldName, error);
+      });
+    }
+  });
+
+  // Restrict phone to numbers only
+  const phoneField = document.getElementById('phone');
+  if (phoneField) {
+    phoneField.addEventListener('input', function() {
+      this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+    });
+  }
+
+  // Restrict pincode to numbers only
+  const pincodeField = document.getElementById('pincode');
+  if (pincodeField) {
+    pincodeField.addEventListener('input', function() {
+      this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
+    });
+  }
 });
 </script>
 {% endblock %}
