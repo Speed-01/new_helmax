@@ -17,6 +17,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.views.decorators.http import require_POST, require_http_methods
 from django.http import JsonResponse, HttpResponse
+from django.urls import reverse
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db import transaction, models
 from django.db.models import Q, Count, Sum, Min
@@ -800,6 +801,7 @@ def toggle_product_status(request, product_id):
         return JsonResponse({
             'success': True,
             'message': f'Product status updated to {"active" if product.is_active else "blocked"}',
+            'status': 'active' if product.is_active else 'blocked',
             'is_active': product.is_active
         })
         
@@ -858,11 +860,8 @@ def addVariant(request, product_id):
         discount_price = request.POST.get('discount_price')
         sizes = request.POST.getlist('sizes')
         
-        # Handle both original and cropped images
+        # Get all images (already includes cropped ones from frontend)
         images = request.FILES.getlist('images')
-        cropped_indices = request.POST.get('cropped_indices', '').split(',')
-        cropped_indices = [int(i) for i in cropped_indices if i.isdigit()]
-        
         primary_image_index = int(request.POST.get('primary_image_index', 0))
 
         try:
@@ -886,28 +885,24 @@ def addVariant(request, product_id):
                         stock=stock_value
                     )
 
-                # Handle images - both original and cropped
+                # Handle images (cropped images are already in the 'images' list)
                 for index, image in enumerate(images):
-                    # Check if this image was cropped
-                    if index in cropped_indices:
-                        # Use the cropped version if available
-                        cropped_key = f'cropped_image_{index}'
-                        if cropped_key in request.FILES:
-                            image_to_save = request.FILES[cropped_key]
-                        else:
-                            image_to_save = image
-                    else:
-                        image_to_save = image
-                    
                     ProductImage.objects.create(
                         variant=variant,
-                        image=image_to_save,
+                        image=image,
                         is_primary=(index == primary_image_index)
                     )
 
             messages.success(request, 'Variant added successfully.')
+            
+            # Handle AJAX requests
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': True, 'redirect': reverse('adminProducts')})
+                
         except Exception as e:
             messages.error(request, f'Error adding variant: {str(e)}')
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
         return redirect('adminProducts')
 

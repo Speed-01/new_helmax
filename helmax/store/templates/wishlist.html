@@ -33,12 +33,14 @@
             background-color: #27272a;
         }
         .btn-danger {
-            border: 1px solid #ef4444;
-            color: #ef4444;
+            border: 1px solid #dc2626;
+            color: #dc2626;
+            background-color: transparent;
         }
         .btn-danger:hover {
-            background-color: #ef4444;
+            background-color: #dc2626;
             color: white;
+            border-color: #dc2626;
         }
         .card {
             background-color: #18181b;
@@ -54,30 +56,46 @@
         .dropdown {
             position: relative;
             display: inline-block;
+            z-index: 100;
         }
         .dropdown-content {
-            display: none;
+            visibility: hidden;
+            opacity: 0;
             position: absolute;
             right: 0;
+            top: 100%;
             margin-top: 0.5rem;
             width: 12rem;
             background-color: #27272a;
             border-radius: 0.375rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            z-index: 10;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+            z-index: 9999;
+            border: 1px solid #3f3f46;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            pointer-events: none;
         }
         .dropdown-item {
             display: block;
-            padding: 0.5rem 1rem;
+            padding: 0.625rem 1rem;
             font-size: 0.875rem;
             color: white;
             cursor: pointer;
+            white-space: nowrap;
+            transition: background-color 0.15s ease;
+        }
+        .dropdown-item:first-child {
+            border-radius: 0.375rem 0.375rem 0 0;
+        }
+        .dropdown-item:last-child {
+            border-radius: 0 0 0.375rem 0.375rem;
         }
         .dropdown-item:hover {
             background-color: #3f3f46;
         }
         .dropdown:hover .dropdown-content {
-            display: block;
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
         }
 </style>
 {% endblock %}
@@ -85,20 +103,25 @@
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 py-8">
         <!-- Header -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+    
             <div>
-                <h1 class="text-3xl font-bold" data-user-id="{{ request.user.id }}">My Wishlist</h1>
-                <p class="text-gray-400 mt-1">{% if wishlist_items %}{{ wishlist_items|length }} item{% if wishlist_items|length != 1 %}s{% endif %}{% else %}0 items{% endif %}</p>
+                <h1 class="text-3xl font-bold text-white">My Wishlist</h1>
+                <p class="text-gray-400 mt-1">
+                    {{ wishlist_items|length }} item{% if wishlist_items|length != 1 %}s{% endif %}
+                </p>
             </div>
-            
-            <div class="flex flex-wrap gap-2 mt-4 md:mt-0">
+
+            <div class="flex gap-3 items-center">
+                
                 <!-- Sort Dropdown -->
                 <div class="dropdown">
-                    <button class="btn btn-outline">
+                    <button class="btn btn-outline text-white flex items-center gap-2">
                         <i class='bx bx-filter'></i>
                         Sort by
                         <i class='bx bx-chevron-down'></i>
                     </button>
+
                     <div class="dropdown-content">
                         <a class="dropdown-item" onclick="sortWishlist('newest')">Newest first</a>
                         <a class="dropdown-item" onclick="sortWishlist('price-low')">Price: Low to High</a>
@@ -107,20 +130,16 @@
                         <a class="dropdown-item" onclick="sortWishlist('name')">Name</a>
                     </div>
                 </div>
-                
-                <!-- Share Button -->
-                <button class="btn btn-outline" onclick="shareWishlist()">
-                    <i class='bx bx-share-alt'></i>
-                    Share
-                </button>
-                
+
                 <!-- Clear Button -->
-                <button class="btn btn-outline text-red-500 border-red-500 hover:bg-red-500 hover:text-white" onclick="clearWishlist()">
+                <button class="btn btn-danger" onclick="clearWishlist()"> 
                     <i class='bx bx-trash'></i>
                     Clear
                 </button>
+
             </div>
         </div>
+
 
         {% if wishlist_items %}
         <!-- Wishlist Summary -->
@@ -128,7 +147,7 @@
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
                 <div>
                     <p class="text-sm text-gray-400">Wishlist Summary</p>
-                    <p class="text-lg font-bold">Total Value: ₹{{ wishlist_total|floatformat:2 }}</p>
+                    <p class="text-lg font-bold text-white">Total Value: ₹{{ wishlist_total|floatformat:2 }}</p>
                     {% if wishlist_savings > 0 %}
                     <p class="text-sm text-green-500">You save: ₹{{ wishlist_savings|floatformat:2 }}</p>
                     {% endif %}
@@ -236,43 +255,6 @@
             </a>
         </div>
         {% endif %}
-
-        <!-- Recommended Products -->
-        <div class="mt-12">
-            <h2 class="text-xl font-bold mb-4">You might also like</h2>
-            <div id="similar-products" class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {% for product in similar_products %}
-                <a href="{% url 'product_detail' product.id %}" class="bg-zinc-900 rounded-lg p-3 hover:bg-zinc-800 transition-colors">
-                    <div class="aspect-square mb-2">
-                        <img src="{{ product.image_url|default:'https://placehold.co/200x200' }}" alt="{{ product.name }}" class="w-full h-full object-cover rounded">
-                    </div>
-                    <p class="font-medium text-sm truncate">{{ product.name }}</p>
-                    
-                    <!-- Rating Display -->
-                    {% with avg_rating=product.get_average_rating total_reviews=product.get_total_reviews %}
-                    {% if total_reviews > 0 %}
-                    <div class="flex items-center mb-1">
-                        <span class="text-xs font-semibold text-white mr-1">{{ avg_rating|floatformat:1 }}</span>
-                        {% for i in "12345" %}
-                            <svg class="w-3 h-3 {% if forloop.counter <= avg_rating %}text-yellow-400{% elif forloop.counter|add:"-1" < avg_rating %}text-yellow-400{% else %}text-gray-600{% endif %}" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-                            </svg>
-                        {% endfor %}
-                        <span class="text-xs text-gray-400 ml-1">({{ total_reviews }})</span>
-                    </div>
-                    {% endif %}
-                    {% endwith %}
-                    
-                    <div class="flex items-baseline gap-2">
-                        <p class="text-sm text-[#ff6b00]">₹{{ product.final_price|floatformat:2 }}</p>
-                        {% if product.savings > 0 %}
-                        <p class="text-xs text-gray-400 line-through">₹{{ product.original_price|floatformat:2 }}</p>
-                        {% endif %}
-                    </div>
-                </a>
-                {% endfor %}
-            </div>
-        </div>
 
         <!-- Empty State is now handled in the main wishlist section with conditional rendering -->
     </div>
@@ -394,50 +376,6 @@
             
             return card;
         }
-
-        function loadSimilarProducts() {
-            const userId = document.querySelector('h1[data-user-id]').dataset.userId;
-            // Update this URL to match your actual endpoint
-            fetch(`/api/similar-products/`, {
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.products.length > 0) {
-                    const container = document.querySelector('#similar-products');
-                    container.innerHTML = '';
-                    
-                    data.products.forEach(product => {
-                        const card = document.createElement('a');
-                        card.href = `/product/${product.id}/`;
-                        card.className = 'bg-zinc-900 rounded-lg p-3 hover:bg-zinc-800 transition-colors';
-                        
-                        card.innerHTML = `
-                            <div class="aspect-square mb-2">
-                                <img src="${product.image_url || 'https://placehold.co/200x200'}" alt="${product.name}" class="w-full h-full object-cover rounded">
-                            </div>
-                            <p class="font-medium text-sm truncate">${product.name}</p>
-                            <div class="flex items-baseline gap-2">
-                                <p class="text-sm text-[#ff6b00]">₹${product.final_price.toFixed(2)}</p>
-                                ${product.savings > 0 ? `
-                                    <p class="text-xs text-gray-400 line-through">₹${product.original_price.toFixed(2)}</p>
-                                ` : ''}
-                            </div>
-                        `;
-                        
-                        container.appendChild(card);
-                    });
-                }
-            })
-            .catch(error => {
-                console.error('Error loading similar products:', error);
-            });
-        }
-
-        // Load similar products on page load
-        document.addEventListener('DOMContentLoaded', loadSimilarProducts);
 
         function showToast(title, message, type = 'success') {
             const toast = document.getElementById('toast');
@@ -654,12 +592,6 @@
                         const wishlistActions = document.getElementById('wishlist-actions');
                         if (wishlistActions) {
                             wishlistActions.classList.add('hidden');
-                        }
-                        
-                        // Clear similar products section
-                        const similarProductsContainer = document.getElementById('similar-products-container');
-                        if (similarProductsContainer) {
-                            similarProductsContainer.classList.add('hidden');
                         }
                     } else {
                         // Show error message

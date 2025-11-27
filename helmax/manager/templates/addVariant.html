@@ -352,38 +352,57 @@ function saveCroppedImage() {
 
 // Override form submission to include cropped images
 document.querySelector('form').addEventListener('submit', function(e) {
-    // Create FormData to handle file uploads
-    const formData = new FormData(this);
+    e.preventDefault();
     
-    // Add cropped images
-    let croppedCount = 0;
+    const form = this;
+    const formData = new FormData(form);
+    
+    // Remove original file inputs to avoid duplicates
+    const originalImages = formData.getAll('images');
+    formData.delete('images');
+    
+    // Add cropped images if they exist, otherwise add original images
     Object.keys(croppedImagesData).forEach(index => {
-        formData.append(`cropped_image_${index}`, croppedImagesData[index], `cropped_${index}.jpg`);
-        croppedCount++;
+        const blob = croppedImagesData[index];
+        formData.append('images', blob, `cropped_${index}.jpg`);
+    });
+    
+    // Add back original images that weren't cropped
+    originalImages.forEach((file, index) => {
+        if (!croppedImagesData.hasOwnProperty(index)) {
+            formData.append('images', file);
+        }
     });
     
     // Store info about which images were cropped
-    formData.append('cropped_indices', Object.keys(croppedImagesData).join(','));
+    formData.set('cropped_indices', Object.keys(croppedImagesData).join(','));
     
-    // Replace form submission with fetch to handle file upload
-    e.preventDefault();
+    // Submit via XMLHttpRequest for better NGINX compatibility
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', form.action, true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     
-    fetch(this.action, {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-        }
-    }).then(response => {
-        if (response.ok) {
-            window.location.href = response.url || '{% url "adminProducts" %}';
+    xhr.onload = function() {
+        if (xhr.status === 200 || xhr.status === 302) {
+            window.location.href = '{% url "adminProducts" %}';
         } else {
-            alert('Error adding variant');
+            alert('Error adding variant. Please try again.');
+            console.error('Error:', xhr.responseText);
         }
-    }).catch(error => {
-        console.error('Error:', error);
-        alert('Error adding variant');
-    });
+    };
+    
+    xhr.onerror = function() {
+        alert('Network error. Please check your connection and try again.');
+    };
+    
+    xhr.ontimeout = function() {
+        alert('Request timeout. Please try with smaller images.');
+    };
+    
+    // Set timeout to 5 minutes for large uploads
+    xhr.timeout = 300000;
+    
+    xhr.send(formData);
 });
 
 // Close modal when clicking outside

@@ -874,9 +874,9 @@ def product_detail(request, product_id):
         stock_total=Sum('sizes__stock')
     )
 
-    # Optimize product query with necessary related data
-    product = get_object_or_404(
-        Product.objects.select_related(
+    # Get product without is_active filter first to check if blocked
+    try:
+        product = Product.objects.select_related(
             'category', 
             'brand'
         ).prefetch_related(
@@ -885,10 +885,16 @@ def product_detail(request, product_id):
         ).annotate(
             total_stock=Sum('variants__sizes__stock'),
             avg_rating=Avg('reviews__rating')
-        ),
-        id=product_id,
-        is_active=True
-    )
+        ).get(id=product_id)
+        
+        # Check if product is blocked/inactive
+        if not product.is_active:
+            messages.error(request, 'This product is currently unavailable.')
+            return redirect('home')
+            
+    except Product.DoesNotExist:
+        messages.error(request, 'Product not found.')
+        return redirect('home')
     
     variants = product.variants.all()
     primary_variant = variants.first() if variants.exists() else None
@@ -1397,7 +1403,7 @@ def sort_wishlist(request, sort_by):
         ).select_related('product').prefetch_related('images')
         
         if sort_by == 'newest':
-            items = items.order_by('-created_at')
+            items = items.order_by('-id')
         elif sort_by == 'price-low':
             items = items.order_by('discount_price', 'price')
         elif sort_by == 'price-high':
