@@ -4,7 +4,8 @@ on: [push]
 jobs:
   test:
     runs-on: self-hosted 
-    # This gives the runner explicit permission to read the repo
+    
+    # Required for private runners to access repository contents safely
     permissions:
       contents: read
 
@@ -12,23 +13,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # This fixes the most common 'Permission Denied' error in containers
+          # Fixes ownership errors in containerized environments
           set-safe-directory: 'false'
 
-      - name: Debug Check
-        # This tells us if 'git' and 'python' are actually installed
+      - name: Use System Python
+        # Instead of 'actions/setup-python', we use the Python already in the container
         run: |
-          git --version
           python3 --version
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+          pip3 --version
 
       - name: Install Dependencies
         run: |
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # Use --user to avoid 'Permission Denied' errors in the container
+          # and ensure requirements.txt exists before running
+          if [ -f requirements.txt ]; then
+            python3 -m pip install --user --upgrade pip
+            python3 -m pip install --user -r requirements.txt
+          else
+            echo "requirements.txt not found"
+            exit 1
+          fi
 
       - name: Run Django Tests
-        run: python3 manage.py test
+        run: |
+          # Ensure the local bin is in PATH for Django commands
+          export PATH=$PATH:~/.local/bin
+          python3 manage.py test
